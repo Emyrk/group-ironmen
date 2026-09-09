@@ -17,9 +17,10 @@ function createApp(config, options = {}) {
   app.use("/api/group/:groupName", createBankTagsRouter(db, privateAuth(config)));
 
   const proxy = async (req, res, upstreamPath) => {
-    const headers = { ...req.headers };
-    delete headers.host;
-    delete headers.referer;
+    const headers = {};
+    for (const name of ["accept", "content-type", "content-length", "user-agent"]) {
+      if (req.headers[name] !== undefined) headers[name] = req.headers[name];
+    }
     if (upstreamPath.startsWith("/api/group/")) headers.authorization = config.upstreamGroupToken;
     try {
       const response = await request({

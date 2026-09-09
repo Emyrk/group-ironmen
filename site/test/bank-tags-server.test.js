@@ -117,7 +117,13 @@ describe("private bank tag service", () => {
       headers: { Authorization: "wrong" },
     });
     expect(rejected.status).toBe(401);
-    const response = await call(server, "GET", "/api/group/gim/am-i-logged-in");
+    const response = await call(server, "GET", "/api/group/gim/am-i-logged-in", {
+      headers: {
+        "CF-Connecting-IP": "203.0.113.1",
+        "X-Forwarded-For": "203.0.113.1",
+        "X-Forwarded-Host": "ironman.masley.com",
+      },
+    });
     expect(response).toMatchObject({ status: 200, body: { proxied: true } });
     expect(upstreamRequest).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,6 +132,10 @@ describe("private bank tag service", () => {
         headers: expect.objectContaining({ authorization: "upstream-token" }),
       })
     );
+    const upstreamHeaders = upstreamRequest.mock.calls[0][0].headers;
+    expect(upstreamHeaders).not.toHaveProperty("cf-connecting-ip");
+    expect(upstreamHeaders).not.toHaveProperty("x-forwarded-for");
+    expect(upstreamHeaders).not.toHaveProperty("x-forwarded-host");
   });
 
   it("serves a Railway health check", async () => {
