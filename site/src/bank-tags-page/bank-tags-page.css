@@ -1,0 +1,23 @@
+.bank-tags-page {
+  padding: 1rem;
+  width: 100%;
+  overflow: auto;
+}
+.bank-tags-page__list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 52rem;
+}
+.bank-tags-page__list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  text-transform: capitalize;
+}
+.bank-tags-page__list span {
+  opacity: 0.7;
+  font-size: 0.85rem;
+}

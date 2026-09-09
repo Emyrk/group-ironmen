@@ -1,12 +1,12 @@
 ###############################################
 # Frontend Image
 ###############################################
-FROM node:krypton-alpine as production-frontend
+FROM node:22-alpine AS production-frontend
 
 WORKDIR /app
 
 COPY ["./package.json", "./package-lock.json*", "./"]
-RUN npm install --ignore-scripts
+RUN npm ci --ignore-scripts
 
 COPY . .
 
