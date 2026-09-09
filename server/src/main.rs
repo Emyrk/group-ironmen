@@ -1,5 +1,6 @@
 use server::auth_middleware::AuthenticateMiddlewareFactory;
 use server::authed;
+use server::bank_tags;
 use server::config::Config;
 use server::db;
 use server::models;
@@ -52,7 +53,12 @@ async fn main() -> std::io::Result<()> {
             .service(authed::am_i_logged_in)
             .service(authed::am_i_in_group)
             .service(authed::get_skill_data)
-            .service(authed::get_collection_log);
+            .service(authed::get_collection_log)
+            .service(bank_tags::get_manifest)
+            .service(bank_tags::get_tag)
+            .service(bank_tags::put_tag)
+            .service(bank_tags::delete_tag)
+            .service(bank_tags::put_order);
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
             .allow_any_origin()
@@ -63,6 +69,8 @@ async fn main() -> std::io::Result<()> {
                 header::ACCEPT,
                 header::CONTENT_TYPE,
                 header::CONTENT_LENGTH,
+                header::IF_MATCH,
+                header::IF_NONE_MATCH,
             ])
             .max_age(3600);
         App::new()

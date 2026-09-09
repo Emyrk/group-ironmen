@@ -1,5 +1,6 @@
 pub mod auth_middleware;
 pub mod authed;
+pub mod bank_tags;
 pub mod config;
 pub mod crypto;
 pub mod db;

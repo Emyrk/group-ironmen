@@ -895,5 +895,61 @@ ADD COLUMN IF NOT EXISTS potion_storage INTEGER[]
         transaction.commit().await?;
     }
 
+    if !has_migration_run(client, "create_bank_tags_table").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .execute(
+                r#"
+CREATE TABLE IF NOT EXISTS groupironman.bank_tags (
+  tag_id UUID PRIMARY KEY,
+  group_id BIGINT NOT NULL REFERENCES groupironman.groups(group_id),
+  name TEXT NOT NULL,
+  icon_item_id INTEGER NOT NULL,
+  item_ids INTEGER[] NOT NULL,
+  layout INTEGER[] NULL,
+  revision BIGINT NOT NULL,
+  deleted_at TIMESTAMPTZ NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+)
+"#,
+                &[],
+            )
+            .await?;
+        transaction
+            .execute(
+                "CREATE INDEX IF NOT EXISTS bank_tags_group_idx ON groupironman.bank_tags (group_id)",
+                &[],
+            )
+            .await?;
+        transaction
+            .execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS bank_tags_group_live_name_idx ON groupironman.bank_tags (group_id, name) WHERE deleted_at IS NULL",
+                &[],
+            )
+            .await?;
+        commit_migration(&transaction, "create_bank_tags_table").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "create_bank_tag_groups_table").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .execute(
+                r#"
+CREATE TABLE IF NOT EXISTS groupironman.bank_tag_groups (
+  group_id BIGINT PRIMARY KEY REFERENCES groupironman.groups(group_id),
+  group_revision BIGINT NOT NULL DEFAULT 0,
+  order_revision BIGINT NOT NULL DEFAULT 0,
+  ordered_tag_ids UUID[] NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL
+);
+"#,
+                &[],
+            )
+            .await?;
+        commit_migration(&transaction, "create_bank_tag_groups_table").await?;
+        transaction.commit().await?;
+    }
+
     Ok(())
 }
