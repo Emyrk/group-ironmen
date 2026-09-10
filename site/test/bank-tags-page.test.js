@@ -11,6 +11,9 @@ describe("bank tags page", () => {
   let page;
   beforeEach(() => {
     Item.itemDetails = {
+      113: { name: "Strength potion(4)" },
+      119: { name: "Strength potion(1)" },
+      121: { name: "Attack potion(4)" },
       199: { name: "Grimy guam leaf" },
       201: { name: "Grimy marrentill" },
       4151: { name: "Abyssal whip" },
@@ -77,6 +80,31 @@ describe("bank tags page", () => {
     expect(editor.innerHTML.indexOf("Tagged items not in the layout")).toBeLessThan(
       editor.innerHTML.indexOf("<h3>Layout</h3>")
     );
+  });
+
+  it("treats a placed concrete variant as its tagged variation group", () => {
+    page.selectedTag().itemIds = [-113];
+    page.selectedTag().layout = [-1, 119];
+
+    page.renderEditor();
+
+    expect(page.querySelector(".bank-tags-page__unplaced").textContent).toContain("Every tagged item is placed.");
+    expect(page.querySelector('[data-unplaced-id="-113"]')).toBeNull();
+  });
+
+  it("keeps a variation group unplaced when the layout contains an unrelated item", () => {
+    page.selectedTag().itemIds = [-113];
+    page.selectedTag().layout = [121];
+
+    page.renderEditor();
+
+    expect(page.querySelector('[data-unplaced-id="-113"]')).not.toBeNull();
+  });
+
+  it("renders variation groups with a representative item name and image", () => {
+    expect(page.itemName(-113)).toBe("All variants of Strength potion(4)");
+    expect(page.itemImage(-113)).toContain("/icons/items/113.webp");
+    expect(page.itemTile(-113)).toContain("-113");
   });
 
   it("searches partial item names in the modal explorer", () => {

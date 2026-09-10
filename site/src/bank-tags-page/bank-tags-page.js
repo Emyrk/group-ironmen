@@ -1,5 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { Item } from "../data/item";
+import { isTaggedItemPlaced, itemVariations } from "../data/item-variations";
 import { storage } from "../data/storage";
 import { exportBankLayouts, exportRuneLite, parseBankTag, validateDraft } from "./bank-tag-layout";
 
@@ -107,8 +108,7 @@ export class BankTagsPage extends BaseElement {
       return;
     }
     const layout = tag.layout || [];
-    const placed = new Set(layout.filter((id) => id > 0));
-    const unplaced = tag.itemIds.filter((id) => !placed.has(id));
+    const unplaced = tag.itemIds.filter((id) => !isTaggedItemPlaced(id, layout));
     const slots = [...layout, ...Array(Math.max(8, 8 - (layout.length % 8 || 8))).fill(-1)];
     editor.innerHTML = `
       <div class="bank-tags-page__fields">
@@ -151,13 +151,22 @@ export class BankTagsPage extends BaseElement {
       </section>`;
   }
 
+  itemRepresentativeId(id) {
+    if (id >= 0) return id;
+    return itemVariations(id).find((variationId) => Item.itemDetails?.[variationId]) || Math.abs(id);
+  }
+
   itemName(id) {
-    return Item.itemDetails?.[id]?.name || `Item ${id}`;
+    const representativeId = this.itemRepresentativeId(id);
+    const name = Item.itemDetails?.[representativeId]?.name;
+    if (id < 0) return name ? `All variants of ${name}` : `Variation group ${id}`;
+    return name || `Item ${id}`;
   }
 
   itemImage(id, alt = this.itemName(id)) {
-    if (id <= 0 || !Item.itemDetails?.[id]) return `<span class="bank-tags-page__unknown">${id}</span>`;
-    return `<img src="${Item.imageUrl(id, 1)}" alt="${this.escapeAttribute(alt)}" loading="lazy">`;
+    const representativeId = this.itemRepresentativeId(id);
+    if (!Item.itemDetails?.[representativeId]) return `<span class="bank-tags-page__unknown">${id}</span>`;
+    return `<img src="${Item.imageUrl(representativeId, 1)}" alt="${this.escapeAttribute(alt)}" loading="lazy">`;
   }
 
   itemTile(id, attributes = "") {
