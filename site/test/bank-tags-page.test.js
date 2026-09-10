@@ -122,6 +122,52 @@ describe("bank tags page", () => {
     expect(page.tags.size).toBe(0);
   });
 
+  it("lists historical revisions and previews one as an unsaved draft", async () => {
+    page.request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        schemaVersion: 1,
+        tagId: page.selectedTagId,
+        revisions: [
+          { revision: 7, itemCount: 2, layoutCount: 3, deleted: false, updatedAt: "2026-09-10T15:00:00Z" },
+          { revision: 3, itemCount: 1, layoutCount: 1, deleted: false, updatedAt: "2026-09-10T14:00:00Z" },
+        ],
+      })
+      .mockResolvedValueOnce({ name: "old herbs", iconItemId: 4151, itemIds: [199], layout: [199] });
+
+    await page.openHistory();
+    expect(page.querySelector(".bank-tags-page__revisions").textContent).toContain("Revision 3");
+    await page.viewRevision(3);
+
+    expect(page.selectedTag()).toMatchObject({
+      name: "old herbs",
+      iconItemId: 4151,
+      itemIds: [199],
+      layout: [199],
+      revision: 7,
+    });
+    expect(page.querySelector(".bank-tags-page__status").textContent).toContain("unsaved draft");
+  });
+
+  it("requires the exact tag name and current revision to restore history", async () => {
+    page.openRestoreGuard(3);
+    page.request = vi.fn();
+    await page.restoreRevision(3);
+    expect(page.request).not.toHaveBeenCalled();
+
+    page.querySelector(".bank-tags-page__restore-confirm").value = "herblore";
+    page.request.mockResolvedValue({ ...page.selectedTag(), revision: 8, itemIds: [199], layout: [199] });
+    vi.spyOn(page, "renderList").mockImplementation(() => {});
+    vi.spyOn(page, "renderEditor").mockImplementation(() => {});
+    await page.restoreRevision(3);
+
+    expect(page.request).toHaveBeenCalledWith(`/bank-tags/${page.selectedTagId}/revisions/3/restore`, {
+      method: "POST",
+      headers: { "If-Match": '"7"' },
+    });
+    expect(page.selectedTag().revision).toBe(8);
+  });
+
   it("saves with the loaded revision as an HTTP precondition", async () => {
     page.request = vi.fn().mockResolvedValue({ ...page.selectedTag(), revision: 8 });
     vi.spyOn(page, "renderList").mockImplementation(() => {});

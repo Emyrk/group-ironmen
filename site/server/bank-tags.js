@@ -29,6 +29,28 @@ function document(row) {
   };
 }
 
+function recordRevision(db, row) {
+  const value = document(row);
+  db.prepare("INSERT OR REPLACE INTO bank_tag_revisions (tag_id,revision,document,stored_at) VALUES (?,?,?,?)").run(
+    row.tag_id,
+    row.revision,
+    JSON.stringify(value),
+    value.updatedAt
+  );
+}
+
+function revisionSummary(value) {
+  return {
+    revision: value.revision,
+    name: value.name,
+    iconItemId: value.iconItemId,
+    itemCount: value.itemIds.length,
+    layoutCount: value.layout === null ? null : value.layout.length,
+    deleted: value.deleted,
+    updatedAt: value.updatedAt,
+  };
+}
+
 function manifest(db) {
   const state = db.prepare("SELECT * FROM bank_tag_state WHERE singleton=1").get();
   return {
@@ -82,6 +104,68 @@ function createBankTagsRouter(db, auth) {
     const row = db.prepare("SELECT * FROM bank_tags WHERE tag_id=?").get(req.params.tagId);
     if (!row) return error(res, 404, "tag_not_found", "tag was not found");
     return res.set("ETag", etag(row.revision)).json(document(row));
+  });
+
+  router.get("/bank-tags/:tagId/revisions", (req, res) => {
+    if (!validId(req.params.tagId)) return error(res, 400, "invalid_tag_id", "tag id must be a lowercase UUID v4");
+    const revisions = db
+      .prepare("SELECT document FROM bank_tag_revisions WHERE tag_id=? ORDER BY revision DESC")
+      .all(req.params.tagId)
+      .map((row) => revisionSummary(JSON.parse(row.document)));
+    if (!revisions.length) return error(res, 404, "tag_not_found", "tag was not found");
+    return res.json({ schemaVersion: VERSION, tagId: req.params.tagId, revisions });
+  });
+
+  router.get("/bank-tags/:tagId/revisions/:revision", (req, res) => {
+    if (!validId(req.params.tagId)) return error(res, 400, "invalid_tag_id", "tag id must be a lowercase UUID v4");
+    const revision = Number(req.params.revision);
+    if (!Number.isInteger(revision) || revision < 1) return error(res, 400, "invalid_tag", "revision must be positive");
+    const row = db
+      .prepare("SELECT document FROM bank_tag_revisions WHERE tag_id=? AND revision=?")
+      .get(req.params.tagId, revision);
+    if (!row) return error(res, 404, "tag_not_found", "tag revision was not found");
+    return res.json(JSON.parse(row.document));
+  });
+
+  router.post("/bank-tags/:tagId/revisions/:revision/restore", (req, res) => {
+    const id = req.params.tagId;
+    if (!validId(id)) return error(res, 400, "invalid_tag_id", "tag id must be a lowercase UUID v4");
+    const expected = parseEtag(req.get("If-Match"));
+    if (expected === undefined) return error(res, 428, "precondition_required", "If-Match is required");
+    const historical = db
+      .prepare("SELECT document FROM bank_tag_revisions WHERE tag_id=? AND revision=?")
+      .get(id, Number(req.params.revision));
+    if (!historical) return error(res, 404, "tag_not_found", "tag revision was not found");
+    const value = JSON.parse(historical.document);
+    if (value.deleted) return error(res, 400, "invalid_tag", "a deleted revision cannot be restored");
+    db.exec("BEGIN IMMEDIATE");
+    const current = db.prepare("SELECT * FROM bank_tags WHERE tag_id=?").get(id);
+    if (!current) {
+      db.exec("ROLLBACK");
+      return error(res, 404, "tag_not_found", "tag was not found");
+    }
+    if (current.revision !== expected) {
+      db.exec("ROLLBACK");
+      return error(res, 409, "stale_revision", "tag revision is stale", metadata(current));
+    }
+    const timestamp = now();
+    db.prepare(
+      "UPDATE bank_tags SET name=?,icon_item_id=?,item_ids=?,layout=?,revision=revision+1,deleted_at=NULL,updated_at=? WHERE tag_id=?"
+    ).run(
+      value.name,
+      value.iconItemId,
+      JSON.stringify(value.itemIds),
+      value.layout === null ? null : JSON.stringify(value.layout),
+      timestamp,
+      id
+    );
+    db.prepare("UPDATE bank_tag_state SET group_revision=group_revision+1,updated_at=? WHERE singleton=1").run(
+      timestamp
+    );
+    const restored = db.prepare("SELECT * FROM bank_tags WHERE tag_id=?").get(id);
+    recordRevision(db, restored);
+    db.exec("COMMIT");
+    return res.set("ETag", etag(restored.revision)).json(document(restored));
   });
 
   router.put("/bank-tags/:tagId", (req, res) => {
@@ -165,6 +249,7 @@ function createBankTagsRouter(db, auth) {
         status = 200;
       }
       result = db.prepare("SELECT * FROM bank_tags WHERE tag_id=?").get(id);
+      recordRevision(db, result);
       db.exec("COMMIT");
     } catch (failure) {
       try {
@@ -207,6 +292,7 @@ function createBankTagsRouter(db, auth) {
       `UPDATE bank_tag_state SET group_revision=group_revision+1,order_revision=order_revision+?,ordered_tag_ids=?,updated_at=? WHERE singleton=1`
     ).run(changed ? 1 : 0, JSON.stringify(order), timestamp);
     const result = db.prepare("SELECT * FROM bank_tags WHERE tag_id=?").get(id);
+    recordRevision(db, result);
     db.exec("COMMIT");
     return res.set("ETag", etag(result.revision)).json(document(result));
   });

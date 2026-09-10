@@ -116,6 +116,7 @@ export class BankTagsPage extends BaseElement {
       </div>
       <div class="bank-tags-page__toolbar">
         <button class="men-button small" type="button" data-action="save">Save changes</button>
+        <button class="men-button small" type="button" data-action="history">Revision history</button>
         <button class="men-button small bank-tags-page__delete-tag" type="button" data-action="delete-tag">Delete layout tab</button>
         <button class="men-button small" type="button" data-action="add-row">Add row</button>
         <button class="men-button small" type="button" data-action="trim">Trim empty rows</button>
@@ -210,6 +211,12 @@ export class BankTagsPage extends BaseElement {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
     if (action === "save") this.save();
+    if (action === "history") this.openHistory();
+    if (action === "view-revision") this.viewRevision(Number(event.target.closest("[data-revision]").dataset.revision));
+    if (action === "restore-revision")
+      this.openRestoreGuard(Number(event.target.closest("[data-revision]").dataset.revision));
+    if (action === "confirm-restore")
+      this.restoreRevision(Number(event.target.closest("[data-revision]").dataset.revision));
     if (action === "delete-tag") this.openDeleteGuard();
     if (action === "confirm-create") this.createTag();
     if (action === "confirm-delete") this.deleteTag();
@@ -251,6 +258,107 @@ export class BankTagsPage extends BaseElement {
     if (event.key === "?" && !typing) {
       event.preventDefault();
       this.openHelp();
+    }
+  }
+
+  async openHistory() {
+    const tag = this.selectedTag();
+    const guard = this.querySelector(".bank-tags-page__guard");
+    guard.querySelector(
+      ".bank-tags-page__guard-card"
+    ).innerHTML = `<h3 id="bank-tags-guard-title">Revision history for “${this.escape(
+      tag.name
+    )}”</h3><p>Loading revisions…</p>`;
+    guard.hidden = false;
+    try {
+      const history = await this.request(`/bank-tags/${tag.tagId}/revisions`);
+      guard.querySelector(".bank-tags-page__guard-card").innerHTML = `
+        <h3 id="bank-tags-guard-title">Revision history for “${this.escape(tag.name)}”</h3>
+        <p>Select <strong>Preview</strong> to load a historical revision as an unsaved draft, or <strong>Restore</strong> to publish it as a new revision.</p>
+        <ol class="bank-tags-page__revisions">${history.revisions
+          .map(
+            (revision) => `<li><span><strong>Revision ${revision.revision}</strong><small>${
+              revision.itemCount
+            } tagged items · ${
+              revision.layoutCount === null ? "no layout" : `${revision.layoutCount} layout slots`
+            } · ${this.escape(new Date(revision.updatedAt).toLocaleString())}</small></span><span>
+              <button class="men-button small" type="button" data-action="view-revision" data-revision="${
+                revision.revision
+              }">Preview</button>
+              ${
+                revision.revision === tag.revision || revision.deleted
+                  ? ""
+                  : `<button class="men-button small" type="button" data-action="restore-revision" data-revision="${revision.revision}">Restore</button>`
+              }</span></li>`
+          )
+          .join("")}</ol>
+        <div class="bank-tags-page__guard-actions"><button class="men-button small" type="button" data-action="cancel-guard">Close</button></div>`;
+    } catch (failure) {
+      guard.querySelector(
+        ".bank-tags-page__guard-card"
+      ).innerHTML = `<h3>Revision history unavailable</h3><p>${this.escape(
+        failure.message
+      )}</p><button class="men-button small" type="button" data-action="cancel-guard">Close</button>`;
+    }
+  }
+
+  async viewRevision(revision) {
+    try {
+      const historical = await this.request(`/bank-tags/${this.selectedTagId}/revisions/${revision}`);
+      const current = this.selectedTag();
+      Object.assign(current, {
+        name: historical.name,
+        iconItemId: historical.iconItemId,
+        itemIds: historical.itemIds,
+        layout: historical.layout,
+      });
+      this.closeGuard();
+      this.renderEditor();
+      this.setStatus(`Previewing revision ${revision} as an unsaved draft. Select Save changes to publish it.`);
+    } catch (failure) {
+      this.setStatus(`Unable to preview revision: ${failure.message}`, true);
+    }
+  }
+
+  openRestoreGuard(revision) {
+    const tag = this.selectedTag();
+    const guard = this.querySelector(".bank-tags-page__guard");
+    guard.querySelector(".bank-tags-page__guard-card").innerHTML = `
+      <h3 id="bank-tags-guard-title">Restore revision ${revision} of “${this.escape(tag.name)}”?</h3>
+      <p>This publishes the historical contents as a new revision for the whole group. The current revision remains in history.</p>
+      <label>Type <strong>${this.escape(
+        tag.name
+      )}</strong> to confirm<input class="bank-tags-page__restore-confirm" autocomplete="off"></label>
+      <div class="bank-tags-page__guard-actions">
+        <button class="men-button small" type="button" data-action="confirm-restore" data-revision="${revision}">Restore revision ${revision}</button>
+        <button class="men-button small" type="button" data-action="cancel-guard">Cancel</button>
+      </div>`;
+    guard.querySelector(".bank-tags-page__restore-confirm").focus();
+  }
+
+  async restoreRevision(revision) {
+    const tag = this.selectedTag();
+    if (this.querySelector(".bank-tags-page__restore-confirm")?.value.trim() !== tag.name) {
+      this.setStatus(`Restore blocked. Type “${tag.name}” exactly to confirm.`, true);
+      return;
+    }
+    try {
+      const restored = await this.request(`/bank-tags/${tag.tagId}/revisions/${revision}/restore`, {
+        method: "POST",
+        headers: { "If-Match": `"${tag.revision}"` },
+      });
+      this.tags.set(tag.tagId, restored);
+      this.closeGuard();
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`Restored revision ${revision} as new revision ${restored.revision}.`);
+    } catch (failure) {
+      this.setStatus(
+        failure.status === 409
+          ? "Restore conflict: this tag changed elsewhere. Refresh before trying again."
+          : `Unable to restore revision: ${failure.message}`,
+        true
+      );
     }
   }
 

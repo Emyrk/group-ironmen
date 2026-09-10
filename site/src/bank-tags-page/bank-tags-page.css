@@ -262,6 +262,23 @@
   gap: 0.25rem;
   margin-bottom: 0.8rem;
 }
+.bank-tags-page__revisions {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+.bank-tags-page__revisions li,
+.bank-tags-page__revisions li > span:last-child {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.bank-tags-page__revisions small {
+  display: block;
+  opacity: 0.7;
+}
 @media (max-width: 760px) {
   .bank-tags-page__content {
     display: block;

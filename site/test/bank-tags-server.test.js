@@ -97,6 +97,20 @@ describe("private bank tag service", () => {
     });
     expect(stale.status).toBe(409);
     expect(stale.body.error).toBe("stale_revision");
+    const updated = await call(server, "PUT", `/api/group/gim/bank-tags/${tagId}`, {
+      headers: { "If-Match": '"1"' },
+      body: { ...tag, itemIds: [-203, 199, 201, 203] },
+    });
+    expect(updated.body.revision).toBe(2);
+    const history = await call(server, "GET", `/api/group/gim/bank-tags/${tagId}/revisions`);
+    expect(history.body.revisions.map((revision) => revision.revision)).toEqual([2, 1]);
+    expect(history.body.revisions[0]).toMatchObject({ itemCount: 4, layoutCount: 3 });
+    const historical = await call(server, "GET", `/api/group/gim/bank-tags/${tagId}/revisions/1`);
+    expect(historical.body).toMatchObject({ revision: 1, itemIds: [-203, 199, 201] });
+    const restored = await call(server, "POST", `/api/group/gim/bank-tags/${tagId}/revisions/1/restore`, {
+      headers: { "If-Match": '"2"' },
+    });
+    expect(restored.body).toMatchObject({ revision: 3, itemIds: [-203, 199, 201] });
     const order = await call(server, "PUT", "/api/group/gim/bank-tag-order", {
       headers: { "If-Match": '"1"' },
       body: { schemaVersion: 1, orderedTagIds: [tagId] },
@@ -104,9 +118,11 @@ describe("private bank tag service", () => {
     expect(order.status).toBe(200);
     expect(order.body.orderRevision).toBe(2);
     const deleted = await call(server, "DELETE", `/api/group/gim/bank-tags/${tagId}`, {
-      headers: { "If-Match": '"1"' },
+      headers: { "If-Match": '"3"' },
     });
-    expect(deleted.body).toMatchObject({ revision: 2, deleted: true, itemIds: [], layout: null });
+    expect(deleted.body).toMatchObject({ revision: 4, deleted: true, itemIds: [], layout: null });
+    const finalHistory = await call(server, "GET", `/api/group/gim/bank-tags/${tagId}/revisions`);
+    expect(finalHistory.body.revisions.map((revision) => revision.revision)).toEqual([4, 3, 2, 1]);
     const manifest = await call(server, "GET", "/api/group/gim/bank-tags");
     expect(manifest.body.orderedTagIds).toEqual([]);
     expect(manifest.body.tags[0].deleted).toBe(true);

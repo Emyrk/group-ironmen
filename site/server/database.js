@@ -32,6 +32,26 @@ function openDatabase(filename) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS bank_tags_live_name
       ON bank_tags(name) WHERE deleted_at IS NULL;
+    CREATE TABLE IF NOT EXISTS bank_tag_revisions (
+      tag_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      document TEXT NOT NULL,
+      stored_at TEXT NOT NULL,
+      PRIMARY KEY (tag_id, revision)
+    );
+    INSERT OR IGNORE INTO bank_tag_revisions (tag_id, revision, document, stored_at)
+      SELECT tag_id, revision, json_object(
+        'schemaVersion', 1,
+        'tagId', tag_id,
+        'name', name,
+        'iconItemId', icon_item_id,
+        'itemIds', json(item_ids),
+        'layout', CASE WHEN layout IS NULL THEN NULL ELSE json(layout) END,
+        'revision', revision,
+        'deleted', deleted_at IS NOT NULL,
+        'updatedAt', updated_at
+      ), updated_at
+      FROM bank_tags;
   `);
   return db;
 }
