@@ -8,3 +8,4 @@ tramp
 .#*
 *.html
 src/data/item-variations.json
+src/data/item-canonical.json

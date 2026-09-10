@@ -107,6 +107,25 @@ describe("bank tags page", () => {
     expect(page.itemTile(-113)).toContain("-113");
   });
 
+  it("renders placeholder layout IDs using their canonical item", () => {
+    Item.itemDetails[11850] = { name: "Graceful hood" };
+
+    expect(page.itemName(18208)).toBe("Graceful hood");
+    expect(page.itemImage(18208)).toContain("/icons/items/11850.webp");
+  });
+
+  it("removes equivalent tagged and layout variants together", () => {
+    page.selectedTag().itemIds = [1755, 201];
+    page.selectedTag().layout = [28414, 201];
+    page.innerHTML += '<button data-remove-id="28414"></button>';
+    vi.spyOn(page, "renderEditor").mockImplementation(() => {});
+
+    page.handleClick({ target: page.querySelector('[data-remove-id="28414"]') });
+
+    expect(page.selectedTag().itemIds).toEqual([201]);
+    expect(page.selectedTag().layout).toEqual([-1, 201]);
+  });
+
   it("searches partial item names in the modal explorer", () => {
     page.openExplorer();
     page.searchExplorer("abyssal");

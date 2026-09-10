@@ -1,6 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { Item } from "../data/item";
-import { isTaggedItemPlaced, itemVariations } from "../data/item-variations";
+import { areItemsEquivalent, canonicalItemId, isTaggedItemPlaced, itemVariations } from "../data/item-variations";
 import { storage } from "../data/storage";
 import { exportBankLayouts, exportRuneLite, parseBankTag, validateDraft } from "./bank-tag-layout";
 
@@ -152,8 +152,9 @@ export class BankTagsPage extends BaseElement {
   }
 
   itemRepresentativeId(id) {
-    if (id >= 0) return id;
-    return itemVariations(id).find((variationId) => Item.itemDetails?.[variationId]) || Math.abs(id);
+    const canonicalId = canonicalItemId(Math.abs(id));
+    if (id >= 0 && Item.itemDetails?.[canonicalId]) return canonicalId;
+    return itemVariations(id).find((variationId) => Item.itemDetails?.[variationId]) || canonicalId;
   }
 
   itemName(id) {
@@ -221,8 +222,8 @@ export class BankTagsPage extends BaseElement {
     if (remove) {
       const id = Number(remove.dataset.removeId);
       const tag = this.selectedTag();
-      tag.itemIds = tag.itemIds.filter((itemId) => itemId !== id);
-      tag.layout = (tag.layout || []).map((itemId) => (itemId === id ? -1 : itemId));
+      tag.itemIds = tag.itemIds.filter((itemId) => !areItemsEquivalent(itemId, id));
+      tag.layout = (tag.layout || []).map((itemId) => (areItemsEquivalent(itemId, id) ? -1 : itemId));
       this.renderEditor();
       this.setStatus("Item removed. Save to synchronize the change.");
       return;
