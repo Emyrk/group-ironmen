@@ -10,8 +10,10 @@ describe("bank tags page", () => {
   let page;
   beforeEach(() => {
     page = new BankTagsPage();
-    page.innerHTML =
-      '<p class="bank-tags-page__status"></p><ul class="bank-tags-page__list"></ul><main class="bank-tags-page__editor"></main>';
+    page.innerHTML = `<button class="bank-tags-page__help-button"></button>
+      <p class="bank-tags-page__status"></p><ul class="bank-tags-page__list"></ul><main class="bank-tags-page__editor"></main>
+      <div class="bank-tags-page__help" hidden><button class="bank-tags-page__help-close"></button></div>
+      <div class="bank-tags-page__guard" hidden><div class="bank-tags-page__guard-card"></div></div>`;
     page.selectedTagId = "5e4a8e36-e5f4-4daa-ae7a-e510f3e66721";
     page.tags.set(page.selectedTagId, {
       schemaVersion: 1,
@@ -28,6 +30,96 @@ describe("bank tags page", () => {
 
   it("escapes item names and tag names used in attributes", () => {
     expect(page.escapeAttribute('A "quoted" <item>')).toBe("A &quot;quoted&quot; &lt;item&gt;");
+  });
+
+  it("shows the help dialog and supports its keyboard shortcuts", () => {
+    const save = vi.spyOn(page, "save").mockImplementation(() => {});
+    const help = page.querySelector(".bank-tags-page__help");
+
+    page.handleKeyDown({ key: "?", target: document.body, preventDefault: vi.fn() });
+    expect(help.hidden).toBe(false);
+
+    page.handleKeyDown({ key: "s", ctrlKey: true, metaKey: false, target: document.body, preventDefault: vi.fn() });
+    expect(save).toHaveBeenCalledOnce();
+
+    page.handleKeyDown({ key: "Escape", target: document.body });
+    expect(help.hidden).toBe(true);
+  });
+
+  it("renders removal controls for items placed in the layout", () => {
+    const html = page.slot(199, 0);
+    expect(html).toContain('data-remove-id="199"');
+    expect(html).toContain("Remove Item 199 from tag");
+  });
+
+  it("removes an item from the tag and every matching layout slot", () => {
+    page.innerHTML += '<button data-remove-id="199"></button>';
+    const render = vi.spyOn(page, "renderEditor").mockImplementation(() => {});
+
+    page.handleClick({ target: page.querySelector("[data-remove-id]") });
+
+    expect(page.selectedTag().itemIds).toEqual([201]);
+    expect(page.selectedTag().layout).toEqual([-1, -1, 201]);
+    expect(render).toHaveBeenCalledOnce();
+  });
+
+  it("creates a new synchronized tab only after the guard form is submitted", async () => {
+    const tagId = "0d32b760-2450-44cf-8b83-169e16e16cd0";
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(tagId);
+    page.openCreateGuard();
+    page.querySelector(".bank-tags-page__create-name").value = "Bossing";
+    page.querySelector(".bank-tags-page__create-icon").value = "4151";
+    page.request = vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      tagId,
+      name: "bossing",
+      iconItemId: 4151,
+      itemIds: [],
+      layout: [],
+      revision: 1,
+      deleted: false,
+    });
+    vi.spyOn(page, "renderList").mockImplementation(() => {});
+    vi.spyOn(page, "renderEditor").mockImplementation(() => {});
+
+    await page.createTag();
+
+    expect(page.request).toHaveBeenCalledWith(`/bank-tags/${tagId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "If-None-Match": "*" },
+      body: JSON.stringify({
+        schemaVersion: 1,
+        tagId,
+        name: "bossing",
+        iconItemId: 4151,
+        itemIds: [],
+        layout: [],
+      }),
+    });
+    expect(page.selectedTagId).toBe(tagId);
+  });
+
+  it("requires the exact tag name before deleting a synchronized tab", async () => {
+    const tagId = page.selectedTagId;
+    page.openDeleteGuard();
+    page.querySelector(".bank-tags-page__delete-confirm").value = "wrong";
+    page.request = vi.fn();
+
+    await page.deleteTag();
+    expect(page.request).not.toHaveBeenCalled();
+    expect(page.querySelector(".bank-tags-page__status").textContent).toContain("Deletion blocked");
+
+    page.querySelector(".bank-tags-page__delete-confirm").value = "herblore";
+    page.request.mockResolvedValue({ deleted: true });
+    vi.spyOn(page, "renderList").mockImplementation(() => {});
+    vi.spyOn(page, "renderEditor").mockImplementation(() => {});
+    await page.deleteTag();
+
+    expect(page.request).toHaveBeenCalledWith(`/bank-tags/${tagId}`, {
+      method: "DELETE",
+      headers: { "If-Match": '"7"' },
+    });
+    expect(page.tags.size).toBe(0);
   });
 
   it("saves with the loaded revision as an HTTP precondition", async () => {

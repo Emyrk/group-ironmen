@@ -24,6 +24,7 @@ export class BankTagsPage extends BaseElement {
     this.eventListener(this, "dragover", (event) => event.preventDefault(), { passive: false });
     this.eventListener(this, "drop", this.handleDrop.bind(this), { passive: false });
     this.eventListener(this, "dblclick", this.handleDoubleClick.bind(this));
+    this.eventListener(document, "keydown", this.handleKeyDown.bind(this), { passive: false });
     this.load();
   }
 
@@ -115,6 +116,7 @@ export class BankTagsPage extends BaseElement {
       </div>
       <div class="bank-tags-page__toolbar">
         <button class="men-button small" type="button" data-action="save">Save changes</button>
+        <button class="men-button small bank-tags-page__delete-tag" type="button" data-action="delete-tag">Delete layout tab</button>
         <button class="men-button small" type="button" data-action="add-row">Add row</button>
         <button class="men-button small" type="button" data-action="trim">Trim empty rows</button>
         <button class="men-button small" type="button" data-action="export-runelite">Copy RuneLite export</button>
@@ -166,7 +168,16 @@ export class BankTagsPage extends BaseElement {
   slot(id, index) {
     return `<div class="bank-tags-page__slot" data-slot="${index}" title="${
       id > 0 ? `${this.escapeAttribute(this.itemName(id))} (${id})` : `Empty slot ${index + 1}`
-    }">${id > 0 ? this.itemTile(id, `data-grid-index="${index}"`) : ""}</div>`;
+    }">${
+      id > 0
+        ? `${this.itemTile(
+            id,
+            `data-grid-index="${index}"`
+          )}<button class="bank-tags-page__remove" type="button" data-remove-id="${id}" title="Remove ${this.escapeAttribute(
+            this.itemName(id)
+          )} from tag" aria-label="Remove ${this.escapeAttribute(this.itemName(id))} from tag">×</button>`
+        : ""
+    }</div>`;
   }
 
   handleClick(event) {
@@ -178,6 +189,14 @@ export class BankTagsPage extends BaseElement {
       return;
     }
     if (event.target.closest(".bank-tags-page__refresh")) return this.load();
+    if (event.target.closest(".bank-tags-page__help-button")) return this.openHelp();
+    if (event.target.closest(".bank-tags-page__new-tag")) return this.openCreateGuard();
+    if (
+      event.target.closest(".bank-tags-page__help-close") ||
+      event.target === this.querySelector(".bank-tags-page__help")
+    ) {
+      return this.closeHelp();
+    }
     const remove = event.target.closest("[data-remove-id]");
     if (remove) {
       const id = Number(remove.dataset.removeId);
@@ -191,6 +210,10 @@ export class BankTagsPage extends BaseElement {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
     if (action === "save") this.save();
+    if (action === "delete-tag") this.openDeleteGuard();
+    if (action === "confirm-create") this.createTag();
+    if (action === "confirm-delete") this.deleteTag();
+    if (action === "cancel-guard") this.closeGuard();
     if (action === "add-row") this.changeLayout((layout) => layout.push(...Array(8).fill(-1)));
     if (action === "trim")
       this.changeLayout((layout) => {
@@ -200,6 +223,130 @@ export class BankTagsPage extends BaseElement {
     if (action === "import") this.importTag();
     if (action === "export-runelite") this.copy(exportRuneLite(this.selectedTag()), "RuneLite export copied.");
     if (action === "export-banklayouts") this.copy(exportBankLayouts(this.selectedTag()), "BankLayouts export copied.");
+  }
+
+  openHelp() {
+    const help = this.querySelector(".bank-tags-page__help");
+    help.hidden = false;
+    help.querySelector(".bank-tags-page__help-close").focus();
+  }
+
+  closeHelp() {
+    this.querySelector(".bank-tags-page__help").hidden = true;
+    this.querySelector(".bank-tags-page__help-button")?.focus();
+  }
+
+  handleKeyDown(event) {
+    if (event.key === "Escape") {
+      this.closeHelp();
+      this.closeGuard();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && this.selectedTag()) {
+      event.preventDefault();
+      this.save();
+      return;
+    }
+    const typing = event.target.matches?.("input, textarea, select") || event.target.isContentEditable;
+    if (event.key === "?" && !typing) {
+      event.preventDefault();
+      this.openHelp();
+    }
+  }
+
+  openCreateGuard() {
+    const guard = this.querySelector(".bank-tags-page__guard");
+    guard.querySelector(".bank-tags-page__guard-card").innerHTML = `
+      <h3 id="bank-tags-guard-title">Create a synchronized layout tab?</h3>
+      <p>This creates a new empty tag for the whole group. RuneLite clients will receive it during synchronization.</p>
+      <label>New tag name<input class="bank-tags-page__create-name" maxlength="50" autocomplete="off"></label>
+      <label>Icon item ID<input class="bank-tags-page__create-icon" type="number" min="0" value="0"></label>
+      <div class="bank-tags-page__guard-actions">
+        <button class="men-button small" type="button" data-action="confirm-create">Create empty tab</button>
+        <button class="men-button small" type="button" data-action="cancel-guard">Cancel</button>
+      </div>`;
+    guard.hidden = false;
+    guard.querySelector(".bank-tags-page__create-name").focus();
+  }
+
+  openDeleteGuard() {
+    const tag = this.selectedTag();
+    if (!tag) return;
+    const guard = this.querySelector(".bank-tags-page__guard");
+    guard.querySelector(".bank-tags-page__guard-card").innerHTML = `
+      <h3 id="bank-tags-guard-title">Permanently delete “${this.escape(tag.name)}”?</h3>
+      <p><strong>This affects the whole group.</strong> The tag, its item associations, and its layout will be removed from synchronized RuneLite clients.</p>
+      <label>Type <strong>${this.escape(
+        tag.name
+      )}</strong> to confirm<input class="bank-tags-page__delete-confirm" autocomplete="off"></label>
+      <div class="bank-tags-page__guard-actions">
+        <button class="men-button small bank-tags-page__danger" type="button" data-action="confirm-delete">Delete synchronized tab</button>
+        <button class="men-button small" type="button" data-action="cancel-guard">Cancel</button>
+      </div>`;
+    guard.hidden = false;
+    guard.querySelector(".bank-tags-page__delete-confirm").focus();
+  }
+
+  closeGuard() {
+    const guard = this.querySelector(".bank-tags-page__guard");
+    if (guard) guard.hidden = true;
+  }
+
+  async createTag() {
+    const guard = this.querySelector(".bank-tags-page__guard");
+    try {
+      const draft = validateDraft({
+        name: guard.querySelector(".bank-tags-page__create-name").value,
+        iconItemId: Number(guard.querySelector(".bank-tags-page__create-icon").value),
+        itemIds: [],
+        layout: [],
+      });
+      const tagId = crypto.randomUUID();
+      this.setStatus("Creating synchronized tag…");
+      const created = await this.request(`/bank-tags/${tagId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "If-None-Match": "*" },
+        body: JSON.stringify({ schemaVersion: 1, tagId, ...draft }),
+      });
+      this.tags.set(tagId, created);
+      this.order.push(tagId);
+      this.selectedTagId = tagId;
+      this.closeGuard();
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`Created “${created.name}”. RuneLite will receive it on its next sync.`);
+    } catch (failure) {
+      this.setStatus(`Unable to create tag: ${failure.message}`, true);
+    }
+  }
+
+  async deleteTag() {
+    const tag = this.selectedTag();
+    const confirmation = this.querySelector(".bank-tags-page__delete-confirm")?.value.trim();
+    if (confirmation !== tag.name) {
+      this.setStatus(`Deletion blocked. Type “${tag.name}” exactly to confirm.`, true);
+      return;
+    }
+    try {
+      this.setStatus(`Deleting “${tag.name}”…`);
+      await this.request(`/bank-tags/${tag.tagId}`, {
+        method: "DELETE",
+        headers: { "If-Match": `"${tag.revision}"` },
+      });
+      this.tags.delete(tag.tagId);
+      this.order = this.order.filter((id) => id !== tag.tagId);
+      this.selectedTagId = this.order[0] || null;
+      this.closeGuard();
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`Deleted “${tag.name}” from synchronized bank tags.`);
+    } catch (failure) {
+      if (failure.status === 409) {
+        this.setStatus("Delete conflict: this tag changed elsewhere. Refresh before trying again.", true);
+      } else {
+        this.setStatus(`Unable to delete tag: ${failure.message}`, true);
+      }
+    }
   }
 
   handleInput(event) {

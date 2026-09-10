@@ -2,17 +2,43 @@
   <header class="bank-tags-page__header">
     <div>
       <h2>Bank Tags</h2>
-      <p>View and edit layouts synchronized by Bank Tags Extended.</p>
+      <p>View and edit layouts synchronized by Bank Tags Extended. <a href="https://banklayouts.com/" target="_blank" rel="noreferrer">Explore layouts</a>.</p>
     </div>
-    <button class="men-button small bank-tags-page__refresh" type="button">Refresh</button>
+    <div class="bank-tags-page__header-actions">
+      <button class="men-button small bank-tags-page__help-button" type="button" aria-label="Editor controls and keyboard shortcuts" title="Editor controls and keyboard shortcuts">⌨ Help</button>
+      <button class="men-button small bank-tags-page__refresh" type="button">Refresh</button>
+    </div>
   </header>
   <p class="bank-tags-page__status" role="status">Loading bank tags…</p>
   <div class="bank-tags-page__content">
     <nav class="bank-tags-page__sidebar rsborder-tiny rsbackground" aria-label="Synchronized bank tags">
+      <button class="men-button small bank-tags-page__new-tag" type="button">+ New layout tab</button>
       <ul class="bank-tags-page__list"></ul>
     </nav>
     <main class="bank-tags-page__editor rsborder-tiny rsbackground">
       <p class="bank-tags-page__empty">Select a synchronized bank tag.</p>
     </main>
+  </div>
+  <div class="bank-tags-page__guard" role="dialog" aria-modal="true" aria-labelledby="bank-tags-guard-title" hidden>
+    <div class="bank-tags-page__guard-card rsborder-tiny rsbackground"></div>
+  </div>
+  <div class="bank-tags-page__help" role="dialog" aria-modal="true" aria-labelledby="bank-tags-help-title" hidden>
+    <div class="bank-tags-page__help-card rsborder-tiny rsbackground">
+      <header>
+        <h3 id="bank-tags-help-title">Bank tag editor controls</h3>
+        <button type="button" class="bank-tags-page__help-close" aria-label="Close help">×</button>
+      </header>
+      <dl>
+        <dt><kbd>?</kbd></dt><dd>Open this help.</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close this help.</dd>
+        <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd></dt><dd>Save the selected tag.</dd>
+        <dt>Drag and drop</dt><dd>Move an item to an empty slot, or swap two layout items.</dd>
+        <dt>Double-click</dt><dd>Empty a layout slot without removing the item from the tag.</dd>
+        <dt>Red <strong>×</strong></dt><dd>Remove the item from the tag entirely. This also clears every layout slot containing it.</dd>
+        <dt>New layout tab</dt><dd>Create an empty synchronized tag after reviewing a confirmation message.</dd>
+        <dt>Delete layout tab</dt><dd>Delete the synchronized tag only after typing its exact name.</dd>
+      </dl>
+      <p>Imports are drafts until you select <strong>Save changes</strong>. RuneLite receives saved changes during its next synchronization.</p>
+    </div>
   </div>
 </section>

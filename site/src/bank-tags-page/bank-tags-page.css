@@ -173,6 +173,95 @@
   max-width: 48rem;
   width: 100%;
 }
+.bank-tags-page__header-actions,
+.bank-tags-page__guard-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.bank-tags-page__new-tag {
+  margin-bottom: 0.6rem;
+  width: 100%;
+}
+.bank-tags-page__slot {
+  position: relative;
+}
+.bank-tags-page__remove {
+  background: rgba(30, 0, 0, 0.85);
+  border-radius: 50%;
+  color: #ff8d84;
+  font-size: 1rem;
+  height: 1.25rem;
+  line-height: 1;
+  opacity: 0.7;
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 1.25rem;
+}
+.bank-tags-page__slot:hover .bank-tags-page__remove,
+.bank-tags-page__remove:focus {
+  opacity: 1;
+}
+.bank-tags-page__delete-tag,
+.bank-tags-page__danger {
+  color: #ff9b93 !important;
+}
+.bank-tags-page__help,
+.bank-tags-page__guard {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.72);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 1rem;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 20;
+}
+.bank-tags-page__help[hidden],
+.bank-tags-page__guard[hidden] {
+  display: none;
+}
+.bank-tags-page__help-card,
+.bank-tags-page__guard-card {
+  box-sizing: border-box;
+  max-height: 85vh;
+  max-width: 38rem;
+  overflow: auto;
+  padding: 1.25rem;
+  width: 100%;
+}
+.bank-tags-page__help-card header {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+}
+.bank-tags-page__help-close {
+  color: inherit;
+  font-size: 1.75rem;
+}
+.bank-tags-page__help dl {
+  display: grid;
+  gap: 0.65rem 1rem;
+  grid-template-columns: max-content 1fr;
+}
+.bank-tags-page__help dt,
+.bank-tags-page__help dd {
+  margin: 0;
+}
+.bank-tags-page kbd {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+}
+.bank-tags-page__guard-card label {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.8rem;
+}
 @media (max-width: 760px) {
   .bank-tags-page__content {
     display: block;
