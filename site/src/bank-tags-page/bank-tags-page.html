@@ -1,7 +1,18 @@
 <section class="bank-tags-page">
-  <header>
-    <h2>Bank Tags</h2>
-    <p>Tags synchronized by Bank Tags Extended for this group.</p>
+  <header class="bank-tags-page__header">
+    <div>
+      <h2>Bank Tags</h2>
+      <p>View and edit layouts synchronized by Bank Tags Extended.</p>
+    </div>
+    <button class="men-button small bank-tags-page__refresh" type="button">Refresh</button>
   </header>
-  <ul class="bank-tags-page__list"><li>Loading bank tags…</li></ul>
+  <p class="bank-tags-page__status" role="status">Loading bank tags…</p>
+  <div class="bank-tags-page__content">
+    <nav class="bank-tags-page__sidebar rsborder-tiny rsbackground" aria-label="Synchronized bank tags">
+      <ul class="bank-tags-page__list"></ul>
+    </nav>
+    <main class="bank-tags-page__editor rsborder-tiny rsbackground">
+      <p class="bank-tags-page__empty">Select a synchronized bank tag.</p>
+    </main>
+  </div>
 </section>

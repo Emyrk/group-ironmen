@@ -27,6 +27,12 @@ Copy `.env.example` into Railway's service variables. Keep all tokens server-sid
 
 The browser logs in with `PRIVATE_GROUP_NAME` and `PRIVATE_SYNC_TOKEN`. Existing API routes are authenticated locally, rewritten to the configured upstream group, and sent with `UPSTREAM_GROUP_TOKEN`. Bank Tags routes are handled locally and never forwarded.
 
+## Bank tag editor
+
+The authenticated `/group/bank-tags` page reads complete tag documents from the private bank-tag API and edits the same `name`, `iconItemId`, `itemIds`, and `layout` fields used by Bank Tags Extended. Browser saves use the document's loaded revision in `If-Match`, so a concurrent RuneLite or browser edit returns a conflict instead of being overwritten.
+
+The page supports the RuneLite `banktags,1,...` clipboard format and the `banktaglayoutsplugin:...` format used by BankLayouts.com. Imports remain local drafts until the user explicitly saves. The private group token stays in the existing authenticated browser storage and authorization header; it is never included in an export or URL.
+
 ## Data and sleeping
 
 SQLite data is stored on the mounted volume. Use one replica because a Railway volume can attach to only one deployment at a time. The service has no background polling or database network connection, so Railway Serverless can sleep it after RuneLite and browser requests stop.
