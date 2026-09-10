@@ -8,11 +8,19 @@ export class BankTagsPage extends BaseElement {
   constructor() {
     super();
     this.tags = new Map();
+    this.folders = new Map();
+    this.order = [];
+    this.folderOrder = [];
+    this.folderGroupRevision = 0;
+    this.folderOrderRevision = 0;
     this.selectedTagId = null;
+    this.selectedFolderId = null;
+    this.collapsedFolders = new Set();
     this.dragged = null;
     this.explorerResults = [];
     this.explorerIndex = 0;
     this.explorerSlot = null;
+    this.explorerTarget = "tag-item";
   }
 
   html() {
@@ -59,23 +67,48 @@ export class BankTagsPage extends BaseElement {
     return response.json();
   }
 
-  async load(preferredTagId = this.selectedTagId) {
-    this.setStatus("Loading synchronized bank tags…");
+  async load(preferredTagId = this.selectedTagId, preferredFolderId = this.selectedFolderId) {
+    this.setStatus("Loading synchronized bank tags and folders…");
     try {
-      const manifest = await this.request("/bank-tags");
-      const live = new Set(manifest.orderedTagIds);
-      const documents = await Promise.all(manifest.orderedTagIds.map((id) => this.request(`/bank-tags/${id}`)));
+      const [tagManifest, folderManifest] = await Promise.all([
+        this.request("/bank-tags"),
+        this.request("/bank-tag-folders"),
+      ]);
+      const [tagDocuments, folderDocuments] = await Promise.all([
+        Promise.all(tagManifest.orderedTagIds.map((id) => this.request(`/bank-tags/${id}`))),
+        Promise.all(folderManifest.orderedFolderIds.map((id) => this.request(`/bank-tag-folders/${id}`))),
+      ]);
+      const liveTags = new Set(tagManifest.orderedTagIds);
+      const liveFolders = new Set(folderManifest.orderedFolderIds);
       this.tags = new Map(
-        documents.filter((tag) => !tag.deleted && live.has(tag.tagId)).map((tag) => [tag.tagId, tag])
+        tagDocuments.filter((tag) => !tag.deleted && liveTags.has(tag.tagId)).map((tag) => [tag.tagId, tag])
       );
-      this.order = manifest.orderedTagIds.filter((id) => this.tags.has(id));
-      this.selectedTagId = this.tags.has(preferredTagId) ? preferredTagId : this.order[0] || null;
+      this.folders = new Map(
+        folderDocuments
+          .filter((folder) => !folder.deleted && liveFolders.has(folder.folderId))
+          .map((folder) => [folder.folderId, folder])
+      );
+      this.order = tagManifest.orderedTagIds.filter((id) => this.tags.has(id));
+      this.folderOrder = folderManifest.orderedFolderIds.filter((id) => this.folders.has(id));
+      this.folderGroupRevision = folderManifest.groupRevision;
+      this.folderOrderRevision = folderManifest.orderRevision;
+      this.loadCollapsedFolders();
+      if (this.tags.has(preferredTagId)) {
+        this.selectedTagId = preferredTagId;
+        this.selectedFolderId = null;
+      } else if (this.folders.has(preferredFolderId)) {
+        this.selectedTagId = null;
+        this.selectedFolderId = preferredFolderId;
+      } else {
+        this.selectedTagId = this.order[0] || null;
+        this.selectedFolderId = null;
+      }
       this.renderList();
       this.renderEditor();
       this.setStatus(
-        this.tags.size
-          ? `${this.tags.size} synchronized tag${this.tags.size === 1 ? "" : "s"}`
-          : "No synchronized bank tags yet."
+        `${this.tags.size} synchronized tag${this.tags.size === 1 ? "" : "s"} in ${this.folders.size} folder${
+          this.folders.size === 1 ? "" : "s"
+        }.`
       );
     } catch (failure) {
       this.setStatus(`Unable to load bank tags: ${failure.message}`, true);
@@ -86,25 +119,88 @@ export class BankTagsPage extends BaseElement {
     return this.tags.get(this.selectedTagId);
   }
 
+  selectedFolder() {
+    return this.folders.get(this.selectedFolderId);
+  }
+
+  collapsedStorageKey() {
+    const { groupName } = this.credentials();
+    return `bank-tag-folders-collapsed:${groupName || "unknown"}`;
+  }
+
+  loadCollapsedFolders() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.collapsedStorageKey()) || "[]");
+      this.collapsedFolders = new Set(stored.filter((folderId) => this.folders.has(folderId)));
+    } catch {
+      this.collapsedFolders = new Set();
+    }
+  }
+
+  saveCollapsedFolders() {
+    localStorage.setItem(this.collapsedStorageKey(), JSON.stringify([...this.collapsedFolders]));
+  }
+
+  folderOwner(tagId) {
+    return this.folderOrder.find((folderId) => this.folders.get(folderId)?.orderedTagIds.includes(tagId)) || null;
+  }
+
+  tagListItem(id, nested = false) {
+    const tag = this.tags.get(id);
+    if (!tag) return "";
+    return `<li><button type="button" class="bank-tags-page__tag ${nested ? "bank-tags-page__tag--nested" : ""} ${
+      id === this.selectedTagId ? "active" : ""
+    }" data-select-tag="${id}">${this.itemImage(tag.iconItemId, tag.name)}<span><strong>${this.escape(
+      tag.name
+    )}</strong><small>${tag.itemIds.length} items · revision ${tag.revision}</small></span></button></li>`;
+  }
+
   renderList() {
     const list = this.querySelector(".bank-tags-page__list");
-    list.innerHTML = this.order
-      .map((id) => {
-        const tag = this.tags.get(id);
-        return `<li><button type="button" class="bank-tags-page__tag ${
-          id === this.selectedTagId ? "active" : ""
-        }" data-select-tag="${id}">${this.itemImage(tag.iconItemId, tag.name)}<span><strong>${this.escape(
-          tag.name
-        )}</strong><small>${tag.itemIds.length} items · revision ${tag.revision}</small></span></button></li>`;
+    if (!list) return;
+    const folders = this.folderOrder
+      .map((folderId) => {
+        const folder = this.folders.get(folderId);
+        if (!folder) return "";
+        const collapsed = this.collapsedFolders.has(folderId);
+        const children = folder.orderedTagIds.filter((tagId) => this.tags.has(tagId));
+        return `<li class="bank-tags-page__folder">
+          <div class="bank-tags-page__folder-row">
+            <button class="bank-tags-page__collapse" type="button" data-toggle-folder="${folderId}" aria-expanded="${!collapsed}" aria-label="${
+          collapsed ? "Expand" : "Collapse"
+        } ${this.escapeAttribute(folder.name)}">${collapsed ? "▸" : "▾"}</button>
+            <button type="button" class="bank-tags-page__folder-button ${
+              folderId === this.selectedFolderId ? "active" : ""
+            }" data-select-folder="${folderId}">${this.itemImage(
+          folder.iconItemId,
+          folder.name
+        )}<span><strong>${this.escape(folder.name)}</strong><small>${children.length} tag${
+          children.length === 1 ? "" : "s"
+        }</small></span></button>
+          </div>
+          <ul class="bank-tags-page__folder-tags" ${collapsed ? "hidden" : ""}>${children
+          .map((tagId) => this.tagListItem(tagId, true))
+          .join("")}</ul>
+        </li>`;
       })
       .join("");
+    const unfiled = this.order.filter((tagId) => !this.folderOwner(tagId));
+    list.innerHTML = `${folders}<li class="bank-tags-page__section-title">Unfiled tags</li>${
+      unfiled.map((tagId) => this.tagListItem(tagId)).join("") ||
+      '<li class="bank-tags-page__empty-note">No unfiled tags.</li>'
+    }`;
   }
 
   renderEditor() {
     const editor = this.querySelector(".bank-tags-page__editor");
+    const folder = this.selectedFolder();
+    if (folder) {
+      this.renderFolderEditor(editor, folder);
+      return;
+    }
     const tag = this.selectedTag();
     if (!tag) {
-      editor.innerHTML = '<p class="bank-tags-page__empty">Select a synchronized bank tag.</p>';
+      editor.innerHTML = '<p class="bank-tags-page__empty">Select a synchronized bank tag or folder.</p>';
       return;
     }
     const layout = tag.layout || [];
@@ -148,6 +244,72 @@ export class BankTagsPage extends BaseElement {
       <section class="bank-tags-page__import"><h3>Import</h3>
         <textarea class="bank-tags-page__import-text" rows="3" placeholder="Paste a RuneLite or BankLayouts export"></textarea>
         <button class="men-button small" type="button" data-action="import">Load into editor</button>
+      </section>`;
+  }
+
+  renderFolderEditor(editor, folder) {
+    const children = folder.orderedTagIds.filter((tagId) => this.tags.has(tagId));
+    const unfiled = this.order.filter((tagId) => !this.folderOwner(tagId));
+    const folderIndex = this.folderOrder.indexOf(folder.folderId);
+    editor.innerHTML = `
+      <div class="bank-tags-page__folder-heading">
+        ${this.itemImage(folder.iconItemId, folder.name)}
+        <div><h3>Folder settings</h3><p class="bank-tags-page__hint">Folders organize synchronized tags. Collapse state stays in this browser.</p></div>
+      </div>
+      <div class="bank-tags-page__fields">
+        <label>Folder name<input class="bank-tags-page__folder-name" maxlength="50" value="${this.escapeAttribute(
+          folder.name
+        )}"></label>
+        <label>Icon item ID<input class="bank-tags-page__folder-icon" type="number" min="0" value="${
+          folder.iconItemId
+        }"></label>
+        <button class="men-button small" type="button" data-action="choose-folder-icon">Choose icon</button>
+      </div>
+      <div class="bank-tags-page__toolbar">
+        <button class="men-button small" type="button" data-action="save-folder">Save folder</button>
+        <button class="men-button small" type="button" data-action="move-folder-up" ${
+          folderIndex <= 0 ? "disabled" : ""
+        }>Move folder up</button>
+        <button class="men-button small" type="button" data-action="move-folder-down" ${
+          folderIndex < 0 || folderIndex >= this.folderOrder.length - 1 ? "disabled" : ""
+        }>Move folder down</button>
+        <button class="men-button small bank-tags-page__danger" type="button" data-action="delete-folder">Dissolve folder</button>
+      </div>
+      <section class="bank-tags-page__folder-members">
+        <h3>Tags in this folder</h3>
+        <p class="bank-tags-page__hint">Use the controls to set the child order saved for the group.</p>
+        <ol class="bank-tags-page__folder-children">${
+          children
+            .map((tagId, index) => {
+              const tag = this.tags.get(tagId);
+              return `<li><span>${this.itemImage(tag.iconItemId, tag.name)}<strong>${this.escape(
+                tag.name
+              )}</strong></span><span>
+                <button class="men-button small" type="button" data-action="move-folder-tag-up" data-tag-id="${tagId}" ${
+                index === 0 ? "disabled" : ""
+              } aria-label="Move ${this.escapeAttribute(tag.name)} up">↑</button>
+                <button class="men-button small" type="button" data-action="move-folder-tag-down" data-tag-id="${tagId}" ${
+                index === children.length - 1 ? "disabled" : ""
+              } aria-label="Move ${this.escapeAttribute(tag.name)} down">↓</button>
+                <button class="men-button small" type="button" data-action="unassign-folder-tag" data-tag-id="${tagId}">Unfile</button>
+              </span></li>`;
+            })
+            .join("") || '<li class="bank-tags-page__empty-note">This folder is empty.</li>'
+        }</ol>
+      </section>
+      <section class="bank-tags-page__folder-members">
+        <h3>Unfiled tags</h3>
+        <div class="bank-tags-page__assign-list">${
+          unfiled
+            .map((tagId) => {
+              const tag = this.tags.get(tagId);
+              return `<button class="men-button small" type="button" data-action="assign-folder-tag" data-tag-id="${tagId}">${this.itemImage(
+                tag.iconItemId,
+                tag.name
+              )}<span>File ${this.escape(tag.name)}</span></button>`;
+            })
+            .join("") || '<p class="bank-tags-page__empty-note">No unfiled tags are available.</p>'
+        }</div>
       </section>`;
   }
 
@@ -197,13 +359,25 @@ export class BankTagsPage extends BaseElement {
     const selected = event.target.closest("[data-select-tag]");
     if (selected) {
       this.selectedTagId = selected.dataset.selectTag;
+      this.selectedFolderId = null;
       this.renderList();
       this.renderEditor();
       return;
     }
+    const selectedFolder = event.target.closest("[data-select-folder]");
+    if (selectedFolder) {
+      this.selectedFolderId = selectedFolder.dataset.selectFolder;
+      this.selectedTagId = null;
+      this.renderList();
+      this.renderEditor();
+      return;
+    }
+    const toggledFolder = event.target.closest("[data-toggle-folder]");
+    if (toggledFolder) return this.toggleFolderCollapse(toggledFolder.dataset.toggleFolder);
     if (event.target.closest(".bank-tags-page__refresh")) return this.load();
     if (event.target.closest(".bank-tags-page__help-button")) return this.openHelp();
     if (event.target.closest(".bank-tags-page__new-tag")) return this.openCreateGuard();
+    if (event.target.closest(".bank-tags-page__new-folder")) return this.openCreateFolderGuard();
     if (
       event.target.closest(".bank-tags-page__explorer-close") ||
       event.target === this.querySelector(".bank-tags-page__explorer")
@@ -231,6 +405,15 @@ export class BankTagsPage extends BaseElement {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
     if (action === "save") this.save();
+    if (action === "save-folder") this.saveFolder();
+    if (action === "choose-folder-icon") this.openFolderIconExplorer();
+    if (action === "assign-folder-tag") this.changeFolderTag(event.target.closest("[data-tag-id]").dataset.tagId, true);
+    if (action === "unassign-folder-tag")
+      this.changeFolderTag(event.target.closest("[data-tag-id]").dataset.tagId, false);
+    if (action === "move-folder-tag-up") this.moveFolderTag(event.target.closest("[data-tag-id]").dataset.tagId, -1);
+    if (action === "move-folder-tag-down") this.moveFolderTag(event.target.closest("[data-tag-id]").dataset.tagId, 1);
+    if (action === "move-folder-up") this.moveFolder(-1);
+    if (action === "move-folder-down") this.moveFolder(1);
     if (action === "open-explorer") this.openExplorer(event.target.closest("[data-slot]")?.dataset.slot);
     if (action === "history") this.openHistory();
     if (action === "view-revision") this.viewRevision(Number(event.target.closest("[data-revision]").dataset.revision));
@@ -239,8 +422,11 @@ export class BankTagsPage extends BaseElement {
     if (action === "confirm-restore")
       this.restoreRevision(Number(event.target.closest("[data-revision]").dataset.revision));
     if (action === "delete-tag") this.openDeleteGuard();
+    if (action === "delete-folder") this.openDeleteFolderGuard();
     if (action === "confirm-create") this.createTag();
+    if (action === "confirm-create-folder") this.createFolder();
     if (action === "confirm-delete") this.deleteTag();
+    if (action === "confirm-delete-folder") this.deleteFolder();
     if (action === "cancel-guard") this.closeGuard();
     if (action === "add-row") this.changeLayout((layout) => layout.push(...Array(8).fill(-1)));
     if (action === "trim")
@@ -285,9 +471,11 @@ export class BankTagsPage extends BaseElement {
       this.closeGuard();
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && this.selectedTag()) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      if (!this.selectedTag() && !this.selectedFolder()) return;
       event.preventDefault();
-      this.save();
+      if (this.selectedFolder()) this.saveFolder();
+      else this.save();
       return;
     }
     const typing = event.target.matches?.("input, textarea, select") || event.target.isContentEditable;
@@ -413,6 +601,21 @@ export class BankTagsPage extends BaseElement {
     guard.querySelector(".bank-tags-page__create-name").focus();
   }
 
+  openCreateFolderGuard() {
+    const guard = this.querySelector(".bank-tags-page__guard");
+    guard.querySelector(".bank-tags-page__guard-card").innerHTML = `
+      <h3 id="bank-tags-guard-title">Create a synchronized folder?</h3>
+      <p>The new folder starts empty and is appended to the shared folder order.</p>
+      <label>Folder name<input class="bank-tags-page__create-folder-name" maxlength="50" autocomplete="off"></label>
+      <label>Icon item ID<input class="bank-tags-page__create-folder-icon" type="number" min="0" value="0"></label>
+      <div class="bank-tags-page__guard-actions">
+        <button class="men-button small" type="button" data-action="confirm-create-folder">Create folder</button>
+        <button class="men-button small" type="button" data-action="cancel-guard">Cancel</button>
+      </div>`;
+    guard.hidden = false;
+    guard.querySelector(".bank-tags-page__create-folder-name").focus();
+  }
+
   openDeleteGuard() {
     const tag = this.selectedTag();
     if (!tag) return;
@@ -429,6 +632,24 @@ export class BankTagsPage extends BaseElement {
       </div>`;
     guard.hidden = false;
     guard.querySelector(".bank-tags-page__delete-confirm").focus();
+  }
+
+  openDeleteFolderGuard() {
+    const folder = this.selectedFolder();
+    if (!folder) return;
+    const guard = this.querySelector(".bank-tags-page__guard");
+    guard.querySelector(".bank-tags-page__guard-card").innerHTML = `
+      <h3 id="bank-tags-guard-title">Dissolve “${this.escape(folder.name)}”?</h3>
+      <p><strong>This affects the whole group.</strong> The folder is deleted, but its tags remain synchronized and become unfiled.</p>
+      <label>Type <strong>${this.escape(
+        folder.name
+      )}</strong> to confirm<input class="bank-tags-page__delete-folder-confirm" autocomplete="off"></label>
+      <div class="bank-tags-page__guard-actions">
+        <button class="men-button small bank-tags-page__danger" type="button" data-action="confirm-delete-folder">Dissolve folder</button>
+        <button class="men-button small" type="button" data-action="cancel-guard">Cancel</button>
+      </div>`;
+    guard.hidden = false;
+    guard.querySelector(".bank-tags-page__delete-folder-confirm").focus();
   }
 
   closeGuard() {
@@ -464,6 +685,47 @@ export class BankTagsPage extends BaseElement {
     }
   }
 
+  validateFolderDraft(folder) {
+    const name = typeof folder.name === "string" ? folder.name.trim() : "";
+    if (!name || [...name].length > 50) throw new Error("Folder name must be between 1 and 50 characters.");
+    const iconItemId = Number(folder.iconItemId);
+    if (!Number.isInteger(iconItemId) || iconItemId < 0) throw new Error("Folder icon item ID must be non-negative.");
+    const orderedTagIds = [...folder.orderedTagIds];
+    if (orderedTagIds.some((tagId) => !this.tags.has(tagId)) || new Set(orderedTagIds).size !== orderedTagIds.length)
+      throw new Error("Folder tags must be unique synchronized tags.");
+    return { name, iconItemId, orderedTagIds };
+  }
+
+  async createFolder() {
+    const guard = this.querySelector(".bank-tags-page__guard");
+    try {
+      const draft = this.validateFolderDraft({
+        name: guard.querySelector(".bank-tags-page__create-folder-name").value,
+        iconItemId: Number(guard.querySelector(".bank-tags-page__create-folder-icon").value),
+        orderedTagIds: [],
+      });
+      const folderId = crypto.randomUUID();
+      this.setStatus("Creating synchronized folder…");
+      const created = await this.request(`/bank-tag-folders/${folderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "If-None-Match": "*" },
+        body: JSON.stringify({ schemaVersion: 1, folderId, ...draft }),
+      });
+      this.folders.set(folderId, created);
+      this.folderOrder.push(folderId);
+      this.folderGroupRevision += 1;
+      this.folderOrderRevision += 1;
+      this.selectedFolderId = folderId;
+      this.selectedTagId = null;
+      this.closeGuard();
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`Created folder “${created.name}”.`);
+    } catch (failure) {
+      this.setStatus(`Unable to create folder: ${failure.message}`, true);
+    }
+  }
+
   async deleteTag() {
     const tag = this.selectedTag();
     const confirmation = this.querySelector(".bank-tags-page__delete-confirm")?.value.trim();
@@ -477,6 +739,13 @@ export class BankTagsPage extends BaseElement {
         method: "DELETE",
         headers: { "If-Match": `"${tag.revision}"` },
       });
+      const ownerId = this.folderOwner(tag.tagId);
+      if (ownerId) {
+        const owner = this.folders.get(ownerId);
+        owner.orderedTagIds = owner.orderedTagIds.filter((tagId) => tagId !== tag.tagId);
+        owner.revision += 1;
+        this.folderGroupRevision += 1;
+      }
       this.tags.delete(tag.tagId);
       this.order = this.order.filter((id) => id !== tag.tagId);
       this.selectedTagId = this.order[0] || null;
@@ -493,12 +762,144 @@ export class BankTagsPage extends BaseElement {
     }
   }
 
+  toggleFolderCollapse(folderId) {
+    if (!this.folders.has(folderId)) return;
+    if (this.collapsedFolders.has(folderId)) this.collapsedFolders.delete(folderId);
+    else this.collapsedFolders.add(folderId);
+    this.saveCollapsedFolders();
+    this.renderList();
+  }
+
+  changeFolderTag(tagId, assigned) {
+    const folder = this.selectedFolder();
+    if (!folder || !this.tags.has(tagId)) return;
+    if (assigned && this.folderOwner(tagId)) return;
+    folder.orderedTagIds = assigned
+      ? [...folder.orderedTagIds, tagId]
+      : folder.orderedTagIds.filter((id) => id !== tagId);
+    this.renderList();
+    this.renderEditor();
+    this.setStatus("Unsaved folder changes");
+  }
+
+  moveFolderTag(tagId, direction) {
+    const folder = this.selectedFolder();
+    if (!folder) return;
+    const index = folder.orderedTagIds.indexOf(tagId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= folder.orderedTagIds.length) return;
+    [folder.orderedTagIds[index], folder.orderedTagIds[target]] = [
+      folder.orderedTagIds[target],
+      folder.orderedTagIds[index],
+    ];
+    this.renderList();
+    this.renderEditor();
+    this.setStatus("Unsaved folder order changes");
+  }
+
+  async saveFolder() {
+    const folder = this.selectedFolder();
+    try {
+      const draft = this.validateFolderDraft(folder);
+      this.setStatus("Saving folder…");
+      const saved = await this.request(`/bank-tag-folders/${folder.folderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "If-Match": `"${folder.revision}"` },
+        body: JSON.stringify({ schemaVersion: 1, folderId: folder.folderId, ...draft }),
+      });
+      this.folders.set(saved.folderId, saved);
+      this.folderGroupRevision += 1;
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`Saved folder revision ${saved.revision}.`);
+    } catch (failure) {
+      this.setStatus(
+        failure.status === 409
+          ? "Folder save conflict: folders changed elsewhere. Your draft was not overwritten. Refresh before trying again."
+          : `Unable to save folder: ${failure.message}`,
+        true
+      );
+    }
+  }
+
+  async moveFolder(direction) {
+    const folder = this.selectedFolder();
+    const index = this.folderOrder.indexOf(folder?.folderId);
+    const target = index + direction;
+    if (!folder || index < 0 || target < 0 || target >= this.folderOrder.length) return;
+    const orderedFolderIds = [...this.folderOrder];
+    [orderedFolderIds[index], orderedFolderIds[target]] = [orderedFolderIds[target], orderedFolderIds[index]];
+    try {
+      const manifest = await this.request("/bank-folder-order", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "If-Match": `"${this.folderOrderRevision}"` },
+        body: JSON.stringify({ schemaVersion: 1, orderedFolderIds }),
+      });
+      this.folderOrder = manifest.orderedFolderIds;
+      this.folderGroupRevision = manifest.groupRevision;
+      this.folderOrderRevision = manifest.orderRevision;
+      this.renderList();
+      this.renderEditor();
+      this.setStatus("Saved folder order.");
+    } catch (failure) {
+      this.setStatus(
+        failure.status === 409
+          ? "Folder order conflict: folders changed elsewhere. Refresh before trying again."
+          : `Unable to reorder folders: ${failure.message}`,
+        true
+      );
+    }
+  }
+
+  async deleteFolder() {
+    const folder = this.selectedFolder();
+    const confirmation = this.querySelector(".bank-tags-page__delete-folder-confirm")?.value.trim();
+    if (confirmation !== folder.name) {
+      this.setStatus(`Dissolve blocked. Type “${folder.name}” exactly to confirm.`, true);
+      return;
+    }
+    try {
+      await this.request(`/bank-tag-folders/${folder.folderId}`, {
+        method: "DELETE",
+        headers: { "If-Match": `"${folder.revision}"` },
+      });
+      this.folders.delete(folder.folderId);
+      this.folderOrder = this.folderOrder.filter((folderId) => folderId !== folder.folderId);
+      this.folderGroupRevision += 1;
+      this.folderOrderRevision += 1;
+      this.collapsedFolders.delete(folder.folderId);
+      this.saveCollapsedFolders();
+      this.selectedFolderId = null;
+      this.selectedTagId = this.order[0] || null;
+      this.closeGuard();
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`Dissolved “${folder.name}”. Its tags are now unfiled.`);
+    } catch (failure) {
+      this.setStatus(
+        failure.status === 409
+          ? "Folder delete conflict: this folder changed elsewhere. Refresh before trying again."
+          : `Unable to dissolve folder: ${failure.message}`,
+        true
+      );
+    }
+  }
+
   handleInput(event) {
+    if (event.target.matches(".bank-tags-page__explorer-search")) {
+      this.searchExplorer(event.target.value);
+      return;
+    }
+    const folder = this.selectedFolder();
+    if (folder) {
+      if (event.target.matches(".bank-tags-page__folder-name")) folder.name = event.target.value;
+      if (event.target.matches(".bank-tags-page__folder-icon")) folder.iconItemId = Number(event.target.value);
+      return;
+    }
     const tag = this.selectedTag();
     if (!tag) return;
     if (event.target.matches(".bank-tags-page__name")) tag.name = event.target.value;
     if (event.target.matches(".bank-tags-page__icon")) tag.iconItemId = Number(event.target.value);
-    if (event.target.matches(".bank-tags-page__explorer-search")) this.searchExplorer(event.target.value);
   }
 
   handleDragStart(event) {
@@ -545,13 +946,33 @@ export class BankTagsPage extends BaseElement {
 
   openExplorer(slot) {
     const explorer = this.querySelector(".bank-tags-page__explorer");
+    this.explorerTarget = "tag-item";
     this.explorerSlot = slot === undefined ? null : Number(slot);
     this.explorerResults = [];
     this.explorerIndex = 0;
+    const title = explorer.querySelector("h3");
+    if (title) title.textContent = "Add an item";
     explorer.querySelector(".bank-tags-page__explorer-purpose").textContent =
       this.explorerSlot === null
         ? "Choose an item to add to this tag."
         : `Choose an item for layout slot ${this.explorerSlot + 1}.`;
+    const search = explorer.querySelector(".bank-tags-page__explorer-search");
+    search.value = "";
+    explorer.hidden = false;
+    this.renderExplorerResults();
+    search.focus();
+  }
+
+  openFolderIconExplorer() {
+    const explorer = this.querySelector(".bank-tags-page__explorer");
+    if (!this.selectedFolder()) return;
+    this.explorerTarget = "folder-icon";
+    this.explorerSlot = null;
+    this.explorerResults = [];
+    this.explorerIndex = 0;
+    const title = explorer.querySelector("h3");
+    if (title) title.textContent = "Choose a folder icon";
+    explorer.querySelector(".bank-tags-page__explorer-purpose").textContent = "Choose an item image for this folder.";
     const search = explorer.querySelector(".bank-tags-page__explorer-search");
     search.value = "";
     explorer.hidden = false;
@@ -565,6 +986,7 @@ export class BankTagsPage extends BaseElement {
     this.explorerResults = [];
     this.explorerIndex = 0;
     this.explorerSlot = null;
+    this.explorerTarget = "tag-item";
   }
 
   searchExplorer(value) {
@@ -622,6 +1044,17 @@ export class BankTagsPage extends BaseElement {
 
   selectExplorerItem(id) {
     if (!Number.isInteger(id) || id <= 0 || !Item.itemDetails?.[id]) return;
+    if (this.explorerTarget === "folder-icon") {
+      const folder = this.selectedFolder();
+      if (!folder) return;
+      folder.iconItemId = id;
+      const itemName = this.itemName(id);
+      this.closeExplorer();
+      this.renderList();
+      this.renderEditor();
+      this.setStatus(`${itemName} selected as the folder icon. Save the folder to synchronize.`);
+      return;
+    }
     const tag = this.selectedTag();
     const alreadyTagged = tag.itemIds.includes(id);
     if (!alreadyTagged) tag.itemIds = [...tag.itemIds, id].sort((a, b) => a - b);

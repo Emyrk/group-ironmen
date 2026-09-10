@@ -11,8 +11,11 @@
   </header>
   <p class="bank-tags-page__status" role="status">Loading bank tags…</p>
   <div class="bank-tags-page__content">
-    <nav class="bank-tags-page__sidebar rsborder-tiny rsbackground" aria-label="Synchronized bank tags">
-      <button class="men-button small bank-tags-page__new-tag" type="button">+ New layout tab</button>
+    <nav class="bank-tags-page__sidebar rsborder-tiny rsbackground" aria-label="Synchronized bank tags and folders">
+      <div class="bank-tags-page__new-actions">
+        <button class="men-button small bank-tags-page__new-tag" type="button">+ New layout tab</button>
+        <button class="men-button small bank-tags-page__new-folder" type="button">+ New folder</button>
+      </div>
       <ul class="bank-tags-page__list"></ul>
     </nav>
     <main class="bank-tags-page__editor rsborder-tiny rsbackground">
@@ -49,7 +52,9 @@
         <dt>Red <strong>×</strong></dt><dd>Remove the item from the tag entirely. This also clears every layout slot containing it.</dd>
         <dt>Revision history</dt><dd>Preview or restore prior saved versions. A restore creates a new revision and preserves the current one.</dd>
         <dt>New layout tab</dt><dd>Create an empty synchronized tag after reviewing a confirmation message.</dd>
+        <dt>Folders</dt><dd>Create one-level folders, select a folder to assign and order tags, and use the arrow control to collapse it locally.</dd>
         <dt>Delete layout tab</dt><dd>Delete the synchronized tag only after typing its exact name.</dd>
+        <dt>Dissolve folder</dt><dd>Delete the folder after typing its exact name. Its tags remain synchronized and become unfiled.</dd>
       </dl>
       <p>Imports are drafts until you select <strong>Save changes</strong>. RuneLite receives saved changes during its next synchronization.</p>
     </div>

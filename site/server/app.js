@@ -4,6 +4,7 @@ const path = require("path");
 const axios = require("axios");
 const { openDatabase } = require("./database");
 const { privateAuth } = require("./auth");
+const { createBankTagFoldersRouter } = require("./bank-tag-folders");
 const { createBankTagsRouter } = require("./bank-tags");
 
 function createApp(config, options = {}) {
@@ -15,6 +16,7 @@ function createApp(config, options = {}) {
   app.use(express.json({ limit: 100000 }));
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/api/group/:groupName", createBankTagsRouter(db, privateAuth(config)));
+  app.use("/api/group/:groupName", createBankTagFoldersRouter(db, privateAuth(config)));
 
   const proxy = async (req, res, upstreamPath) => {
     const headers = {};

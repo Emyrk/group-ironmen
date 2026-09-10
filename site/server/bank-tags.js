@@ -1,4 +1,5 @@
 const express = require("express");
+const { detachTagFromFolder } = require("./bank-tag-folders");
 
 const VERSION = 1;
 const MAX_ITEMS = 4000;
@@ -282,6 +283,7 @@ function createBankTagsRouter(db, auth) {
       );
     }
     const timestamp = now();
+    detachTagFromFolder(db, id, timestamp);
     db.prepare(
       "UPDATE bank_tags SET item_ids='[]',layout=NULL,revision=revision+1,deleted_at=COALESCE(deleted_at,?),updated_at=? WHERE tag_id=?"
     ).run(timestamp, timestamp, id);

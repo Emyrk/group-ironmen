@@ -52,6 +52,25 @@ function openDatabase(filename) {
         'updatedAt', updated_at
       ), updated_at
       FROM bank_tags;
+    CREATE TABLE IF NOT EXISTS bank_tag_folder_state (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      group_revision INTEGER NOT NULL DEFAULT 0,
+      order_revision INTEGER NOT NULL DEFAULT 0,
+      ordered_folder_ids TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+    INSERT OR IGNORE INTO bank_tag_folder_state
+      (singleton, group_revision, order_revision, ordered_folder_ids, updated_at)
+      VALUES (1, 0, 0, '[]', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    CREATE TABLE IF NOT EXISTS bank_tag_folders (
+      folder_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon_item_id INTEGER NOT NULL,
+      ordered_tag_ids TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      deleted_at TEXT,
+      updated_at TEXT NOT NULL
+    );
   `);
   return db;
 }

@@ -178,10 +178,6 @@
   display: flex;
   gap: 0.5rem;
 }
-.bank-tags-page__new-tag {
-  margin-bottom: 0.6rem;
-  width: 100%;
-}
 .bank-tags-page__slot {
   position: relative;
 }
@@ -361,6 +357,108 @@
 .bank-tags-page__revisions small {
   display: block;
   opacity: 0.7;
+}
+.bank-tags-page__new-actions {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+.bank-tags-page__new-actions .men-button {
+  width: 100%;
+}
+.bank-tags-page__folder-row,
+.bank-tags-page__folder-button,
+.bank-tags-page__folder-heading,
+.bank-tags-page__folder-children li,
+.bank-tags-page__folder-children li > span,
+.bank-tags-page__assign-list button {
+  align-items: center;
+  display: flex;
+}
+.bank-tags-page__folder-row {
+  gap: 0.2rem;
+}
+.bank-tags-page__collapse {
+  color: inherit;
+  flex: 0 0 1.4rem;
+  font-size: 1rem;
+  padding: 0;
+}
+.bank-tags-page__folder-button {
+  color: inherit;
+  flex: 1 1 auto;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.4rem;
+  text-align: left;
+}
+.bank-tags-page__folder-button:hover,
+.bank-tags-page__folder-button.active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.bank-tags-page__folder-button img,
+.bank-tags-page__folder-heading > img,
+.bank-tags-page__folder-children img,
+.bank-tags-page__assign-list img {
+  height: 32px;
+  max-width: 36px;
+  object-fit: contain;
+}
+.bank-tags-page__folder-button span,
+.bank-tags-page__folder-button small {
+  display: block;
+}
+.bank-tags-page__folder-button small {
+  opacity: 0.7;
+}
+.bank-tags-page__folder-tags {
+  list-style: none;
+  margin: 0.25rem 0 0.5rem 1.6rem;
+  padding: 0;
+}
+.bank-tags-page__tag--nested {
+  padding-left: 0.65rem;
+}
+.bank-tags-page__section-title {
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-top: 0.5rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+.bank-tags-page__folder-heading {
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.bank-tags-page__folder-heading h3,
+.bank-tags-page__folder-heading p {
+  margin: 0;
+}
+.bank-tags-page__folder-members {
+  margin-top: 1.5rem;
+}
+.bank-tags-page__folder-children {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+}
+.bank-tags-page__folder-children li {
+  background: rgba(0, 0, 0, 0.18);
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.45rem;
+}
+.bank-tags-page__folder-children li > span {
+  gap: 0.4rem;
+}
+.bank-tags-page__assign-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.bank-tags-page__assign-list button {
+  gap: 0.4rem;
 }
 @media (max-width: 760px) {
   .bank-tags-page__content {
