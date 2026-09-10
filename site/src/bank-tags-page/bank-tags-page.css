@@ -206,6 +206,7 @@
 .bank-tags-page__danger {
   color: #ff9b93 !important;
 }
+.bank-tags-page__explorer,
 .bank-tags-page__help,
 .bank-tags-page__guard {
   align-items: center;
@@ -220,10 +221,12 @@
   top: 0;
   z-index: 20;
 }
+.bank-tags-page__explorer[hidden],
 .bank-tags-page__help[hidden],
 .bank-tags-page__guard[hidden] {
   display: none;
 }
+.bank-tags-page__explorer-card,
 .bank-tags-page__help-card,
 .bank-tags-page__guard-card {
   box-sizing: border-box;
@@ -233,6 +236,7 @@
   padding: 1.25rem;
   width: 100%;
 }
+.bank-tags-page__explorer-card header,
 .bank-tags-page__help-card header {
   align-items: start;
   display: flex;
@@ -261,6 +265,85 @@
   display: grid;
   gap: 0.25rem;
   margin-bottom: 0.8rem;
+}
+.bank-tags-page__add-item {
+  margin-bottom: 1rem;
+}
+.bank-tags-page__unplaced-section {
+  margin-bottom: 1.5rem;
+}
+.bank-tags-page__empty-note {
+  margin: 0;
+  opacity: 0.65;
+}
+.bank-tags-page__empty-slot {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.5rem;
+  height: 100%;
+  width: 100%;
+}
+.bank-tags-page__empty-slot:hover,
+.bank-tags-page__empty-slot:focus {
+  color: var(--orange);
+}
+.bank-tags-page__explorer-card {
+  max-width: 46rem;
+}
+.bank-tags-page__explorer-card header h3,
+.bank-tags-page__explorer-card header p {
+  margin-top: 0;
+}
+.bank-tags-page__explorer-close {
+  color: inherit;
+  font-size: 1.75rem;
+}
+.bank-tags-page__explorer-search {
+  box-sizing: border-box;
+  font-size: 1rem;
+  width: 100%;
+}
+.bank-tags-page__explorer-results {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.bank-tags-page__explorer-result {
+  align-items: center;
+  color: inherit;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 48px 1fr auto;
+  padding: 0.5rem;
+  text-align: left;
+  width: 100%;
+}
+.bank-tags-page__explorer-result:hover,
+.bank-tags-page__explorer-result.active {
+  background: rgba(255, 255, 255, 0.12);
+  outline: 1px solid var(--orange);
+}
+.bank-tags-page__explorer-result img {
+  height: 40px;
+  max-width: 46px;
+  object-fit: contain;
+}
+.bank-tags-page__explorer-result strong,
+.bank-tags-page__explorer-result small {
+  display: block;
+}
+.bank-tags-page__explorer-result small {
+  opacity: 0.65;
+}
+.bank-tags-page__tagged {
+  color: #9fc78d;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.bank-tags-page__explorer-empty {
+  opacity: 0.7;
+  text-align: center;
 }
 .bank-tags-page__revisions {
   display: grid;

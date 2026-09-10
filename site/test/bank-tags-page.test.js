@@ -4,14 +4,22 @@ vi.mock("../src/data/item", () => ({
   Item: { itemDetails: {}, imageUrl: (id) => `/icons/items/${id}.webp` },
 }));
 
+import { Item } from "../src/data/item";
 import { BankTagsPage } from "../src/bank-tags-page/bank-tags-page";
 
 describe("bank tags page", () => {
   let page;
   beforeEach(() => {
+    Item.itemDetails = {
+      199: { name: "Grimy guam leaf" },
+      201: { name: "Grimy marrentill" },
+      4151: { name: "Abyssal whip" },
+      12006: { name: "Abyssal tentacle" },
+    };
     page = new BankTagsPage();
     page.innerHTML = `<button class="bank-tags-page__help-button"></button>
       <p class="bank-tags-page__status"></p><ul class="bank-tags-page__list"></ul><main class="bank-tags-page__editor"></main>
+      <div class="bank-tags-page__explorer" hidden><div class="bank-tags-page__explorer-card"><p class="bank-tags-page__explorer-purpose"></p><button class="bank-tags-page__explorer-close"></button><input class="bank-tags-page__explorer-search"><div class="bank-tags-page__explorer-results"></div></div></div>
       <div class="bank-tags-page__help" hidden><button class="bank-tags-page__help-close"></button></div>
       <div class="bank-tags-page__guard" hidden><div class="bank-tags-page__guard-card"></div></div>`;
     page.selectedTagId = "5e4a8e36-e5f4-4daa-ae7a-e510f3e66721";
@@ -49,7 +57,7 @@ describe("bank tags page", () => {
   it("renders removal controls for items placed in the layout", () => {
     const html = page.slot(199, 0);
     expect(html).toContain('data-remove-id="199"');
-    expect(html).toContain("Remove Item 199 from tag");
+    expect(html).toContain("Remove Grimy guam leaf from tag");
   });
 
   it("removes an item from the tag and every matching layout slot", () => {
@@ -61,6 +69,47 @@ describe("bank tags page", () => {
     expect(page.selectedTag().itemIds).toEqual([201]);
     expect(page.selectedTag().layout).toEqual([-1, -1, 201]);
     expect(render).toHaveBeenCalledOnce();
+  });
+
+  it("renders unplaced tagged items above the layout", () => {
+    page.renderEditor();
+    const editor = page.querySelector(".bank-tags-page__editor");
+    expect(editor.innerHTML.indexOf("Tagged items not in the layout")).toBeLessThan(
+      editor.innerHTML.indexOf("<h3>Layout</h3>")
+    );
+  });
+
+  it("searches partial item names in the modal explorer", () => {
+    page.openExplorer();
+    page.searchExplorer("abyssal");
+
+    expect(page.explorerResults.map((item) => item.id)).toEqual([4151, 12006]);
+    expect(page.querySelectorAll("[data-item-result]")).toHaveLength(2);
+    expect(page.querySelector("[data-item-result='4151']").textContent).toContain("Abyssal whip");
+  });
+
+  it("places explorer selections into a clicked empty slot", () => {
+    page.openExplorer(1);
+    page.searchExplorer("whip");
+    page.selectExplorerItem(4151);
+
+    expect(page.selectedTag().itemIds).toEqual([199, 201, 4151]);
+    expect(page.selectedTag().layout).toEqual([199, 4151, 201]);
+    expect(page.querySelector(".bank-tags-page__explorer").hidden).toBe(true);
+  });
+
+  it("supports keyboard navigation and selection in the explorer", () => {
+    page.openExplorer();
+    const search = page.querySelector(".bank-tags-page__explorer-search");
+    page.searchExplorer("abyssal");
+    const preventDefault = vi.fn();
+
+    page.handleKeyDown({ key: "ArrowDown", target: search, preventDefault });
+    expect(page.explorerIndex).toBe(1);
+    page.handleKeyDown({ key: "Enter", target: search, preventDefault });
+
+    expect(page.selectedTag().itemIds).toEqual([199, 201, 12006]);
+    expect(preventDefault).toHaveBeenCalledTimes(2);
   });
 
   it("creates a new synchronized tab only after the guard form is submitted", async () => {

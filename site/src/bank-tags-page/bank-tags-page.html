@@ -19,6 +19,17 @@
       <p class="bank-tags-page__empty">Select a synchronized bank tag.</p>
     </main>
   </div>
+  <div class="bank-tags-page__explorer" role="dialog" aria-modal="true" aria-labelledby="bank-tags-explorer-title" hidden>
+    <div class="bank-tags-page__explorer-card rsborder-tiny rsbackground">
+      <header>
+        <div><h3 id="bank-tags-explorer-title">Add an item</h3><p class="bank-tags-page__explorer-purpose"></p></div>
+        <button type="button" class="bank-tags-page__explorer-close" aria-label="Close item explorer">×</button>
+      </header>
+      <input class="bank-tags-page__explorer-search" type="search" autocomplete="off" placeholder="Search by partial item name or item ID" aria-controls="bank-tags-explorer-results">
+      <p class="bank-tags-page__hint">Type at least 2 characters. Use ↑/↓ to browse and Enter to select.</p>
+      <div id="bank-tags-explorer-results" class="bank-tags-page__explorer-results" role="listbox"></div>
+    </div>
+  </div>
   <div class="bank-tags-page__guard" role="dialog" aria-modal="true" aria-labelledby="bank-tags-guard-title" hidden>
     <div class="bank-tags-page__guard-card rsborder-tiny rsbackground"></div>
   </div>
@@ -32,6 +43,7 @@
         <dt><kbd>?</kbd></dt><dd>Open this help.</dd>
         <dt><kbd>Esc</kbd></dt><dd>Close this help.</dd>
         <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd></dt><dd>Save the selected tag.</dd>
+        <dt>Item explorer</dt><dd>Select <strong>Add item</strong>, or click an empty layout slot. Search by partial name or item ID, then use <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>.</dd>
         <dt>Drag and drop</dt><dd>Move an item to an empty slot, or swap two layout items.</dd>
         <dt>Double-click</dt><dd>Empty a layout slot without removing the item from the tag.</dd>
         <dt>Red <strong>×</strong></dt><dd>Remove the item from the tag entirely. This also clears every layout slot containing it.</dd>

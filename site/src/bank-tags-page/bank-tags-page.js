@@ -9,6 +9,9 @@ export class BankTagsPage extends BaseElement {
     this.tags = new Map();
     this.selectedTagId = null;
     this.dragged = null;
+    this.explorerResults = [];
+    this.explorerIndex = 0;
+    this.explorerSlot = null;
   }
 
   html() {
@@ -123,14 +126,8 @@ export class BankTagsPage extends BaseElement {
         <button class="men-button small" type="button" data-action="export-runelite">Copy RuneLite export</button>
         <button class="men-button small" type="button" data-action="export-banklayouts">Copy BankLayouts export</button>
       </div>
-      <div class="bank-tags-page__add-item">
-        <label>Add item by ID or exact name<input class="bank-tags-page__item-search" placeholder="e.g. 4151 or Abyssal whip"></label>
-        <button class="men-button small" type="button" data-action="add-item">Add item</button>
-      </div>
-      <section><h3>Layout</h3><p class="bank-tags-page__hint">Drag items to move or swap them. Double-click a slot to empty it.</p>
-        <div class="bank-tags-page__grid">${slots.map((id, index) => this.slot(id, index)).join("")}</div>
-      </section>
-      <section><h3>Tagged items not in the layout</h3>
+      <button class="men-button small bank-tags-page__add-item" type="button" data-action="open-explorer">+ Add item</button>
+      <section class="bank-tags-page__unplaced-section"><h3>Tagged items not in the layout</h3>
         <div class="bank-tags-page__unplaced">${
           unplaced
             .map(
@@ -142,8 +139,11 @@ export class BankTagsPage extends BaseElement {
                   this.itemName(id)
                 )} from tag">×</button></div>`
             )
-            .join("") || "<p>Every tagged item is placed.</p>"
+            .join("") || '<p class="bank-tags-page__empty-note">Every tagged item is placed.</p>'
         }</div>
+      </section>
+      <section><h3>Layout</h3><p class="bank-tags-page__hint">Click an empty slot to choose an item. Drag items to move or swap them. Double-click a filled slot to empty it.</p>
+        <div class="bank-tags-page__grid">${slots.map((id, index) => this.slot(id, index)).join("")}</div>
       </section>
       <section class="bank-tags-page__import"><h3>Import</h3>
         <textarea class="bank-tags-page__import-text" rows="3" placeholder="Paste a RuneLite or BankLayouts export"></textarea>
@@ -177,7 +177,9 @@ export class BankTagsPage extends BaseElement {
           )}<button class="bank-tags-page__remove" type="button" data-remove-id="${id}" title="Remove ${this.escapeAttribute(
             this.itemName(id)
           )} from tag" aria-label="Remove ${this.escapeAttribute(this.itemName(id))} from tag">×</button>`
-        : ""
+        : `<button class="bank-tags-page__empty-slot" type="button" data-action="open-explorer" data-slot="${index}" aria-label="Add an item to slot ${
+            index + 1
+          }">+</button>`
     }</div>`;
   }
 
@@ -192,6 +194,14 @@ export class BankTagsPage extends BaseElement {
     if (event.target.closest(".bank-tags-page__refresh")) return this.load();
     if (event.target.closest(".bank-tags-page__help-button")) return this.openHelp();
     if (event.target.closest(".bank-tags-page__new-tag")) return this.openCreateGuard();
+    if (
+      event.target.closest(".bank-tags-page__explorer-close") ||
+      event.target === this.querySelector(".bank-tags-page__explorer")
+    ) {
+      return this.closeExplorer();
+    }
+    const itemResult = event.target.closest("[data-item-result]");
+    if (itemResult) return this.selectExplorerItem(Number(itemResult.dataset.itemResult));
     if (
       event.target.closest(".bank-tags-page__help-close") ||
       event.target === this.querySelector(".bank-tags-page__help")
@@ -211,6 +221,7 @@ export class BankTagsPage extends BaseElement {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
     if (action === "save") this.save();
+    if (action === "open-explorer") this.openExplorer(event.target.closest("[data-slot]")?.dataset.slot);
     if (action === "history") this.openHistory();
     if (action === "view-revision") this.viewRevision(Number(event.target.closest("[data-revision]").dataset.revision));
     if (action === "restore-revision")
@@ -226,7 +237,6 @@ export class BankTagsPage extends BaseElement {
       this.changeLayout((layout) => {
         while (layout.length && layout.slice(-8).every((id) => id === -1)) layout.splice(-8);
       });
-    if (action === "add-item") this.addItem();
     if (action === "import") this.importTag();
     if (action === "export-runelite") this.copy(exportRuneLite(this.selectedTag()), "RuneLite export copied.");
     if (action === "export-banklayouts") this.copy(exportBankLayouts(this.selectedTag()), "BankLayouts export copied.");
@@ -244,7 +254,23 @@ export class BankTagsPage extends BaseElement {
   }
 
   handleKeyDown(event) {
+    if (event.target.matches?.(".bank-tags-page__explorer-search") && this.explorerResults.length) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        this.explorerIndex =
+          (this.explorerIndex + direction + this.explorerResults.length) % this.explorerResults.length;
+        this.renderExplorerResults();
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.selectExplorerItem(this.explorerResults[this.explorerIndex].id);
+        return;
+      }
+    }
     if (event.key === "Escape") {
+      this.closeExplorer();
       this.closeHelp();
       this.closeGuard();
       return;
@@ -462,6 +488,7 @@ export class BankTagsPage extends BaseElement {
     if (!tag) return;
     if (event.target.matches(".bank-tags-page__name")) tag.name = event.target.value;
     if (event.target.matches(".bank-tags-page__icon")) tag.iconItemId = Number(event.target.value);
+    if (event.target.matches(".bank-tags-page__explorer-search")) this.searchExplorer(event.target.value);
   }
 
   handleDragStart(event) {
@@ -506,20 +533,104 @@ export class BankTagsPage extends BaseElement {
     this.setStatus("Unsaved changes");
   }
 
-  addItem() {
-    const input = this.querySelector(".bank-tags-page__item-search");
-    const query = input.value.trim().toLowerCase();
-    let id = Number(query);
-    if (!Number.isInteger(id) && Item.itemDetails) {
-      const match = Object.entries(Item.itemDetails).find(([, item]) => item.name.toLowerCase() === query);
-      id = match ? Number(match[0]) : NaN;
+  openExplorer(slot) {
+    const explorer = this.querySelector(".bank-tags-page__explorer");
+    this.explorerSlot = slot === undefined ? null : Number(slot);
+    this.explorerResults = [];
+    this.explorerIndex = 0;
+    explorer.querySelector(".bank-tags-page__explorer-purpose").textContent =
+      this.explorerSlot === null
+        ? "Choose an item to add to this tag."
+        : `Choose an item for layout slot ${this.explorerSlot + 1}.`;
+    const search = explorer.querySelector(".bank-tags-page__explorer-search");
+    search.value = "";
+    explorer.hidden = false;
+    this.renderExplorerResults();
+    search.focus();
+  }
+
+  closeExplorer() {
+    const explorer = this.querySelector(".bank-tags-page__explorer");
+    if (explorer) explorer.hidden = true;
+    this.explorerResults = [];
+    this.explorerIndex = 0;
+    this.explorerSlot = null;
+  }
+
+  searchExplorer(value) {
+    const query = value.trim().toLowerCase();
+    const numeric = /^\d+$/.test(query);
+    if (!Item.itemDetails || (!numeric && query.length < 2)) {
+      this.explorerResults = [];
+      this.explorerIndex = 0;
+      this.renderExplorerResults();
+      return;
     }
-    if (!Number.isInteger(id) || id === 0) return this.setStatus("Enter a valid item ID or exact item name.", true);
+    this.explorerResults = Object.entries(Item.itemDetails)
+      .map(([itemId, item]) => {
+        const id = Number(itemId);
+        const name = item.name.toLowerCase();
+        let score = -1;
+        if (itemId === query) score = 0;
+        else if (name === query) score = 1;
+        else if (name.startsWith(query)) score = 2;
+        else if (name.split(/\s+/).some((word) => word.startsWith(query))) score = 3;
+        else if (name.includes(query)) score = 4;
+        return { id, name: item.name, score };
+      })
+      .filter((item) => item.score >= 0)
+      .sort((left, right) => left.score - right.score || left.name.length - right.name.length || left.id - right.id)
+      .slice(0, 40);
+    this.explorerIndex = 0;
+    this.renderExplorerResults();
+  }
+
+  renderExplorerResults() {
+    const results = this.querySelector(".bank-tags-page__explorer-results");
+    if (!results) return;
+    if (!this.explorerResults.length) {
+      const query = this.querySelector(".bank-tags-page__explorer-search")?.value.trim();
+      results.innerHTML = `<p class="bank-tags-page__explorer-empty">${
+        query?.length ? "No matching items." : "Start typing to search the item catalog."
+      }</p>`;
+      return;
+    }
+    const tagged = new Set(this.selectedTag()?.itemIds || []);
+    results.innerHTML = this.explorerResults
+      .map(
+        (item, index) => `<button class="bank-tags-page__explorer-result ${
+          index === this.explorerIndex ? "active" : ""
+        }" type="button" role="option" aria-selected="${index === this.explorerIndex}" data-item-result="${item.id}">
+          ${this.itemImage(item.id, item.name)}
+          <span><strong>${this.escape(item.name)}</strong><small>Item ID ${item.id}</small></span>
+          ${tagged.has(item.id) ? '<span class="bank-tags-page__tagged">Already tagged</span>' : ""}
+        </button>`
+      )
+      .join("");
+    results.querySelector(".active")?.scrollIntoView?.({ block: "nearest" });
+  }
+
+  selectExplorerItem(id) {
+    if (!Number.isInteger(id) || id <= 0 || !Item.itemDetails?.[id]) return;
     const tag = this.selectedTag();
-    tag.itemIds = [...new Set([...tag.itemIds, id])].sort((a, b) => a - b);
-    input.value = "";
+    const alreadyTagged = tag.itemIds.includes(id);
+    if (!alreadyTagged) tag.itemIds = [...tag.itemIds, id].sort((a, b) => a - b);
+    if (this.explorerSlot !== null) {
+      tag.layout = [...(tag.layout || [])];
+      while (tag.layout.length <= this.explorerSlot) tag.layout.push(-1);
+      tag.layout[this.explorerSlot] = id;
+    }
+    const itemName = this.itemName(id);
+    const placed = this.explorerSlot !== null;
+    this.closeExplorer();
     this.renderEditor();
-    this.setStatus("Item added. Save to synchronize it.");
+    this.setStatus(
+      placed
+        ? `${itemName} placed in the layout${alreadyTagged ? "" : " and added to the tag"}. Save to synchronize.`
+        : alreadyTagged
+        ? `${itemName} is already in this tag.`
+        : `${itemName} added. Save to synchronize.`
+    );
   }
 
   async importTag() {
