@@ -103,6 +103,17 @@
 .bank-tags-page__item-search {
   min-width: 16rem;
 }
+.bank-tags-page__icon-choice {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+}
+.bank-tags-page__icon-choice img,
+.bank-tags-page__icon-choice .bank-tags-page__unknown {
+  height: 28px;
+  max-width: 32px;
+  object-fit: contain;
+}
 .bank-tags-page__grid {
   display: grid;
   gap: 3px;
@@ -331,6 +342,36 @@
 }
 .bank-tags-page__explorer-result small {
   opacity: 0.65;
+}
+.bank-tags-page__explorer--icons .bank-tags-page__explorer-results {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+}
+.bank-tags-page__explorer--icons .bank-tags-page__explorer-result {
+  align-content: center;
+  grid-template-columns: 1fr;
+  min-height: 112px;
+  padding: 0.6rem 0.4rem;
+  position: relative;
+  text-align: center;
+}
+.bank-tags-page__explorer--icons .bank-tags-page__explorer-result.selected {
+  background: rgba(159, 199, 141, 0.12);
+  outline: 1px solid #9fc78d;
+}
+.bank-tags-page__explorer--icons .bank-tags-page__explorer-result img {
+  height: 46px;
+  margin: auto;
+  max-width: 54px;
+}
+.bank-tags-page__explorer--icons .bank-tags-page__explorer-result strong {
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bank-tags-page__explorer--icons .bank-tags-page__tagged {
+  font-size: 0.65rem;
+  white-space: normal;
 }
 .bank-tags-page__tagged {
   color: #9fc78d;

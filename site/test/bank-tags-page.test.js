@@ -139,6 +139,32 @@ describe("bank tags page", () => {
     expect(page.querySelector("[data-item-result='4151']").textContent).toContain("Abyssal whip");
   });
 
+  it("opens a visual icon explorer for layout tabs with useful suggestions", () => {
+    page.selectedTag().iconItemId = 199;
+    page.renderEditor();
+
+    page.handleClick({ target: page.querySelector('[data-action="choose-tag-icon"]') });
+
+    expect(page.querySelector(".bank-tags-page__explorer").classList.contains("bank-tags-page__explorer--icons")).toBe(
+      true
+    );
+    expect(page.explorerResults.slice(0, 2).map((item) => item.id)).toEqual([199, 201]);
+    expect(page.querySelector('[data-item-result="199"]').textContent).toContain("Current icon");
+
+    page.searchExplorer("a");
+    expect(page.explorerResults.map((item) => item.id)).toContain(4151);
+  });
+
+  it("changes a layout tab icon without adding the icon item to the tag", () => {
+    page.openTagIconExplorer();
+    page.selectExplorerItem(4151);
+
+    expect(page.selectedTag().iconItemId).toBe(4151);
+    expect(page.selectedTag().itemIds).toEqual([199, 201]);
+    expect(page.querySelector(".bank-tags-page__explorer").hidden).toBe(true);
+    expect(page.querySelector(".bank-tags-page__status").textContent).toContain("tab icon");
+  });
+
   it("places explorer selections into a clicked empty slot", () => {
     page.openExplorer(1);
     page.searchExplorer("whip");

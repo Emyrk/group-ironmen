@@ -21,6 +21,7 @@ export class BankTagsPage extends BaseElement {
     this.explorerIndex = 0;
     this.explorerSlot = null;
     this.explorerTarget = "tag-item";
+    this.explorerReturnFocus = null;
   }
 
   html() {
@@ -212,6 +213,9 @@ export class BankTagsPage extends BaseElement {
           tag.name
         )}"></label>
         <label>Icon item ID<input class="bank-tags-page__icon" type="number" min="0" value="${tag.iconItemId}"></label>
+        <button class="men-button small bank-tags-page__icon-choice" type="button" data-action="choose-tag-icon" aria-label="Browse icons for ${this.escapeAttribute(
+          tag.name
+        )}">${this.itemImage(tag.iconItemId, tag.name)}<span>Browse icons</span></button>
       </div>
       <div class="bank-tags-page__toolbar">
         <button class="men-button small" type="button" data-action="save">Save changes</button>
@@ -263,7 +267,9 @@ export class BankTagsPage extends BaseElement {
         <label>Icon item ID<input class="bank-tags-page__folder-icon" type="number" min="0" value="${
           folder.iconItemId
         }"></label>
-        <button class="men-button small" type="button" data-action="choose-folder-icon">Choose icon</button>
+        <button class="men-button small bank-tags-page__icon-choice" type="button" data-action="choose-folder-icon" aria-label="Browse icons for ${this.escapeAttribute(
+          folder.name
+        )}">${this.itemImage(folder.iconItemId, folder.name)}<span>Browse icons</span></button>
       </div>
       <div class="bank-tags-page__toolbar">
         <button class="men-button small" type="button" data-action="save-folder">Save folder</button>
@@ -406,6 +412,7 @@ export class BankTagsPage extends BaseElement {
     if (!action) return;
     if (action === "save") this.save();
     if (action === "save-folder") this.saveFolder();
+    if (action === "choose-tag-icon") this.openTagIconExplorer();
     if (action === "choose-folder-icon") this.openFolderIconExplorer();
     if (action === "assign-folder-tag") this.changeFolderTag(event.target.closest("[data-tag-id]").dataset.tagId, true);
     if (action === "unassign-folder-tag")
@@ -945,55 +952,109 @@ export class BankTagsPage extends BaseElement {
   }
 
   openExplorer(slot) {
-    const explorer = this.querySelector(".bank-tags-page__explorer");
-    this.explorerTarget = "tag-item";
-    this.explorerSlot = slot === undefined ? null : Number(slot);
-    this.explorerResults = [];
-    this.explorerIndex = 0;
-    const title = explorer.querySelector("h3");
-    if (title) title.textContent = "Add an item";
-    explorer.querySelector(".bank-tags-page__explorer-purpose").textContent =
-      this.explorerSlot === null
-        ? "Choose an item to add to this tag."
-        : `Choose an item for layout slot ${this.explorerSlot + 1}.`;
-    const search = explorer.querySelector(".bank-tags-page__explorer-search");
-    search.value = "";
-    explorer.hidden = false;
-    this.renderExplorerResults();
-    search.focus();
+    this.openItemExplorer({
+      target: "tag-item",
+      slot: slot === undefined ? null : Number(slot),
+      title: "Add an item",
+      purpose:
+        slot === undefined
+          ? "Choose an item to add to this tag."
+          : `Choose an item for layout slot ${Number(slot) + 1}.`,
+    });
+  }
+
+  openTagIconExplorer() {
+    if (!this.selectedTag()) return;
+    this.openItemExplorer({
+      target: "tag-icon",
+      title: "Choose a tab icon",
+      purpose: "Browse item images, or search by item name or ID.",
+    });
   }
 
   openFolderIconExplorer() {
-    const explorer = this.querySelector(".bank-tags-page__explorer");
     if (!this.selectedFolder()) return;
-    this.explorerTarget = "folder-icon";
-    this.explorerSlot = null;
+    this.openItemExplorer({
+      target: "folder-icon",
+      title: "Choose a folder icon",
+      purpose: "Browse item images, or search by item name or ID.",
+    });
+  }
+
+  openItemExplorer({ target, slot = null, title, purpose }) {
+    const explorer = this.querySelector(".bank-tags-page__explorer");
+    this.explorerTarget = target;
+    this.explorerSlot = slot;
     this.explorerResults = [];
     this.explorerIndex = 0;
-    const title = explorer.querySelector("h3");
-    if (title) title.textContent = "Choose a folder icon";
-    explorer.querySelector(".bank-tags-page__explorer-purpose").textContent = "Choose an item image for this folder.";
+    this.explorerReturnFocus = document.activeElement;
+    explorer.classList.toggle("bank-tags-page__explorer--icons", this.isIconExplorer());
+    const heading = explorer.querySelector("h3");
+    if (heading) heading.textContent = title;
+    explorer.querySelector(".bank-tags-page__explorer-purpose").textContent = purpose;
+    const hint = explorer.querySelector(".bank-tags-page__explorer-hint");
+    if (hint) {
+      hint.textContent = this.isIconExplorer()
+        ? "Suggested icons appear first. Search at any time, then use ↑/↓ and Enter to select."
+        : "Type at least 2 characters. Use ↑/↓ to browse and Enter to select.";
+    }
     const search = explorer.querySelector(".bank-tags-page__explorer-search");
     search.value = "";
     explorer.hidden = false;
-    this.renderExplorerResults();
+    this.searchExplorer("");
     search.focus();
   }
 
   closeExplorer() {
     const explorer = this.querySelector(".bank-tags-page__explorer");
-    if (explorer) explorer.hidden = true;
+    if (!explorer || explorer.hidden) return;
+    explorer.hidden = true;
     this.explorerResults = [];
     this.explorerIndex = 0;
     this.explorerSlot = null;
     this.explorerTarget = "tag-item";
+    this.explorerReturnFocus?.focus?.();
+    this.explorerReturnFocus = null;
+  }
+
+  isIconExplorer() {
+    return this.explorerTarget === "tag-icon" || this.explorerTarget === "folder-icon";
+  }
+
+  currentExplorerIconId() {
+    if (this.explorerTarget === "tag-icon") return this.selectedTag()?.iconItemId;
+    if (this.explorerTarget === "folder-icon") return this.selectedFolder()?.iconItemId;
+    return null;
+  }
+
+  suggestedIconIds() {
+    const candidates = [this.currentExplorerIconId()];
+    if (this.explorerTarget === "tag-icon") {
+      const tag = this.selectedTag();
+      candidates.push(...(tag?.itemIds || []), ...(tag?.layout || []));
+    } else {
+      const folder = this.selectedFolder();
+      for (const tagId of folder?.orderedTagIds || []) candidates.push(this.tags.get(tagId)?.iconItemId);
+      for (const tag of this.tags.values()) candidates.push(tag.iconItemId);
+    }
+    const suggested = candidates
+      .map((id) => this.itemRepresentativeId(Number(id)))
+      .filter((id) => Number.isInteger(id) && id > 0 && Item.itemDetails?.[id]);
+    const catalog = Object.keys(Item.itemDetails || {})
+      .map(Number)
+      .sort((left, right) => Item.itemDetails[left].name.localeCompare(Item.itemDetails[right].name) || left - right);
+    return [...new Set([...suggested, ...catalog])].slice(0, 80);
   }
 
   searchExplorer(value) {
     const query = value.trim().toLowerCase();
     const numeric = /^\d+$/.test(query);
-    if (!Item.itemDetails || (!numeric && query.length < 2)) {
-      this.explorerResults = [];
+    const minimumLength = this.isIconExplorer() ? 1 : 2;
+    if (!Item.itemDetails || (!numeric && query.length < minimumLength)) {
+      this.explorerResults =
+        this.isIconExplorer() && !query
+          ? this.suggestedIconIds().map((id) => ({ id, name: Item.itemDetails[id].name, score: 0 }))
+          : [];
       this.explorerIndex = 0;
       this.renderExplorerResults();
       return;
@@ -1012,7 +1073,7 @@ export class BankTagsPage extends BaseElement {
       })
       .filter((item) => item.score >= 0)
       .sort((left, right) => left.score - right.score || left.name.length - right.name.length || left.id - right.id)
-      .slice(0, 40);
+      .slice(0, this.isIconExplorer() ? 80 : 40);
     this.explorerIndex = 0;
     this.renderExplorerResults();
   }
@@ -1028,14 +1089,23 @@ export class BankTagsPage extends BaseElement {
       return;
     }
     const tagged = new Set(this.selectedTag()?.itemIds || []);
+    const currentIconId = this.currentExplorerIconId();
     results.innerHTML = this.explorerResults
       .map(
         (item, index) => `<button class="bank-tags-page__explorer-result ${
           index === this.explorerIndex ? "active" : ""
-        }" type="button" role="option" aria-selected="${index === this.explorerIndex}" data-item-result="${item.id}">
+        } ${item.id === currentIconId ? "selected" : ""}" type="button" role="option" aria-selected="${
+          this.isIconExplorer() ? item.id === currentIconId : index === this.explorerIndex
+        }" data-item-result="${item.id}" title="${this.escapeAttribute(item.name)} (Item ID ${item.id})">
           ${this.itemImage(item.id, item.name)}
           <span><strong>${this.escape(item.name)}</strong><small>Item ID ${item.id}</small></span>
-          ${tagged.has(item.id) ? '<span class="bank-tags-page__tagged">Already tagged</span>' : ""}
+          ${
+            item.id === currentIconId
+              ? '<span class="bank-tags-page__tagged">Current icon</span>'
+              : !this.isIconExplorer() && tagged.has(item.id)
+              ? '<span class="bank-tags-page__tagged">Already tagged</span>'
+              : ""
+          }
         </button>`
       )
       .join("");
@@ -1044,15 +1114,16 @@ export class BankTagsPage extends BaseElement {
 
   selectExplorerItem(id) {
     if (!Number.isInteger(id) || id <= 0 || !Item.itemDetails?.[id]) return;
-    if (this.explorerTarget === "folder-icon") {
-      const folder = this.selectedFolder();
-      if (!folder) return;
-      folder.iconItemId = id;
+    if (this.isIconExplorer()) {
+      const target = this.explorerTarget === "folder-icon" ? this.selectedFolder() : this.selectedTag();
+      if (!target) return;
+      const targetName = this.explorerTarget === "folder-icon" ? "folder" : "tab";
+      target.iconItemId = id;
       const itemName = this.itemName(id);
       this.closeExplorer();
       this.renderList();
       this.renderEditor();
-      this.setStatus(`${itemName} selected as the folder icon. Save the folder to synchronize.`);
+      this.setStatus(`${itemName} selected as the ${targetName} icon. Save to synchronize.`);
       return;
     }
     const tag = this.selectedTag();
