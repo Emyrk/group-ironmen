@@ -114,6 +114,7 @@ function validateSection(body, pathId) {
     return ["invalid_section_id", "body sectionId must match path id"];
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name || [...name].length > 50) return ["invalid_section", "section name must be between 1 and 50 characters"];
+  if (!("displayColor" in body)) return ["invalid_section", "displayColor is required and may be null"];
   if (
     body.displayColor !== null &&
     (!Number.isInteger(body.displayColor) || body.displayColor < -2147483648 || body.displayColor > 2147483647)
@@ -147,7 +148,8 @@ function createInventorySetupsRouter(db, auth) {
 
   router.get("/inventory-setups", (req, res) => {
     const current = manifest(db);
-    if (parseEtag(req.get("If-None-Match")) === current.groupRevision) return res.status(304).end();
+    if (parseEtag(req.get("If-None-Match")) === current.groupRevision)
+      return res.status(304).set("ETag", etag(current.groupRevision)).end();
     return res.set("ETag", etag(current.groupRevision)).json(current);
   });
 
@@ -156,7 +158,8 @@ function createInventorySetupsRouter(db, auth) {
     if (!validId(id)) return error(res, 400, "invalid_setup_id", "setup id must be a lowercase UUID v4");
     const row = db.prepare("SELECT * FROM inventory_setups WHERE setup_id=?").get(id);
     if (!row) return error(res, 404, "setup_not_found", "setup was not found");
-    if (parseEtag(req.get("If-None-Match")) === row.revision) return res.status(304).end();
+    if (parseEtag(req.get("If-None-Match")) === row.revision)
+      return res.status(304).set("ETag", etag(row.revision)).end();
     return res.set("ETag", etag(row.revision)).json(setupDocument(row));
   });
 
@@ -294,7 +297,8 @@ function createInventorySetupsRouter(db, auth) {
     if (!validId(id)) return error(res, 400, "invalid_section_id", "section id must be a lowercase UUID v4");
     const row = db.prepare("SELECT * FROM inventory_setup_sections WHERE section_id=?").get(id);
     if (!row) return error(res, 404, "section_not_found", "section was not found");
-    if (parseEtag(req.get("If-None-Match")) === row.revision) return res.status(304).end();
+    if (parseEtag(req.get("If-None-Match")) === row.revision)
+      return res.status(304).set("ETag", etag(row.revision)).end();
     return res.set("ETag", etag(row.revision)).json(sectionDocument(row));
   });
 

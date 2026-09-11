@@ -95,7 +95,7 @@ describe("private inventory setup service", () => {
     });
     expect(
       await call(server, "GET", "/api/group/gim/inventory-setups", { headers: { "If-None-Match": '"0"' } })
-    ).toMatchObject({ status: 304, body: null });
+    ).toMatchObject({ status: 304, headers: { etag: '"0"' }, body: null });
   });
 
   it("creates, reads, updates, reorders, and tombstones setups", async () => {
@@ -114,6 +114,11 @@ describe("private inventory setup service", () => {
     expect(db.prepare("SELECT payload FROM inventory_setups WHERE setup_id=?").get(setupId).payload).toBe(
       '{"a":{"b":1,"d":2},"inventory":[1,2],"z":1}'
     );
+    expect(
+      await call(server, "GET", `/api/group/gim/inventory-setups/${setupId}`, {
+        headers: { "If-None-Match": '"1"' },
+      })
+    ).toMatchObject({ status: 304, headers: { etag: '"1"' }, body: null });
     expect(await call(server, "GET", `/api/group/gim/inventory-setups/${setupId}`)).toMatchObject({
       status: 200,
       headers: { etag: '"1"' },
@@ -240,6 +245,11 @@ describe("private inventory setup service", () => {
         "updatedAt",
       ].sort()
     );
+    expect(
+      await call(server, "GET", `/api/group/gim/inventory-setup-sections/${sectionId}`, {
+        headers: { "If-None-Match": '"1"' },
+      })
+    ).toMatchObject({ status: 304, headers: { etag: '"1"' }, body: null });
     const second = await call(server, "PUT", `/api/group/gim/inventory-setup-sections/${secondSectionId}`, {
       headers: { "If-None-Match": "*" },
       body: {
@@ -270,6 +280,12 @@ describe("private inventory setup service", () => {
       body: { schemaVersion: 1, sectionId, name: "Bossing", displayColor: 2147483647, orderedSetupIds: [setupId] },
     });
     expect(created.status).toBe(201);
+    expect(
+      await call(server, "PUT", `/api/group/gim/inventory-setup-sections/${secondSectionId}`, {
+        headers: { "If-None-Match": "*" },
+        body: { schemaVersion: 1, sectionId: secondSectionId, name: "Missing color", orderedSetupIds: [] },
+      })
+    ).toMatchObject({ status: 400, body: { error: "invalid_section" } });
     for (const body of [
       { schemaVersion: 1, sectionId: secondSectionId, name: "Bad", displayColor: 2147483648, orderedSetupIds: [] },
       {

@@ -18,7 +18,6 @@ pub struct InventorySetup {
     #[serde(default)]
     pub setup_id: Option<String>,
     pub name: String,
-    #[serde(default)]
     pub notes: String,
     pub payload: Value,
     #[serde(default)]
@@ -29,6 +28,13 @@ pub struct InventorySetup {
     pub updated_at: DateTime<Utc>,
 }
 
+fn deserialize_display_color<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<i32>::deserialize(deserializer)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InventorySetupSection {
@@ -36,6 +42,7 @@ pub struct InventorySetupSection {
     #[serde(default)]
     pub section_id: Option<String>,
     pub name: String,
+    #[serde(deserialize_with = "deserialize_display_color")]
     pub display_color: Option<i32>,
     pub ordered_setup_ids: Vec<String>,
     #[serde(default)]
@@ -283,7 +290,11 @@ pub fn canonical_object(value: Value) -> Result<Value, String> {
 }
 
 fn parse_etag(value: &str) -> Option<i64> {
-    value.strip_prefix('"')?.strip_suffix('"')?.parse().ok()
+    let digits = value.strip_prefix('"')?.strip_suffix('"')?;
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
 }
 fn request_etag(req: &HttpRequest, name: header::HeaderName) -> Option<i64> {
     req.headers()
@@ -515,7 +526,9 @@ pub async fn get_manifest(
         let client = pool.get().await.map_err(ApiError::PoolError)?;
         let manifest = load_manifest(&client, auth.group_id).await?;
         if request_etag(&req, header::IF_NONE_MATCH) == Some(manifest.group_revision) {
-            return Ok(HttpResponse::NotModified().finish());
+            return Ok(HttpResponse::NotModified()
+                .insert_header((header::ETAG, format!("\"{}\"", manifest.group_revision)))
+                .finish());
         }
         Ok(HttpResponse::Ok()
             .insert_header((header::ETAG, format!("\"{}\"", manifest.group_revision)))
@@ -538,7 +551,9 @@ pub async fn get_setup(
         let row = client.query_opt("SELECT setup_id,name,notes,payload,revision,deleted_at,updated_at FROM groupironman.inventory_setups WHERE group_id=$1 AND setup_id=$2", &[&auth.group_id, &id]).await?;
         let setup = row.as_ref().map(row_setup).transpose()?.ok_or(ProtocolError::NotFound("setup"))?;
         if request_etag(&req, header::IF_NONE_MATCH) == Some(setup.revision) {
-            return Ok(HttpResponse::NotModified().finish());
+            return Ok(HttpResponse::NotModified()
+                .insert_header((header::ETAG, format!("\"{}\"", setup.revision)))
+                .finish());
         }
         Ok(HttpResponse::Ok().insert_header((header::ETAG, format!("\"{}\"", setup.revision))).json(setup))
     }.await;
@@ -636,7 +651,9 @@ pub async fn get_section(
         let row = client.query_opt("SELECT section_id,name,display_color,ordered_setup_ids,revision,deleted_at,updated_at FROM groupironman.inventory_setup_sections WHERE group_id=$1 AND section_id=$2", &[&auth.group_id,&id]).await?;
         let section = row.as_ref().map(row_section).transpose()?.ok_or(ProtocolError::NotFound("section"))?;
         if request_etag(&req, header::IF_NONE_MATCH) == Some(section.revision) {
-            return Ok(HttpResponse::NotModified().finish());
+            return Ok(HttpResponse::NotModified()
+                .insert_header((header::ETAG, format!("\"{}\"", section.revision)))
+                .finish());
         }
         Ok(HttpResponse::Ok().insert_header((header::ETAG, format!("\"{}\"", section.revision))).json(section))
     }.await;
@@ -920,6 +937,8 @@ mod tests {
     fn parses_only_quoted_decimal_etags() {
         assert_eq!(parse_etag("\"7\""), Some(7));
         assert_eq!(parse_etag("7"), None);
+        assert_eq!(parse_etag("\"-1\""), None);
+        assert_eq!(parse_etag("\"+1\""), None);
         assert_eq!(parse_etag("W/\"7\""), None);
     }
 }

@@ -85,6 +85,27 @@ fn documents_serialize_with_only_protocol_fields() {
 }
 
 #[test]
+fn setup_notes_are_required() {
+    let mut fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/inventory-setups/v1/setup.json")).unwrap();
+    fixture.as_object_mut().unwrap().remove("notes");
+    assert!(serde_json::from_value::<InventorySetup>(fixture).is_err());
+}
+
+#[test]
+fn section_display_color_is_required_but_nullable() {
+    let mut fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/inventory-setups/v1/section.json")).unwrap();
+    fixture.as_object_mut().unwrap().remove("displayColor");
+    assert!(serde_json::from_value::<InventorySetupSection>(fixture).is_err());
+
+    let mut fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/inventory-setups/v1/section.json")).unwrap();
+    fixture["displayColor"] = serde_json::Value::Null;
+    assert!(serde_json::from_value::<InventorySetupSection>(fixture).is_ok());
+}
+
+#[test]
 fn ids_are_lowercase_uuid_v4() {
     assert!(parse_entity_id("5e4a8e36-e5f4-4daa-ae7a-e510f3e66721").is_ok());
     assert!(parse_entity_id("5E4A8E36-E5F4-4DAA-AE7A-E510F3E66721").is_err());
