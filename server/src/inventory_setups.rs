@@ -11,6 +11,16 @@ use uuid::{Uuid, Version};
 
 const SCHEMA_VERSION: i32 = 1;
 
+#[derive(Debug, Deserialize)]
+struct SetupPath {
+    setup_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SectionPath {
+    section_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InventorySetup {
@@ -542,11 +552,12 @@ pub async fn get_manifest(
 pub async fn get_setup(
     auth: Authenticated,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<SetupPath>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
     let result = async {
-        let id = parse_entity_id(&path).map_err(|message| ProtocolError::InvalidId("setup", message))?;
+        let id = parse_entity_id(&path.setup_id)
+            .map_err(|message| ProtocolError::InvalidId("setup", message))?;
         let client = pool.get().await.map_err(ApiError::PoolError)?;
         let row = client.query_opt("SELECT setup_id,name,notes,payload,revision,deleted_at,updated_at FROM groupironman.inventory_setups WHERE group_id=$1 AND setup_id=$2", &[&auth.group_id, &id]).await?;
         let setup = row.as_ref().map(row_setup).transpose()?.ok_or(ProtocolError::NotFound("setup"))?;
@@ -564,12 +575,13 @@ pub async fn get_setup(
 pub async fn put_setup(
     auth: Authenticated,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<SetupPath>,
     body: Result<web::Json<InventorySetup>, Error>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
     let result = async {
-        let id = parse_entity_id(&path).map_err(|message| ProtocolError::InvalidId("setup", message))?;
+        let id = parse_entity_id(&path.setup_id)
+            .map_err(|message| ProtocolError::InvalidId("setup", message))?;
         let setup = validate_setup(id, json_body(body, || ProtocolError::InvalidEntity("setup", "request body is not a valid inventory setup document".to_owned()))?)?;
         let create = req.headers().get(header::IF_NONE_MATCH).and_then(|value| value.to_str().ok()) == Some("*");
         let expected = request_etag(&req, header::IF_MATCH);
@@ -610,11 +622,12 @@ pub async fn put_setup(
 pub async fn delete_setup(
     auth: Authenticated,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<SetupPath>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
     let result = async {
-        let id = parse_entity_id(&path).map_err(|message| ProtocolError::InvalidId("setup", message))?;
+        let id = parse_entity_id(&path.setup_id)
+            .map_err(|message| ProtocolError::InvalidId("setup", message))?;
         let expected = request_etag(&req, header::IF_MATCH).ok_or(ProtocolError::PreconditionRequired)?;
         let mut client: Client = pool.get().await.map_err(ApiError::PoolError)?;
         let transaction = client.transaction().await?;
@@ -642,11 +655,12 @@ pub async fn delete_setup(
 pub async fn get_section(
     auth: Authenticated,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<SectionPath>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
     let result = async {
-        let id = parse_entity_id(&path).map_err(|message| ProtocolError::InvalidId("section", message))?;
+        let id = parse_entity_id(&path.section_id)
+            .map_err(|message| ProtocolError::InvalidId("section", message))?;
         let client = pool.get().await.map_err(ApiError::PoolError)?;
         let row = client.query_opt("SELECT section_id,name,display_color,ordered_setup_ids,revision,deleted_at,updated_at FROM groupironman.inventory_setup_sections WHERE group_id=$1 AND section_id=$2", &[&auth.group_id,&id]).await?;
         let section = row.as_ref().map(row_section).transpose()?.ok_or(ProtocolError::NotFound("section"))?;
@@ -664,12 +678,13 @@ pub async fn get_section(
 pub async fn put_section(
     auth: Authenticated,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<SectionPath>,
     body: Result<web::Json<InventorySetupSection>, Error>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
     let result = async {
-        let id = parse_entity_id(&path).map_err(|message| ProtocolError::InvalidId("section", message))?;
+        let id = parse_entity_id(&path.section_id)
+            .map_err(|message| ProtocolError::InvalidId("section", message))?;
         let (section, setup_ids) = validate_section(id, json_body(body, || ProtocolError::InvalidEntity("section", "request body is not a valid inventory setup section document".to_owned()))?)?;
         let create = req.headers().get(header::IF_NONE_MATCH).and_then(|value| value.to_str().ok()) == Some("*");
         let expected = request_etag(&req, header::IF_MATCH);
@@ -711,11 +726,12 @@ pub async fn put_section(
 pub async fn delete_section(
     auth: Authenticated,
     req: HttpRequest,
-    path: web::Path<String>,
+    path: web::Path<SectionPath>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
     let result = async {
-        let id = parse_entity_id(&path).map_err(|message| ProtocolError::InvalidId("section", message))?;
+        let id = parse_entity_id(&path.section_id)
+            .map_err(|message| ProtocolError::InvalidId("section", message))?;
         let expected = request_etag(&req, header::IF_MATCH).ok_or(ProtocolError::PreconditionRequired)?;
         let mut client: Client = pool.get().await.map_err(ApiError::PoolError)?;
         let transaction = client.transaction().await?;
