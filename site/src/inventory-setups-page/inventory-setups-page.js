@@ -104,28 +104,29 @@ export class InventorySetupsPage extends BaseElement {
     }
   }
 
-  collapsedStorageKey() {
+  collapsedStorageKey(sectionId) {
     const { groupName } = this.credentials();
-    return `inventory-setup-sections-collapsed:${groupName || "unknown"}`;
+    return `inventory-setup-section-collapsed:${groupName || "unknown"}:${sectionId}`;
   }
 
   loadCollapsedSections() {
-    try {
-      const values = JSON.parse(localStorage.getItem(this.collapsedStorageKey()) || "[]");
-      this.collapsedSections = new Set(values.filter((id) => this.sections.has(id)));
-    } catch {
-      this.collapsedSections = new Set();
-    }
+    this.collapsedSections = new Set(
+      [...this.sections.keys()].filter(
+        (sectionId) => localStorage.getItem(this.collapsedStorageKey(sectionId)) === "true"
+      )
+    );
   }
 
-  saveCollapsedSections() {
-    localStorage.setItem(this.collapsedStorageKey(), JSON.stringify([...this.collapsedSections]));
+  saveCollapsedSection(sectionId) {
+    const key = this.collapsedStorageKey(sectionId);
+    if (this.collapsedSections.has(sectionId)) localStorage.setItem(key, "true");
+    else localStorage.removeItem(key);
   }
 
   toggleSection(sectionId) {
     if (this.collapsedSections.has(sectionId)) this.collapsedSections.delete(sectionId);
     else this.collapsedSections.add(sectionId);
-    this.saveCollapsedSections();
+    this.saveCollapsedSection(sectionId);
     this.renderList();
   }
 
@@ -474,6 +475,8 @@ export class InventorySetupsPage extends BaseElement {
         method: "DELETE",
         headers: { "If-Match": `"${section.revision}"` },
       });
+      localStorage.removeItem(this.collapsedStorageKey(section.sectionId));
+      this.collapsedSections.delete(section.sectionId);
       await this.load();
     } catch (failure) {
       this.setStatus(`Unable to delete section: ${failure.message}`, true);
