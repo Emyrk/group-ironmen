@@ -3,6 +3,7 @@ use server::authed;
 use server::bank_tags;
 use server::config::Config;
 use server::db;
+use server::inventory_setups;
 use server::models;
 use server::unauthed;
 use server::update_batcher;
@@ -58,7 +59,16 @@ async fn main() -> std::io::Result<()> {
             .service(bank_tags::get_tag)
             .service(bank_tags::put_tag)
             .service(bank_tags::delete_tag)
-            .service(bank_tags::put_order);
+            .service(bank_tags::put_order)
+            .service(inventory_setups::get_manifest)
+            .service(inventory_setups::get_setup)
+            .service(inventory_setups::put_setup)
+            .service(inventory_setups::delete_setup)
+            .service(inventory_setups::put_setup_order)
+            .service(inventory_setups::get_section)
+            .service(inventory_setups::put_section)
+            .service(inventory_setups::delete_section)
+            .service(inventory_setups::put_section_order);
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
             .allow_any_origin()

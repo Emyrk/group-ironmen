@@ -6,6 +6,7 @@ const { openDatabase } = require("./database");
 const { privateAuth } = require("./auth");
 const { createBankTagFoldersRouter } = require("./bank-tag-folders");
 const { createBankTagsRouter } = require("./bank-tags");
+const { createInventorySetupsRouter } = require("./inventory-setups");
 
 function createApp(config, options = {}) {
   const app = express();
@@ -17,6 +18,7 @@ function createApp(config, options = {}) {
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/api/group/:groupName", createBankTagsRouter(db, privateAuth(config)));
   app.use("/api/group/:groupName", createBankTagFoldersRouter(db, privateAuth(config)));
+  app.use("/api/group/:groupName", createInventorySetupsRouter(db, privateAuth(config)));
 
   const proxy = async (req, res, upstreamPath) => {
     const headers = {};

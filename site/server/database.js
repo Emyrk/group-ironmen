@@ -71,6 +71,40 @@ function openDatabase(filename) {
       deleted_at TEXT,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS inventory_setup_state (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      group_revision INTEGER NOT NULL DEFAULT 0,
+      setup_order_revision INTEGER NOT NULL DEFAULT 0,
+      section_order_revision INTEGER NOT NULL DEFAULT 0,
+      ordered_setup_ids TEXT NOT NULL DEFAULT '[]',
+      ordered_section_ids TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+    INSERT OR IGNORE INTO inventory_setup_state
+      (singleton, group_revision, setup_order_revision, section_order_revision, ordered_setup_ids, ordered_section_ids, updated_at)
+      VALUES (1, 0, 0, 0, '[]', '[]', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    CREATE TABLE IF NOT EXISTS inventory_setups (
+      setup_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      deleted_at TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS inventory_setups_live_name
+      ON inventory_setups(lower(name)) WHERE deleted_at IS NULL;
+    CREATE TABLE IF NOT EXISTS inventory_setup_sections (
+      section_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      display_color INTEGER,
+      ordered_setup_ids TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      deleted_at TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS inventory_setup_sections_live_name
+      ON inventory_setup_sections(lower(name)) WHERE deleted_at IS NULL;
   `);
   return db;
 }

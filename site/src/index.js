@@ -53,3 +53,4 @@ import "./collection-log-item/collection-log-item.js";
 import "./player-icon/player-icon.js";
 import "./donate-button/donate-button.js";
 import "./bank-tags-page/bank-tags-page.js";
+import "./inventory-setups-page/inventory-setups-page.js";

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "setupId": "5e4a8e36-e5f4-4daa-ae7a-e510f3e66721",
+  "name": "Cerberus",
+  "notes": "Ghost skip",
+  "payload": {
+    "inventory": [{"id": 385, "quantity": 8}],
+    "equipment": {"head": {"id": 11864}},
+    "runePouch": null
+  },
+  "revision": 7,
+  "deleted": false,
+  "updatedAt": "2026-09-11T12:00:00Z"
+}

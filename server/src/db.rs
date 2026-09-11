@@ -951,5 +951,56 @@ CREATE TABLE IF NOT EXISTS groupironman.bank_tag_groups (
         transaction.commit().await?;
     }
 
+    if !has_migration_run(client, "create_inventory_setups_tables").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+CREATE TABLE IF NOT EXISTS groupironman.inventory_setups (
+  setup_id UUID PRIMARY KEY,
+  group_id BIGINT NOT NULL REFERENCES groupironman.groups(group_id),
+  name TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  payload JSONB NOT NULL,
+  revision BIGINT NOT NULL,
+  deleted_at TIMESTAMPTZ NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS inventory_setups_group_idx
+  ON groupironman.inventory_setups (group_id);
+CREATE UNIQUE INDEX IF NOT EXISTS inventory_setups_group_live_name_idx
+  ON groupironman.inventory_setups (group_id, lower(name)) WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS groupironman.inventory_setup_sections (
+  section_id UUID PRIMARY KEY,
+  group_id BIGINT NOT NULL REFERENCES groupironman.groups(group_id),
+  name TEXT NOT NULL,
+  display_color INTEGER NULL,
+  ordered_setup_ids UUID[] NOT NULL DEFAULT '{}',
+  revision BIGINT NOT NULL,
+  deleted_at TIMESTAMPTZ NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS inventory_setup_sections_group_idx
+  ON groupironman.inventory_setup_sections (group_id);
+CREATE UNIQUE INDEX IF NOT EXISTS inventory_setup_sections_group_live_name_idx
+  ON groupironman.inventory_setup_sections (group_id, lower(name)) WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS groupironman.inventory_setup_groups (
+  group_id BIGINT PRIMARY KEY REFERENCES groupironman.groups(group_id),
+  group_revision BIGINT NOT NULL DEFAULT 0,
+  setup_order_revision BIGINT NOT NULL DEFAULT 0,
+  section_order_revision BIGINT NOT NULL DEFAULT 0,
+  ordered_setup_ids UUID[] NOT NULL DEFAULT '{}',
+  ordered_section_ids UUID[] NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL
+);
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "create_inventory_setups_tables").await?;
+        transaction.commit().await?;
+    }
+
     Ok(())
 }

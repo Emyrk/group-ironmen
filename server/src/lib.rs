@@ -5,6 +5,7 @@ pub mod config;
 pub mod crypto;
 pub mod db;
 pub mod error;
+pub mod inventory_setups;
 pub mod models;
 pub mod unauthed;
 pub mod update_batcher;
