@@ -5,6 +5,7 @@ import path from "path";
 import http from "http";
 import { Readable } from "stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import pluginSetupFixture from "./fixtures/inventory-setups/v3/setup.json";
 import appModule from "../server/app";
 
 const { createApp } = appModule;
@@ -17,8 +18,20 @@ const setup = {
   setupId,
   name: "Vorkath",
   notes: "Bring crumble undead",
-  payload: { z: 1, a: { d: 2, b: 1 }, inventory: [1, 2] },
+  payload: structuredClone(pluginSetupFixture.payload),
 };
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalValue(value[key])])
+    );
+  }
+  return value;
+}
 
 function call(server, method, url, options = {}) {
   return new Promise((resolve, reject) => {
@@ -141,7 +154,7 @@ describe("private inventory setup service", () => {
       ["schemaVersion", "setupId", "name", "notes", "payload", "revision", "deleted", "updatedAt"].sort()
     );
     expect(db.prepare("SELECT payload FROM inventory_setups WHERE setup_id=?").get(setupId).payload).toBe(
-      '{"a":{"b":1,"d":2},"inventory":[1,2],"z":1}'
+      JSON.stringify(canonicalValue(pluginSetupFixture.payload))
     );
     expect(
       await call(server, "GET", `/api/group/gim/inventory-setups/${setupId}`, {
@@ -162,7 +175,12 @@ describe("private inventory setup service", () => {
     ).toMatchObject({ status: 409, body: { error: "stale_revision" } });
     const updated = await call(server, "PUT", `/api/group/gim/inventory-setups/${setupId}`, {
       headers: { "If-Match": '"1"' },
-      body: { ...created.body, name: "Vorkath ranged", notes: "Updated notes", payload: { equipment: [3] } },
+      body: {
+        ...created.body,
+        name: "Vorkath ranged",
+        notes: "Updated notes",
+        payload: { ...created.body.payload, eq: [{ id: 3 }] },
+      },
     });
     expect(updated).toMatchObject({
       status: 200,

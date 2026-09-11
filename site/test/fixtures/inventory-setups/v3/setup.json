@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "setupId": "5e4a8e36-e5f4-4daa-ae7a-e510f3e66721",
+  "name": "Cerberus",
+  "notes": "Ghost skip",
+  "payload": {
+    "inv": [{ "id": 385, "q": 8 }, null, { "id": 12934, "f": true, "sc": "GreaterThan" }],
+    "eq": [null, { "id": 11864 }, { "id": 4151, "q": 1 }],
+    "rp": [
+      { "id": 554, "q": 500 },
+      { "id": 555, "q": 500 }
+    ],
+    "bp": null,
+    "qv": null,
+    "afi": {
+      "4151": { "id": 4151, "f": true }
+    },
+    "hc": -65536,
+    "hd": true,
+    "dc": -16711936,
+    "fb": true,
+    "uh": true,
+    "sb": 3,
+    "fv": true,
+    "iId": 11864,
+    "ao": "Pound"
+  },
+  "revision": 7,
+  "deleted": false,
+  "updatedAt": "2026-09-11T12:00:00Z"
+}

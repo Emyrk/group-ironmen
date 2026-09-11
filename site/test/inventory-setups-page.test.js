@@ -9,6 +9,7 @@ vi.mock("../src/data/storage", () => ({
 }));
 
 import { InventorySetupsPage } from "../src/inventory-setups-page/inventory-setups-page";
+import pluginSetupFixture from "./fixtures/inventory-setups/v3/setup.json";
 
 const setupId = "5e4a8e36-e5f4-4daa-ae7a-e510f3e66721";
 const secondSetupId = "f40c4538-b158-4c1c-9c8a-7d930886bc96";
@@ -17,17 +18,11 @@ const secondSectionId = "a8691e24-56a0-4fb7-bfd1-04feca5b449a";
 
 function setupDocument(id = setupId) {
   return {
-    schemaVersion: 1,
+    ...structuredClone(pluginSetupFixture),
     setupId: id,
     name: id === setupId ? "Zulrah" : "Barrows",
     notes: "Bring food",
-    payload: {
-      inventory: [{ id: 385, quantity: 10 }, 12934],
-      equipment: [{ itemId: 4151 }],
-    },
     revision: 4,
-    deleted: false,
-    updatedAt: "2026-09-11T00:00:00Z",
   };
 }
 
@@ -101,19 +96,27 @@ describe("inventory setups page", () => {
     expect(page.querySelector(".inventory-setups-page__status").textContent).toBe("2 setups in 1 section.");
   });
 
-  it("renders inventory and equipment item sprites from the JSON payload", () => {
+  it("loads the plugin v3 fixture and renders compact inventory and equipment items", () => {
     page.renderEditor();
 
-    expect(page.querySelector('[data-grid="inventory"]').innerHTML).toContain("/icons/items/385.webp");
-    expect(page.querySelector('[data-grid="inventory"]').innerHTML).toContain("/icons/items/12934.webp");
-    expect(page.querySelector('[data-grid="equipment"]').innerHTML).toContain("/icons/items/4151.webp");
+    const inventory = page.querySelector('[data-grid="inventory"]').innerHTML;
+    const equipment = page.querySelector('[data-grid="equipment"]').innerHTML;
+    expect(inventory).toContain("/icons/items/385.webp");
+    expect(inventory).toContain("/icons/items/12934.webp");
+    expect(inventory).toContain("<small>8</small>");
+    expect(equipment).toContain("/icons/items/11864.webp");
+    expect(equipment).toContain("/icons/items/4151.webp");
   });
 
-  it("saves shared notes and canonical JSON with the setup revision", async () => {
+  it("round-trips the compact plugin payload exactly when editing shared name and notes", async () => {
+    const expectedPayload = {
+      ...structuredClone(pluginSetupFixture.payload),
+      zz: { enabled: true, mode: "future-compact-option" },
+    };
+    page.setups.get(setupId).payload = expectedPayload;
     page.renderEditor();
     page.querySelector("[data-field='name']").value = "Zulrah learner";
     page.querySelector("[data-field='notes']").value = "Two recoils";
-    page.querySelector("[data-field='payload']").value = '{"equipment":[4151],"inventory":[385]}';
     const request = vi.spyOn(page, "request").mockResolvedValue({
       ...setupDocument(),
       name: "Zulrah learner",
@@ -124,14 +127,15 @@ describe("inventory setups page", () => {
     await page.saveSetup();
 
     const [path, options] = request.mock.calls[0];
+    const body = JSON.parse(options.body);
     expect(path).toBe(`/inventory-setups/${setupId}`);
     expect(options.headers["If-Match"]).toBe('"4"');
-    expect(JSON.parse(options.body)).toMatchObject({
-      setupId,
-      name: "Zulrah learner",
-      notes: "Two recoils",
-      payload: { equipment: [4151], inventory: [385] },
-    });
+    expect(body.name).toBe("Zulrah learner");
+    expect(body.notes).toBe("Two recoils");
+    expect(body.payload).toEqual(expectedPayload);
+    expect(body.payload).not.toHaveProperty("inventory");
+    expect(body.payload).not.toHaveProperty("equipment");
+    expect(body.payload.zz).toEqual({ enabled: true, mode: "future-compact-option" });
   });
 
   it("stores expansion state by group and section without transmitting it", async () => {
@@ -246,6 +250,15 @@ describe("inventory setups page", () => {
 
     expect(request.mock.calls[0][0]).toBe("/inventory-setups/a8691e24-56a0-4fb7-bfd1-04feca5b449a");
     expect(request.mock.calls[0][1].headers["If-None-Match"]).toBe("*");
+    expect(JSON.parse(request.mock.calls[0][1].body).payload).toEqual({
+      inv: [],
+      eq: [],
+      rp: null,
+      bp: null,
+      qv: null,
+      afi: {},
+      hc: -65536,
+    });
     expect(page.setupOrderRevision).toBe(1);
     expect(saveOrder).not.toHaveBeenCalled();
   });

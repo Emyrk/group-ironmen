@@ -4,6 +4,18 @@ import { storage } from "../data/storage";
 
 const SCHEMA_VERSION = 1;
 
+function emptyPluginPayload() {
+  return {
+    inv: [],
+    eq: [],
+    rp: null,
+    bp: null,
+    qv: null,
+    afi: {},
+    hc: -65536,
+  };
+}
+
 function canonicalValue(value) {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (value && typeof value === "object") {
@@ -231,14 +243,14 @@ export class InventorySetupsPage extends BaseElement {
       editor.innerHTML = `<h3>Edit setup</h3>
         <label>Name<input data-field="name" value="${this.escapeAttribute(setup.name)}"></label>
         <label>Shared notes<textarea data-field="notes" rows="4">${this.escape(setup.notes)}</textarea></label>
-        <label>Canonical JSON payload<textarea data-field="payload" rows="12">${this.escape(
+        <label>Inventory Setups v3 compact JSON payload<textarea data-field="payload" rows="12">${this.escape(
           JSON.stringify(canonicalValue(setup.payload), null, 2)
         )}</textarea></label>
         <h4>Inventory</h4><div class="inventory-setups-page__grid" data-grid="inventory">${this.itemGrid(
-          setup.payload.inventory
+          setup.payload.inv
         )}</div>
         <h4>Equipment</h4><div class="inventory-setups-page__grid inventory-setups-page__grid--equipment" data-grid="equipment">${this.itemGrid(
-          setup.payload.equipment
+          setup.payload.eq
         )}</div>
         <div class="inventory-setups-page__actions">
           <button class="men-button small" type="button" data-action="save-setup">Save setup</button>
@@ -286,7 +298,7 @@ export class InventorySetupsPage extends BaseElement {
       .map((item) => {
         const id = this.itemId(item);
         if (!Number.isInteger(id) || id <= 0) return '<span class="inventory-setups-page__slot"></span>';
-        const quantity = typeof item === "object" ? item.quantity ?? item.qty ?? 1 : 1;
+        const quantity = typeof item === "object" ? item.q ?? 1 : 1;
         return `<span class="inventory-setups-page__slot"><img src="${Item.imageUrl(
           id,
           quantity
@@ -349,7 +361,13 @@ export class InventorySetupsPage extends BaseElement {
       const saved = await this.request(`/inventory-setups/${setupId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "If-None-Match": "*" },
-        body: JSON.stringify({ schemaVersion: SCHEMA_VERSION, setupId, name: "New setup", notes: "", payload: {} }),
+        body: JSON.stringify({
+          schemaVersion: SCHEMA_VERSION,
+          setupId,
+          name: "New setup",
+          notes: "",
+          payload: emptyPluginPayload(),
+        }),
       });
       this.setups.set(setupId, saved);
       this.setupOrder.push(setupId);
