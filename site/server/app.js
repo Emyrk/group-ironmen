@@ -8,6 +8,15 @@ const { createBankTagFoldersRouter } = require("./bank-tag-folders");
 const { createBankTagsRouter } = require("./bank-tags");
 const { createInventorySetupsRouter } = require("./inventory-setups");
 
+function invalidJsonError(pathname) {
+  if (pathname.endsWith("/inventory-setup-order") || pathname.endsWith("/inventory-setup-section-order")) {
+    return "invalid_order";
+  }
+  if (pathname.includes("/inventory-setup-sections/")) return "invalid_section";
+  if (pathname.includes("/inventory-setups/")) return "invalid_setup";
+  return "invalid_tag";
+}
+
 function createApp(config, options = {}) {
   const app = express();
   const db = options.db || openDatabase(config.databasePath);
@@ -63,11 +72,11 @@ function createApp(config, options = {}) {
     return res.sendFile(path.resolve("public", "index.html"));
   });
 
-  app.use((failure, _req, res, _next) => {
+  app.use((failure, req, res, _next) => {
     if (failure.type === "entity.too.large")
       return res.status(413).json({ error: "payload_too_large", message: "request body exceeds 100000 bytes" });
     if (failure.type === "entity.parse.failed")
-      return res.status(400).json({ error: "invalid_tag", message: "request body is not valid JSON" });
+      return res.status(400).json({ error: invalidJsonError(req.path), message: "request body is not valid JSON" });
     console.error(failure);
     return res.status(500).json({ error: "internal_error" });
   });

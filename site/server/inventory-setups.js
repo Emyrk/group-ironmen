@@ -437,6 +437,8 @@ function updateOrder(req, res, db, kind) {
   if (expected === undefined) return error(res, 428, "precondition_required", "If-Match is required");
   const setup = kind === "setup";
   const field = setup ? "orderedSetupIds" : "orderedSectionIds";
+  if (!hasOnlyKeys(req.body, new Set(["schemaVersion", field])))
+    return error(res, 400, "invalid_order", "order contains unknown fields");
   const ids = req.body[field];
   if (!Array.isArray(ids) || ids.some((id) => !validId(id)) || new Set(ids).size !== ids.length)
     return error(res, 400, "invalid_order", `${field} is invalid`);

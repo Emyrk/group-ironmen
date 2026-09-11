@@ -23,7 +23,7 @@ const setup = {
 function call(server, method, url, options = {}) {
   return new Promise((resolve, reject) => {
     const address = server.address();
-    const body = options.body === undefined ? undefined : JSON.stringify(options.body);
+    const body = options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
     const headers = {
       Authorization: "private-token",
       ...(body ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}),
@@ -96,6 +96,35 @@ describe("private inventory setup service", () => {
     expect(
       await call(server, "GET", "/api/group/gim/inventory-setups", { headers: { "If-None-Match": '"0"' } })
     ).toMatchObject({ status: 304, headers: { etag: '"0"' }, body: null });
+  });
+
+  it("rejects unknown order fields and reports malformed JSON by resource", async () => {
+    expect(
+      await call(server, "PUT", "/api/group/gim/inventory-setup-order", {
+        headers: { "If-Match": '"0"' },
+        body: { schemaVersion: 1, orderedSetupIds: [], extra: true },
+      })
+    ).toMatchObject({ status: 400, body: { error: "invalid_order" } });
+    expect(
+      await call(server, "PUT", "/api/group/gim/inventory-setup-section-order", {
+        headers: { "If-Match": '"0"' },
+        body: { schemaVersion: 1, orderedSectionIds: [], extra: true },
+      })
+    ).toMatchObject({ status: 400, body: { error: "invalid_order" } });
+
+    for (const [url, error] of [
+      [`/api/group/gim/inventory-setups/${setupId}`, "invalid_setup"],
+      [`/api/group/gim/inventory-setup-sections/${sectionId}`, "invalid_section"],
+      ["/api/group/gim/inventory-setup-order", "invalid_order"],
+      ["/api/group/gim/inventory-setup-section-order", "invalid_order"],
+    ]) {
+      expect(
+        await call(server, "PUT", url, {
+          headers: { "If-None-Match": "*", "Content-Type": "application/json" },
+          rawBody: "{",
+        })
+      ).toMatchObject({ status: 400, body: { error } });
+    }
   });
 
   it("creates, reads, updates, reorders, and tombstones setups", async () => {
