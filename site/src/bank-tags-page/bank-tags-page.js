@@ -352,9 +352,11 @@ export class BankTagsPage extends BaseElement {
         ? `${this.itemTile(
             id,
             `data-grid-index="${index}"`
-          )}<button class="bank-tags-page__remove" type="button" data-remove-id="${id}" title="Remove ${this.escapeAttribute(
+          )}<button class="bank-tags-page__remove" type="button" data-clear-slot="${index}" title="Remove ${this.escapeAttribute(
             this.itemName(id)
-          )} from tag" aria-label="Remove ${this.escapeAttribute(this.itemName(id))} from tag">×</button>`
+          )} from slot ${index + 1}" aria-label="Remove ${this.escapeAttribute(this.itemName(id))} from slot ${
+            index + 1
+          }">×</button>`
         : `<button class="bank-tags-page__empty-slot" type="button" data-action="open-explorer" data-slot="${index}" aria-label="Add an item to slot ${
             index + 1
           }">+</button>`
@@ -397,6 +399,14 @@ export class BankTagsPage extends BaseElement {
       event.target === this.querySelector(".bank-tags-page__help")
     ) {
       return this.closeHelp();
+    }
+    const clearedSlot = event.target.closest("[data-clear-slot]");
+    if (clearedSlot) {
+      const tag = this.selectedTag();
+      tag.layout[Number(clearedSlot.dataset.clearSlot)] = -1;
+      this.renderEditor();
+      this.setStatus("Layout slot cleared. Save to synchronize the change.");
+      return;
     }
     const remove = event.target.closest("[data-remove-id]");
     if (remove) {

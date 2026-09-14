@@ -61,10 +61,22 @@ describe("bank tags page", () => {
     expect(help.hidden).toBe(true);
   });
 
-  it("renders removal controls for items placed in the layout", () => {
+  it("renders slot clearing controls for items placed in the layout", () => {
     const html = page.slot(199, 0);
-    expect(html).toContain('data-remove-id="199"');
-    expect(html).toContain("Remove Grimy guam leaf from tag");
+    expect(html).toContain('data-clear-slot="0"');
+    expect(html).toContain("Remove Grimy guam leaf from slot 1");
+  });
+
+  it("clears only the selected slot when an item appears more than once", () => {
+    page.selectedTag().layout = [199, 199, 201];
+    page.innerHTML += '<button data-clear-slot="0"></button>';
+    const render = vi.spyOn(page, "renderEditor").mockImplementation(() => {});
+
+    page.handleClick({ target: page.querySelector("[data-clear-slot]") });
+
+    expect(page.selectedTag().itemIds).toEqual([199, 201]);
+    expect(page.selectedTag().layout).toEqual([-1, 199, 201]);
+    expect(render).toHaveBeenCalledOnce();
   });
 
   it("removes an item from the tag and every matching layout slot", () => {
