@@ -328,13 +328,17 @@ fn item_totals_from_snapshot(items: Vec<i64>) -> HashMap<i32, i64> {
         .collect()
 }
 
-pub async fn snapshot_group_items(
+async fn snapshot_group_items_inner(
     client: &mut Client,
+    group_id: Option<i64>,
     snapshot_date: NaiveDate,
 ) -> Result<(), ApiError> {
     let transaction = client.transaction().await?;
     let group_rows = transaction
-        .query("SELECT group_id FROM groupironman.groups", &[])
+        .query(
+            "SELECT group_id FROM groupironman.groups WHERE $1::BIGINT IS NULL OR group_id=$1",
+            &[&group_id],
+        )
         .await?;
     let mut group_items: HashMap<i64, HashMap<i32, i64>> = group_rows
         .into_iter()
@@ -346,8 +350,9 @@ pub async fn snapshot_group_items(
             r#"
 SELECT group_id, inventory, equipment, bank, rune_pouch, seed_vault
 FROM groupironman.members
+WHERE $1::BIGINT IS NULL OR group_id=$1
 "#,
-            &[],
+            &[&group_id],
         )
         .await?;
 
@@ -380,12 +385,31 @@ ON CONFLICT (group_id, snapshot_date) DO NOTHING
     // Keep one extra baseline snapshot so the API can calculate 30 complete daily changes.
     transaction
         .execute(
-            "DELETE FROM groupironman.item_snapshots WHERE snapshot_date < $1::date - 30",
-            &[&snapshot_date],
+            r#"
+DELETE FROM groupironman.item_snapshots
+WHERE snapshot_date < $1::date - 30
+  AND ($2::BIGINT IS NULL OR group_id=$2)
+"#,
+            &[&snapshot_date, &group_id],
         )
         .await?;
     transaction.commit().await?;
     Ok(())
+}
+
+pub async fn snapshot_group_items(
+    client: &mut Client,
+    snapshot_date: NaiveDate,
+) -> Result<(), ApiError> {
+    snapshot_group_items_inner(client, None, snapshot_date).await
+}
+
+pub async fn snapshot_group_items_for_group(
+    client: &mut Client,
+    group_id: i64,
+    snapshot_date: NaiveDate,
+) -> Result<(), ApiError> {
+    snapshot_group_items_inner(client, Some(group_id), snapshot_date).await
 }
 
 fn calculate_item_history(snapshots: &[(NaiveDate, HashMap<i32, i64>)]) -> GroupItemHistory {

@@ -8,6 +8,7 @@ use crate::models::{
 use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
+use chrono_tz::America::Chicago;
 use deadpool_postgres::{Client, Pool};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -218,7 +219,9 @@ pub async fn get_item_history(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
 ) -> Result<web::Json<GroupItemHistory>, Error> {
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let snapshot_date = Utc::now().with_timezone(&Chicago).date_naive();
+    db::snapshot_group_items_for_group(&mut client, auth.group_id, snapshot_date).await?;
     let item_history = db::get_item_history(&client, auth.group_id).await?;
     Ok(web::Json(item_history))
 }
