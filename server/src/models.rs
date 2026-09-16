@@ -81,6 +81,21 @@ pub struct MemberSkillData {
     pub skill_data: Vec<AggregateSkillData>,
 }
 pub type GroupSkillData = Vec<MemberSkillData>;
+
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct ItemQuantityChange {
+    pub item_id: i32,
+    pub quantity: i64,
+}
+
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct DailyItemChanges {
+    pub date: chrono::NaiveDate,
+    pub gained: Vec<ItemQuantityChange>,
+    pub lost: Vec<ItemQuantityChange>,
+}
+
+pub type GroupItemHistory = Vec<DailyItemChanges>;
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateGroup {

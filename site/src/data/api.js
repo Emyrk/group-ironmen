@@ -39,6 +39,10 @@ class Api {
     return `${this.baseUrl}/group/${this.groupName}/get-skill-data`;
   }
 
+  get itemHistoryUrl() {
+    return `${this.baseUrl}/group/${this.groupName}/get-item-history`;
+  }
+
   get captchaEnabledUrl() {
     return `${this.baseUrl}/captcha-enabled`;
   }
@@ -188,6 +192,18 @@ class Api {
       });
       return response.json();
     }
+  }
+
+  async getItemHistory() {
+    const response = await fetch(this.itemHistoryUrl, {
+      headers: {
+        Authorization: this.groupToken,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load item history (${response.status})`);
+    }
+    return response.json();
   }
 
   async getCaptchaEnabled() {

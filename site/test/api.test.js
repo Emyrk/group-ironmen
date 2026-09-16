@@ -32,6 +32,7 @@ describe("api", () => {
     expect(api.renameMemberUrl).toContain("/group/iron-team/rename-group-member");
     expect(api.amILoggedInUrl).toContain("/group/iron-team/am-i-logged-in");
     expect(api.skillDataUrl).toContain("/group/iron-team/get-skill-data");
+    expect(api.itemHistoryUrl).toContain("/group/iron-team/get-item-history");
   });
 
   it("enable waits for data-load events and starts polling once", async () => {
@@ -81,12 +82,9 @@ describe("api", () => {
 
     await api.getGroupData();
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/api/group/gim/get-group-data?from_time=2026-03-30T00:00:00.000Z",
-      {
-        headers: { Authorization: "token" },
-      },
-    );
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/gim/get-group-data?from_time=2026-03-30T00:00:00.000Z", {
+      headers: { Authorization: "token" },
+    });
     expect(updateSpy).toHaveBeenCalledWith(payload);
     expect(api.nextCheck).toBe("2026-03-30T00:00:05.000Z");
     expect(publishSpy).toHaveBeenCalledWith("get-group-data", groupData);
@@ -152,51 +150,56 @@ describe("api", () => {
     await api.getGePrices();
     await api.getCaptchaEnabled();
 
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(
-      1,
-      "/api/create-group",
-      {
-        body: JSON.stringify({
-          name: "new-group",
-          member_names: ["Alice", "Bob"],
-          captcha_response: "captcha-token",
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      },
-    );
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(
-      2,
-      "/api/group/gim/add-group-member",
-      {
-        body: JSON.stringify({ name: "Charlie" }),
-        headers: { "Content-Type": "application/json", Authorization: "token" },
-        method: "POST",
-      },
-    );
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(
-      3,
-      "/api/group/gim/delete-group-member",
-      {
-        body: JSON.stringify({ name: "Charlie" }),
-        headers: { "Content-Type": "application/json", Authorization: "token" },
-        method: "DELETE",
-      },
-    );
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(
-      4,
-      "/api/group/gim/rename-group-member",
-      {
-        body: JSON.stringify({ original_name: "Charlie", new_name: "Charlotte" }),
-        headers: { "Content-Type": "application/json", Authorization: "token" },
-        method: "PUT",
-      },
-    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(1, "/api/create-group", {
+      body: JSON.stringify({
+        name: "new-group",
+        member_names: ["Alice", "Bob"],
+        captcha_response: "captcha-token",
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(2, "/api/group/gim/add-group-member", {
+      body: JSON.stringify({ name: "Charlie" }),
+      headers: { "Content-Type": "application/json", Authorization: "token" },
+      method: "POST",
+    });
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(3, "/api/group/gim/delete-group-member", {
+      body: JSON.stringify({ name: "Charlie" }),
+      headers: { "Content-Type": "application/json", Authorization: "token" },
+      method: "DELETE",
+    });
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(4, "/api/group/gim/rename-group-member", {
+      body: JSON.stringify({ original_name: "Charlie", new_name: "Charlotte" }),
+      headers: { "Content-Type": "application/json", Authorization: "token" },
+      method: "PUT",
+    });
     expect(globalThis.fetch).toHaveBeenNthCalledWith(5, "/api/group/gim/am-i-logged-in", {
       headers: { Authorization: "token" },
     });
     expect(globalThis.fetch).toHaveBeenNthCalledWith(6, "/api/ge-prices");
     expect(globalThis.fetch).toHaveBeenNthCalledWith(7, "/api/captcha-enabled");
+  });
+
+  it("fetches authenticated item history", async () => {
+    api.setCredentials("gim", "token");
+    const history = [{ date: "2026-09-16", gained: [], lost: [] }];
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(history),
+    });
+
+    await expect(api.getItemHistory()).resolves.toEqual(history);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/gim/get-item-history", {
+      headers: { Authorization: "token" },
+    });
+  });
+
+  it("rejects failed item history requests", async () => {
+    api.setCredentials("gim", "token");
+    globalThis.fetch.mockResolvedValue({ ok: false, status: 500 });
+
+    await expect(api.getItemHistory()).rejects.toThrow("Failed to load item history (500)");
   });
 
   it("restart re-enables with existing credentials", async () => {

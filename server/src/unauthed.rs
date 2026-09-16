@@ -5,6 +5,8 @@ use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
 use crate::validators::valid_name;
 use actix_web::{get, post, web, Error, HttpResponse};
 use arc_swap::{ArcSwap, ArcSwapAny};
+use chrono::{Timelike, Utc};
+use chrono_tz::America::Chicago;
 use deadpool_postgres::{Client, Pool};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -97,6 +99,37 @@ pub fn start_skills_aggregator(db_pool: Pool) {
                 }
                 Err(err) => {
                     log::error!("Failed to get db client: {}", err);
+                }
+            }
+        }
+    });
+}
+
+pub fn start_item_snapshotter(db_pool: Pool) {
+    task::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(300));
+        let mut last_attempted_date = None;
+
+        loop {
+            interval.tick().await;
+            let central_now = Utc::now().with_timezone(&Chicago);
+            let snapshot_date = central_now.date_naive();
+            if central_now.hour() < 2 || last_attempted_date == Some(snapshot_date) {
+                continue;
+            }
+            last_attempted_date = Some(snapshot_date);
+
+            log::info!("Taking daily item snapshot for {}", snapshot_date);
+            match db_pool.get().await {
+                Ok(mut client) => {
+                    if let Err(err) = db::snapshot_group_items(&mut client, snapshot_date).await {
+                        last_attempted_date = None;
+                        log::error!("Failed to take daily item snapshot: {}", err);
+                    }
+                }
+                Err(err) => {
+                    last_attempted_date = None;
+                    log::error!("Failed to get db client for item snapshot: {}", err);
                 }
             }
         }

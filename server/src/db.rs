@@ -1,9 +1,10 @@
 use crate::crypto::token_hash;
 use crate::error::ApiError;
 use crate::models::{
-    AggregateSkillData, CreateGroup, GroupMember, GroupSkillData, MemberSkillData, SHARED_MEMBER,
+    AggregateSkillData, CreateGroup, DailyItemChanges, GroupItemHistory, GroupMember,
+    GroupSkillData, ItemQuantityChange, MemberSkillData, SHARED_MEMBER,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use deadpool_postgres::{Client, Transaction};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -292,6 +293,165 @@ FROM groupironman.members WHERE group_id=$2
     }
 
     Ok(result)
+}
+
+fn add_item_pairs(items: Option<Vec<i32>>, totals: &mut HashMap<i32, i64>) {
+    let Some(items) = items else {
+        return;
+    };
+
+    for pair in items.chunks_exact(2) {
+        let item_id = pair[0];
+        let quantity = pair[1];
+        if item_id > 0 && quantity > 0 {
+            *totals.entry(item_id).or_insert(0) += i64::from(quantity);
+        }
+    }
+}
+
+fn flatten_item_totals(totals: &HashMap<i32, i64>) -> Vec<i64> {
+    let mut items: Vec<(i32, i64)> = totals
+        .iter()
+        .map(|(id, quantity)| (*id, *quantity))
+        .collect();
+    items.sort_unstable_by_key(|(id, _)| *id);
+    items
+        .into_iter()
+        .flat_map(|(id, quantity)| [i64::from(id), quantity])
+        .collect()
+}
+
+fn item_totals_from_snapshot(items: Vec<i64>) -> HashMap<i32, i64> {
+    items
+        .chunks_exact(2)
+        .filter_map(|pair| i32::try_from(pair[0]).ok().map(|id| (id, pair[1])))
+        .collect()
+}
+
+pub async fn snapshot_group_items(
+    client: &mut Client,
+    snapshot_date: NaiveDate,
+) -> Result<(), ApiError> {
+    let transaction = client.transaction().await?;
+    let group_rows = transaction
+        .query("SELECT group_id FROM groupironman.groups", &[])
+        .await?;
+    let mut group_items: HashMap<i64, HashMap<i32, i64>> = group_rows
+        .into_iter()
+        .map(|row| (row.get("group_id"), HashMap::new()))
+        .collect();
+
+    let member_rows = transaction
+        .query(
+            r#"
+SELECT group_id, inventory, equipment, bank, rune_pouch, seed_vault
+FROM groupironman.members
+"#,
+            &[],
+        )
+        .await?;
+
+    for row in member_rows {
+        let group_id: i64 = row.try_get("group_id")?;
+        let totals = group_items.entry(group_id).or_default();
+        add_item_pairs(row.try_get("inventory").ok(), totals);
+        add_item_pairs(row.try_get("equipment").ok(), totals);
+        add_item_pairs(row.try_get("bank").ok(), totals);
+        add_item_pairs(row.try_get("rune_pouch").ok(), totals);
+        add_item_pairs(row.try_get("seed_vault").ok(), totals);
+    }
+
+    let insert_stmt = transaction
+        .prepare_cached(
+            r#"
+INSERT INTO groupironman.item_snapshots (group_id, snapshot_date, items)
+VALUES ($1, $2, $3)
+ON CONFLICT (group_id, snapshot_date) DO NOTHING
+"#,
+        )
+        .await?;
+    for (group_id, totals) in group_items {
+        let items = flatten_item_totals(&totals);
+        transaction
+            .execute(&insert_stmt, &[&group_id, &snapshot_date, &items])
+            .await?;
+    }
+
+    // Keep one extra baseline snapshot so the API can calculate 30 complete daily changes.
+    transaction
+        .execute(
+            "DELETE FROM groupironman.item_snapshots WHERE snapshot_date < $1::date - 30",
+            &[&snapshot_date],
+        )
+        .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
+fn calculate_item_history(snapshots: &[(NaiveDate, HashMap<i32, i64>)]) -> GroupItemHistory {
+    let mut history = Vec::new();
+    for snapshots in snapshots.windows(2) {
+        let (_, previous) = &snapshots[0];
+        let (date, current) = &snapshots[1];
+        let item_ids: HashSet<i32> = previous.keys().chain(current.keys()).copied().collect();
+        let mut gained = Vec::new();
+        let mut lost = Vec::new();
+
+        for item_id in item_ids {
+            let difference = current.get(&item_id).copied().unwrap_or(0)
+                - previous.get(&item_id).copied().unwrap_or(0);
+            if difference > 0 {
+                gained.push(ItemQuantityChange {
+                    item_id,
+                    quantity: difference,
+                });
+            } else if difference < 0 {
+                lost.push(ItemQuantityChange {
+                    item_id,
+                    quantity: -difference,
+                });
+            }
+        }
+        gained.sort_unstable_by_key(|item| item.item_id);
+        lost.sort_unstable_by_key(|item| item.item_id);
+        history.push(DailyItemChanges {
+            date: *date,
+            gained,
+            lost,
+        });
+    }
+
+    history.reverse();
+    history.truncate(30);
+    history
+}
+
+pub async fn get_item_history(
+    client: &Client,
+    group_id: i64,
+) -> Result<GroupItemHistory, ApiError> {
+    let rows = client
+        .query(
+            r#"
+SELECT snapshot_date, items
+FROM groupironman.item_snapshots
+WHERE group_id=$1
+ORDER BY snapshot_date ASC
+"#,
+            &[&group_id],
+        )
+        .await?;
+
+    let snapshots: Vec<(NaiveDate, HashMap<i32, i64>)> = rows
+        .into_iter()
+        .map(|row| {
+            let date = row.try_get("snapshot_date")?;
+            let items: Vec<i64> = row.try_get("items")?;
+            Ok((date, item_totals_from_snapshot(items)))
+        })
+        .collect::<Result<_, tokio_postgres::Error>>()?;
+
+    Ok(calculate_item_history(&snapshots))
 }
 
 pub enum AggregatePeriod {
@@ -1002,5 +1162,76 @@ CREATE TABLE IF NOT EXISTS groupironman.inventory_setup_groups (
         transaction.commit().await?;
     }
 
+    if !has_migration_run(client, "create_item_snapshots_table").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+CREATE TABLE IF NOT EXISTS groupironman.item_snapshots (
+  group_id BIGINT NOT NULL REFERENCES groupironman.groups(group_id) ON DELETE CASCADE,
+  snapshot_date DATE NOT NULL,
+  items BIGINT[] NOT NULL DEFAULT '{}',
+  PRIMARY KEY (group_id, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS item_snapshots_group_date_idx
+  ON groupironman.item_snapshots (group_id, snapshot_date DESC);
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "create_item_snapshots_table").await?;
+        transaction.commit().await?;
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod item_history_tests {
+    use super::*;
+
+    #[test]
+    fn calculates_gained_and_lost_items_between_snapshots() {
+        let first_date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+        let second_date = NaiveDate::from_ymd_opt(2026, 9, 15).unwrap();
+        let snapshots = vec![
+            (first_date, HashMap::from([(4151, 2), (995, 1_000)])),
+            (
+                second_date,
+                HashMap::from([(4151, 1), (995, 1_500), (11840, 1)]),
+            ),
+        ];
+
+        let history = calculate_item_history(&snapshots);
+
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].date, second_date);
+        assert_eq!(
+            history[0].gained,
+            vec![
+                ItemQuantityChange {
+                    item_id: 995,
+                    quantity: 500,
+                },
+                ItemQuantityChange {
+                    item_id: 11840,
+                    quantity: 1,
+                },
+            ]
+        );
+        assert_eq!(
+            history[0].lost,
+            vec![ItemQuantityChange {
+                item_id: 4151,
+                quantity: 1,
+            }]
+        );
+    }
+
+    #[test]
+    fn combines_duplicate_item_pairs_and_ignores_empty_slots() {
+        let mut totals = HashMap::new();
+        add_item_pairs(Some(vec![4151, 1, 0, 0, 4151, 2, -1, 5]), &mut totals);
+
+        assert_eq!(flatten_item_totals(&totals), vec![4151, 3]);
+    }
 }

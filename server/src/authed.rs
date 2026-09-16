@@ -2,7 +2,8 @@ use crate::auth_middleware::Authenticated;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{
-    AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember, SHARED_MEMBER,
+    AmIInGroupRequest, GroupItemHistory, GroupMember, GroupSkillData, RenameGroupMember,
+    SHARED_MEMBER,
 };
 use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
@@ -210,6 +211,16 @@ pub async fn get_group_data(
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let group_members = db::get_group_data(&client, auth.group_id, &from_time).await?;
     Ok(web::Json(group_members))
+}
+
+#[get("/get-item-history")]
+pub async fn get_item_history(
+    auth: Authenticated,
+    db_pool: web::Data<Pool>,
+) -> Result<web::Json<GroupItemHistory>, Error> {
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let item_history = db::get_item_history(&client, auth.group_id).await?;
+    Ok(web::Json(item_history))
 }
 
 #[derive(Deserialize)]
