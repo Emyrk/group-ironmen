@@ -8,7 +8,7 @@ export class ItemHistoryPage extends BaseElement {
     this.history = null;
     this.error = null;
     this.render();
-    this.loadHistory();
+    this.subscribeOnce("get-group-data", this.loadHistory.bind(this));
   }
 
   html() {

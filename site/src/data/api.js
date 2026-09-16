@@ -195,6 +195,9 @@ class Api {
   }
 
   async getItemHistory() {
+    if (!this.groupName || !this.groupToken) {
+      throw new Error("Group credentials are not initialized");
+    }
     const response = await fetch(this.itemHistoryUrl, {
       headers: {
         Authorization: this.groupToken,

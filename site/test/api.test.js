@@ -181,6 +181,11 @@ describe("api", () => {
     expect(globalThis.fetch).toHaveBeenNthCalledWith(7, "/api/captcha-enabled");
   });
 
+  it("does not request item history before credentials are initialized", async () => {
+    await expect(api.getItemHistory()).rejects.toThrow("Group credentials are not initialized");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("fetches authenticated item history", async () => {
     api.setCredentials("gim", "token");
     const history = [{ date: "2026-09-16", gained: [], lost: [] }];
