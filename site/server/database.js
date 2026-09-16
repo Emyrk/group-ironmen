@@ -71,6 +71,12 @@ function openDatabase(filename) {
       deleted_at TEXT,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS item_snapshots (
+      snapshot_date TEXT PRIMARY KEY,
+      items TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS inventory_setup_state (
       singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
       group_revision INTEGER NOT NULL DEFAULT 0,

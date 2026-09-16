@@ -7,6 +7,7 @@ const { privateAuth } = require("./auth");
 const { createBankTagFoldersRouter } = require("./bank-tag-folders");
 const { createBankTagsRouter } = require("./bank-tags");
 const { createInventorySetupsRouter } = require("./inventory-setups");
+const { createItemHistoryRouter } = require("./item-history");
 
 function invalidJsonError(pathname) {
   if (pathname.endsWith("/inventory-setup-order") || pathname.endsWith("/inventory-setup-section-order")) {
@@ -28,6 +29,7 @@ function createApp(config, options = {}) {
   app.use("/api/group/:groupName", createBankTagsRouter(db, privateAuth(config)));
   app.use("/api/group/:groupName", createBankTagFoldersRouter(db, privateAuth(config)));
   app.use("/api/group/:groupName", createInventorySetupsRouter(db, privateAuth(config)));
+  app.use("/api/group/:groupName", createItemHistoryRouter(db, privateAuth(config), config, request));
 
   const proxy = async (req, res, upstreamPath) => {
     const headers = {};
