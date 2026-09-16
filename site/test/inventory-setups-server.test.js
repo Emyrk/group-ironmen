@@ -18,7 +18,11 @@ const setup = {
   setupId,
   name: "Vorkath",
   notes: "Bring crumble undead",
-  payload: structuredClone(pluginSetupFixture.payload),
+  payload: {
+    ...structuredClone(pluginSetupFixture.payload),
+    hc: "#FFFF0000",
+    dc: "#FF00FF00",
+  },
 };
 
 function canonicalValue(value) {
@@ -154,7 +158,7 @@ describe("private inventory setup service", () => {
       ["schemaVersion", "setupId", "name", "notes", "payload", "revision", "deleted", "updatedAt"].sort()
     );
     expect(db.prepare("SELECT payload FROM inventory_setups WHERE setup_id=?").get(setupId).payload).toBe(
-      JSON.stringify(canonicalValue(pluginSetupFixture.payload))
+      JSON.stringify(canonicalValue(setup.payload))
     );
     expect(
       await call(server, "GET", `/api/group/gim/inventory-setups/${setupId}`, {
@@ -222,6 +226,36 @@ describe("private inventory setup service", () => {
       setupOrderRevision: 4,
       orderedSetupIds: [setupId],
     });
+  });
+
+  it("normalizes legacy colors and explicit null item fields", async () => {
+    const response = await call(server, "PUT", `/api/group/gim/inventory-setups/${setupId}`, {
+      headers: { "If-None-Match": "*" },
+      body: {
+        ...setup,
+        payload: {
+          inv: [{ id: 385, q: null, f: null, sc: null }, null],
+          eq: [{ id: 4151, q: 1 }],
+          afi: { 4151: { id: 4151, f: null } },
+          hc: -65536,
+          dc: { value: -16711936, falpha: 0.0 },
+          future: { nullable: null },
+        },
+      },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.payload).toEqual({
+      afi: { 4151: { id: 4151 } },
+      dc: "#FF00FF00",
+      eq: [{ id: 4151, q: 1 }],
+      future: { nullable: null },
+      hc: "#FFFF0000",
+      inv: [{ id: 385 }, null],
+    });
+    expect((await call(server, "GET", `/api/group/gim/inventory-setups/${setupId}`)).body.payload).toEqual(
+      response.body.payload
+    );
   });
 
   it("validates exact setup fields, UUIDs, payloads, preconditions, and case-insensitive names", async () => {

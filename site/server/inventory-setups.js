@@ -26,7 +26,7 @@ function setupDocument(row) {
     setupId: row.setup_id,
     name: row.name,
     notes: row.notes,
-    payload: deleted ? {} : JSON.parse(row.payload),
+    payload: deleted ? {} : normalizeSetupPayload(JSON.parse(row.payload)),
     revision: row.revision,
     deleted,
     updatedAt: row.updated_at,
@@ -79,6 +79,32 @@ function canonicalValue(value) {
   return value;
 }
 
+function normalizeSetupPayload(payload) {
+  const normalized = structuredClone(payload);
+  for (const key of ["hc", "dc"]) {
+    const color = normalized[key];
+    const argb = Number.isInteger(color)
+      ? color
+      : color && typeof color === "object" && Number.isInteger(color.value)
+      ? color.value
+      : undefined;
+    if (argb !== undefined && argb >= -2147483648 && argb <= 2147483647) {
+      normalized[key] = `#${(argb >>> 0).toString(16).padStart(8, "0").toUpperCase()}`;
+    }
+  }
+  const normalizeItem = (item) => {
+    if (!item || Array.isArray(item) || typeof item !== "object") return;
+    for (const key of ["q", "f", "sc"]) if (item[key] === null) delete item[key];
+  };
+  for (const key of ["inv", "eq", "rp", "bp", "qv"]) {
+    if (Array.isArray(normalized[key])) normalized[key].forEach(normalizeItem);
+  }
+  if (normalized.afi && !Array.isArray(normalized.afi) && typeof normalized.afi === "object") {
+    Object.values(normalized.afi).forEach(normalizeItem);
+  }
+  return canonicalValue(normalized);
+}
+
 function hasOnlyKeys(body, allowed) {
   return Object.keys(body).every((key) => allowed.has(key));
 }
@@ -94,7 +120,7 @@ function validateSetup(body, pathId) {
   if (typeof body.notes !== "string") return ["invalid_setup", "notes must be a string"];
   if (!body.payload || typeof body.payload !== "object" || Array.isArray(body.payload))
     return ["invalid_setup", "payload must be an object"];
-  return [null, { name, notes: body.notes, payload: canonicalValue(body.payload) }];
+  return [null, { name, notes: body.notes, payload: normalizeSetupPayload(body.payload) }];
 }
 
 function validateSection(body, pathId) {

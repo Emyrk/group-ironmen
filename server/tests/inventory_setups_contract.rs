@@ -1,6 +1,6 @@
 use server::inventory_setups::{
-    canonical_object, parse_entity_id, InventorySetup, InventorySetupManifest,
-    InventorySetupSection,
+    canonical_object, canonical_setup_payload, parse_entity_id, InventorySetup,
+    InventorySetupManifest, InventorySetupSection,
 };
 
 #[test]
@@ -120,6 +120,25 @@ fn payloads_are_objects_and_canonicalized() {
         r#"{"a":{"b":1,"d":2},"z":1}"#
     );
     assert!(canonical_object(serde_json::json!([1, 2, 3])).is_err());
+}
+
+#[test]
+fn setup_payloads_normalize_plugin_incompatible_legacy_values() {
+    let payload = canonical_setup_payload(serde_json::json!({
+        "inv": [{"id": 385, "q": null, "f": null, "sc": null}, null],
+        "eq": [{"id": 4151, "q": 1}],
+        "afi": {"4151": {"id": 4151, "f": null}},
+        "hc": -65536,
+        "dc": {"value": -16711936, "falpha": 0.0},
+        "future": {"nullable": null}
+    }))
+    .unwrap();
+
+    assert_eq!(payload["hc"], "#FFFF0000");
+    assert_eq!(payload["dc"], "#FF00FF00");
+    assert_eq!(payload["inv"][0], serde_json::json!({"id": 385}));
+    assert_eq!(payload["afi"]["4151"], serde_json::json!({"id": 4151}));
+    assert!(payload["future"]["nullable"].is_null());
 }
 
 #[test]

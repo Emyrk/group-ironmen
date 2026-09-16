@@ -12,7 +12,7 @@ function emptyPluginPayload() {
     bp: null,
     qv: null,
     afi: {},
-    hc: -65536,
+    hc: "#FFFF0000",
   };
 }
 
@@ -26,6 +26,32 @@ function canonicalValue(value) {
     );
   }
   return value;
+}
+
+function normalizeSetupPayload(payload) {
+  const normalized = canonicalValue(payload);
+  for (const key of ["hc", "dc"]) {
+    const color = normalized[key];
+    const argb = Number.isInteger(color)
+      ? color
+      : color && typeof color === "object" && Number.isInteger(color.value)
+      ? color.value
+      : undefined;
+    if (argb !== undefined && argb >= -2147483648 && argb <= 2147483647) {
+      normalized[key] = `#${(argb >>> 0).toString(16).padStart(8, "0").toUpperCase()}`;
+    }
+  }
+  const normalizeItem = (item) => {
+    if (!item || Array.isArray(item) || typeof item !== "object") return;
+    for (const key of ["q", "f", "sc"]) if (item[key] === null) delete item[key];
+  };
+  for (const key of ["inv", "eq", "rp", "bp", "qv"]) {
+    if (Array.isArray(normalized[key])) normalized[key].forEach(normalizeItem);
+  }
+  if (normalized.afi && !Array.isArray(normalized.afi) && typeof normalized.afi === "object") {
+    Object.values(normalized.afi).forEach(normalizeItem);
+  }
+  return canonicalValue(normalized);
 }
 
 export class InventorySetupsPage extends BaseElement {
@@ -412,7 +438,7 @@ export class InventorySetupsPage extends BaseElement {
   async saveSetup() {
     const setup = this.selectedSetup();
     try {
-      const payload = canonicalValue(JSON.parse(this.querySelector("[data-field='payload']").value));
+      const payload = normalizeSetupPayload(JSON.parse(this.querySelector("[data-field='payload']").value));
       if (!payload || Array.isArray(payload) || typeof payload !== "object")
         throw new Error("payload must be a JSON object");
       const body = {

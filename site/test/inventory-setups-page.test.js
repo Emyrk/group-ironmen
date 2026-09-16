@@ -132,7 +132,11 @@ describe("inventory setups page", () => {
     expect(options.headers["If-Match"]).toBe('"4"');
     expect(body.name).toBe("Zulrah learner");
     expect(body.notes).toBe("Two recoils");
-    expect(body.payload).toEqual(expectedPayload);
+    expect(body.payload).toEqual({
+      ...expectedPayload,
+      hc: "#FFFF0000",
+      dc: "#FF00FF00",
+    });
     expect(body.payload).not.toHaveProperty("inventory");
     expect(body.payload).not.toHaveProperty("equipment");
     expect(body.payload.zz).toEqual({ enabled: true, mode: "future-compact-option" });
@@ -257,7 +261,7 @@ describe("inventory setups page", () => {
       bp: null,
       qv: null,
       afi: {},
-      hc: -65536,
+      hc: "#FFFF0000",
     });
     expect(page.setupOrderRevision).toBe(1);
     expect(saveOrder).not.toHaveBeenCalled();

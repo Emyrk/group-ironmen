@@ -292,6 +292,57 @@ fn canonicalize(value: Value) -> Value {
     }
 }
 
+fn normalize_item(item: &mut Value) {
+    let Some(item) = item.as_object_mut() else {
+        return;
+    };
+    for key in ["q", "f", "sc"] {
+        if item.get(key).is_some_and(Value::is_null) {
+            item.remove(key);
+        }
+    }
+}
+
+fn normalize_color(payload: &mut Map<String, Value>, key: &str) {
+    let Some(color) = payload.get(key) else {
+        return;
+    };
+    let argb = color.as_i64().or_else(|| {
+        color
+            .as_object()
+            .and_then(|object| object.get("value"))
+            .and_then(Value::as_i64)
+    });
+    if let Some(argb) = argb.filter(|value| i32::try_from(*value).is_ok()) {
+        payload.insert(
+            key.to_owned(),
+            Value::String(format!("#{:08X}", argb as i32 as u32)),
+        );
+    }
+}
+
+pub fn canonical_setup_payload(value: Value) -> Result<Value, String> {
+    let mut payload = value
+        .as_object()
+        .cloned()
+        .ok_or_else(|| "payload must be a JSON object".to_owned())?;
+    normalize_color(&mut payload, "hc");
+    normalize_color(&mut payload, "dc");
+    for key in ["inv", "eq", "rp", "bp", "qv"] {
+        if let Some(items) = payload.get_mut(key).and_then(Value::as_array_mut) {
+            for item in items {
+                normalize_item(item);
+            }
+        }
+    }
+    if let Some(items) = payload.get_mut("afi").and_then(Value::as_object_mut) {
+        for item in items.values_mut() {
+            normalize_item(item);
+        }
+    }
+    Ok(canonicalize(Value::Object(payload)))
+}
+
 pub fn canonical_object(value: Value) -> Result<Value, String> {
     if !value.is_object() {
         return Err("payload must be a JSON object".to_owned());
@@ -343,7 +394,7 @@ fn validate_setup(
     }
     setup.setup_id = Some(path_id.hyphenated().to_string());
     setup.name = validate_name("setup", setup.name)?;
-    setup.payload = canonical_object(setup.payload)
+    setup.payload = canonical_setup_payload(setup.payload)
         .map_err(|message| ProtocolError::InvalidEntity("setup", message))?;
     Ok(setup)
 }
@@ -406,7 +457,8 @@ fn row_setup(row: &Row) -> Result<InventorySetup, ProtocolError> {
         payload: if metadata.deleted {
             Value::Object(Map::new())
         } else {
-            row.try_get("payload")?
+            canonical_setup_payload(row.try_get("payload")?)
+                .map_err(|message| ProtocolError::InvalidEntity("setup", message))?
         },
         revision: metadata.revision,
         deleted: metadata.deleted,
