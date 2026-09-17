@@ -510,6 +510,105 @@ goal-map-page {
   border: 1px solid #665b45;
 }
 
+.goal-map-page__category {
+  color: #a99569 !important;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase !important;
+}
+
+.goal-map-page__status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  background: #777;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #222;
+}
+
+.goal-map-page__status-dot.complete {
+  background: #72e083;
+}
+
+.goal-map-page__status-dot.available {
+  background: #f0c85b;
+}
+
+.goal-map-page__skill-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.goal-map-page__skill-requirements.compact {
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.goal-map-page__skill-requirement {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  padding: 4px 8px;
+  color: #b8b8b8;
+  font-family: "rstiny", sans-serif;
+  font-size: 1rem;
+  background: linear-gradient(#454545, #303030);
+  border: 1px solid #6a6a6a;
+  border-radius: 3px;
+  box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 1px 2px rgb(0 0 0 / 45%);
+  box-sizing: border-box;
+}
+
+.goal-map-page__skill-requirement.complete {
+  color: #d8ffe0;
+  background: linear-gradient(#285f34, #1d4326);
+  border-color: #55a967;
+}
+
+.goal-map-page__skill-requirement.incomplete {
+  filter: grayscale(0.75);
+  opacity: 0.82;
+}
+
+.goal-map-page__skill-requirement img {
+  width: 24px;
+  height: 24px;
+  margin-right: 3px;
+  object-fit: contain;
+  image-rendering: crisp-edges;
+}
+
+.goal-map-page__skill-requirement > span {
+  color: #888;
+}
+
+.goal-map-page__skill-requirement.complete > span {
+  color: #94c59f;
+}
+
+.goal-map-page__skill-requirements.compact .goal-map-page__skill-requirement {
+  min-height: 23px;
+  padding: 2px 5px;
+  font-size: 0.82rem;
+}
+
+.goal-map-page__skill-requirements.compact img {
+  width: 18px;
+  height: 18px;
+}
+
+.goal-map-page__requirements {
+  margin-top: 16px;
+}
+
+.goal-map-page__requirements h3 {
+  color: var(--orange);
+}
+
 .goal-map-page__benefits {
   margin-top: 14px;
 }

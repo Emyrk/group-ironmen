@@ -32,7 +32,7 @@ const goalMap = {
         evidence: [
           "All quests complete",
           { questPoints: 320 },
-          { type: "skill", skill: "Agility", level: 70, requiredLevel: 70 },
+          { type: "skill", skill: "Agility", level: 68, requiredLevel: 62 },
         ],
         completedAt: "2026-09-16T10:00:00.000Z",
       },
@@ -216,7 +216,31 @@ describe("goal-map-page", () => {
 
     expect(page.querySelectorAll(".goal-map-page__explorer-goal")).toHaveLength(1);
     expect(page.querySelector(".goal-map-page__explorer-goal").textContent).toContain("Nightmare Zone");
-    expect(page.querySelector(".goal-map-page__explorer-goal").textContent).toContain("Magic");
+    expect(page.querySelector('.goal-map-page__explorer-goal img[alt="Magic"]')).not.toBeNull();
+    page.remove();
+  });
+
+  it("renders skill requirements as icon level badges with completion colors", async () => {
+    localStorage.setItem(`goalMapLayout:${api.groupName || "unknown"}`, "list");
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() =>
+      expect(page.querySelectorAll(".goal-map-page__explorer .goal-map-page__skill-requirement")).toHaveLength(2)
+    );
+
+    const agility = page.querySelector('[title="Agility: 68/62"]');
+    expect(agility.classList.contains("complete")).toBe(true);
+    expect(agility.textContent.replace(/\s/g, "")).toBe("68/62");
+    expect(agility.querySelector("img").getAttribute("src")).toBe("/ui/204-0.png");
+
+    const magic = page.querySelector('[title="Magic: 60/70"]');
+    expect(magic.classList.contains("incomplete")).toBe(true);
+    expect(magic.querySelector("img").getAttribute("src")).toBe("/ui/202-0.png");
+
+    page.querySelector('.goal-map-page__explorer-select[data-node-id="nightmare-zone"]').click();
+    expect(page.querySelector(".goal-map-page__details").textContent).not.toContain("60/70 level");
+    expect(page.querySelector('.goal-map-page__details [title="Magic: 60/70"]')).not.toBeNull();
     page.remove();
   });
 

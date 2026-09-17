@@ -2,6 +2,7 @@ import cytoscape from "cytoscape";
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { Item } from "../data/item";
+import { Skill } from "../data/skill";
 
 const SELECTED_CHARACTER_KEY = "goalMapSelectedCharacter";
 const PINNED_OBJECTIVES_KEY = "goalMapPinnedObjectives";
@@ -320,11 +321,40 @@ export class GoalMapPage extends BaseElement {
     `;
   }
 
-  getNodeSkills(node) {
+  getSkillRequirements(node) {
     const evidence = Array.isArray(node.evaluated?.evidence) ? node.evaluated.evidence : [];
-    return [
-      ...new Set(evidence.filter((entry) => entry?.type === "skill" && entry.skill).map((entry) => entry.skill)),
-    ].sort((left, right) => left.localeCompare(right));
+    return evidence
+      .filter((entry) => entry?.type === "skill" && entry.skill)
+      .filter(
+        (entry, index, entries) =>
+          entries.findIndex(
+            (candidate) => candidate.skill === entry.skill && candidate.requiredLevel === entry.requiredLevel
+          ) === index
+      )
+      .sort((left, right) => left.skill.localeCompare(right.skill));
+  }
+
+  renderSkillRequirements(node, compact = false) {
+    const requirements = this.getSkillRequirements(node);
+    if (requirements.length === 0) return "";
+    return `<div class="goal-map-page__skill-requirements${compact ? " compact" : ""}">${requirements
+      .map((requirement) => {
+        const complete = Number(requirement.level) >= Number(requirement.requiredLevel);
+        const icon = Skill.getIcon(requirement.skill);
+        return `<span class="goal-map-page__skill-requirement ${
+          complete ? "complete" : "incomplete"
+        }" title="${escapeHtml(`${requirement.skill}: ${requirement.level}/${requirement.requiredLevel}`)}">
+          ${icon ? `<img src="${escapeHtml(icon)}" alt="${escapeHtml(requirement.skill)}" />` : ""}
+          <strong>${escapeHtml(requirement.level)}</strong><span>/</span><strong>${escapeHtml(
+          requirement.requiredLevel
+        )}</strong>
+        </span>`;
+      })
+      .join("")}</div>`;
+  }
+
+  getNodeSkills(node) {
+    return [...new Set(this.getSkillRequirements(node).map((entry) => entry.skill))];
   }
 
   getSkills() {
@@ -404,12 +434,16 @@ export class GoalMapPage extends BaseElement {
     const status = this.getNodeStatus(node);
     const pinned = this.pinnedNodeIds.has(node.id);
     const selected = node.id === this.selectedNodeId ? " selected" : "";
-    const skills = this.getNodeSkills(node);
     return `
       <article class="goal-map-page__explorer-goal ${status}${pinned ? " pinned" : ""}">
         <div class="goal-map-page__explorer-title">
           <button class="goal-map-page__explorer-select${selected}" type="button" data-node-id="${escapeHtml(node.id)}">
-            <span>${escapeHtml(node.title)}</span><small>${status} · ${escapeHtml(node.scope || "character")}</small>
+            ${node.category ? `<small class="goal-map-page__category">${escapeHtml(node.category)}</small>` : ""}
+            <span>${escapeHtml(
+              node.title
+            )}</span><small><span class="goal-map-page__status-dot ${status}"></span>${status} · ${escapeHtml(
+      node.scope || "character"
+    )}</small>
           </button>
           <button class="goal-map-page__objective-pin" type="button" data-node-id="${escapeHtml(
             node.id
@@ -418,13 +452,7 @@ export class GoalMapPage extends BaseElement {
     )}" title="${pinned ? "Unpin" : "Pin"}">${pinned ? "★" : "☆"}</button>
         </div>
         <p>${escapeHtml(node.description || "No description provided.")}</p>
-        ${
-          skills.length > 0
-            ? `<div class="goal-map-page__skill-tags">${skills
-                .map((skill) => `<span>${escapeHtml(skill)}</span>`)
-                .join("")}</div>`
-            : ""
-        }
+        ${this.renderSkillRequirements(node)}
         <section class="goal-map-page__benefits"><h3>Benefits</h3>${this.renderBenefits(node.id)}</section>
       </article>
     `;
@@ -459,7 +487,10 @@ export class GoalMapPage extends BaseElement {
       <div class="goal-map-page__objective ${status}${pinned ? " pinned" : ""}">
         <button class="goal-map-page__objective-select${selected}" type="button" data-node-id="${escapeHtml(node.id)}">
           <span>${escapeHtml(node.title)}</span>
-          <small>${status} · ${escapeHtml(node.scope || "character")}</small>
+          <small><span class="goal-map-page__status-dot ${status}"></span>${status} · ${escapeHtml(
+      node.scope || "character"
+    )}</small>
+          ${this.renderSkillRequirements(node, true)}
         </button>
         <button class="goal-map-page__objective-pin" type="button" data-node-id="${escapeHtml(
           node.id
@@ -498,7 +529,6 @@ export class GoalMapPage extends BaseElement {
   formatEvidence(entry) {
     if (typeof entry !== "object" || entry === null) return String(entry);
     if (entry.message) return entry.message;
-    if (entry.type === "skill") return `${entry.skill}: level ${entry.level}/${entry.requiredLevel}`;
     if (entry.type === "quest") {
       return `${entry.name}: ${entry.state === 2 || entry.state === "FINISHED" ? "complete" : "incomplete"}`;
     }
@@ -536,15 +566,21 @@ export class GoalMapPage extends BaseElement {
       : "";
     const scope = node.scope ? `<span>${escapeHtml(node.scope)}</span>` : "";
     const pinned = this.pinnedNodeIds.has(node.id);
+    const skillRequirements = this.getSkillRequirements(node);
     const progress = this.formatProgress(evaluated.progress);
+    const progressRow =
+      evaluated.progress?.unit === "level" && skillRequirements.length > 0
+        ? ""
+        : `<dt>Progress</dt><dd>${escapeHtml(progress)}</dd>`;
     const completedAt = evaluated.completedAt
       ? `<dt>Completed</dt><dd>${escapeHtml(new Date(evaluated.completedAt).toLocaleString())}</dd>`
       : "";
     return `
       <div class="goal-map-page__detail-heading">
-        <span class="goal-map-page__status ${status}">${status}</span>
+        <span class="goal-map-page__status ${status}"><span class="goal-map-page__status-dot ${status}"></span>${status}</span>
         <span>${escapeHtml(NODE_TYPES.has(node.type) ? node.type : "goal")}</span>
         ${scope}
+        ${node.category ? `<span>${escapeHtml(node.category)}</span>` : ""}
       </div>
       <div class="goal-map-page__detail-title">
         <h2>${escapeHtml(node.title)}</h2>
@@ -553,8 +589,15 @@ export class GoalMapPage extends BaseElement {
         )}" aria-pressed="${pinned ? "true" : "false"}">${pinned ? "Unpin objective" : "Pin objective"}</button>
       </div>
       <p>${escapeHtml(node.description || "No description provided.")}</p>
+      ${
+        skillRequirements.length > 0
+          ? `<section class="goal-map-page__requirements"><h3>Skill requirements</h3>${this.renderSkillRequirements(
+              node
+            )}</section>`
+          : ""
+      }
       <dl>
-        <dt>Progress</dt><dd>${escapeHtml(progress)}</dd>
+        ${progressRow}
         ${completedAt}
       </dl>
       ${this.renderEvidence(evaluated.evidence)}
@@ -565,7 +608,8 @@ export class GoalMapPage extends BaseElement {
 
   renderEvidence(evidence) {
     if (evidence === undefined || evidence === null || evidence === "") return "";
-    const entries = Array.isArray(evidence) ? evidence : [evidence];
+    const entries = (Array.isArray(evidence) ? evidence : [evidence]).filter((entry) => entry?.type !== "skill");
+    if (entries.length === 0) return "";
     const items = entries.map((entry) => `<li>${this.renderEvidenceEntry(entry)}</li>`).join("");
     return `<section class="goal-map-page__evidence"><h3>Evidence</h3><ul>${items}</ul></section>`;
   }
