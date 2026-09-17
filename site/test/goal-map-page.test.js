@@ -29,7 +29,11 @@ const goalMap = {
       evaluated: {
         complete: true,
         progress: "165/165",
-        evidence: ["All quests complete", { questPoints: 320 }],
+        evidence: [
+          "All quests complete",
+          { questPoints: 320 },
+          { type: "skill", skill: "Agility", level: 70, requiredLevel: 70 },
+        ],
         completedAt: "2026-09-16T10:00:00.000Z",
       },
     },
@@ -40,7 +44,11 @@ const goalMap = {
       scope: "group",
       description: "Imbue useful rings.",
       wikiUrl: null,
-      evaluated: { complete: false, progress: "2/4", evidence: [] },
+      evaluated: {
+        complete: false,
+        progress: "2/4",
+        evidence: [{ type: "skill", skill: "Magic", level: 60, requiredLevel: 70 }],
+      },
     },
     {
       id: "berserker-ring",
@@ -168,6 +176,60 @@ describe("goal-map-page", () => {
     expect(page.querySelector(".goal-map-page__objective-select.selected").dataset.nodeId).toBe("nightmare-zone");
     expect(page.querySelector(".goal-map-page__fallback-node.selected").dataset.nodeId).toBe("nightmare-zone");
     expect(page.querySelector("[contenteditable]")).toBeNull();
+    page.remove();
+  });
+
+  it("offers a persistent list layout that explains downstream benefits", async () => {
+    const storageKey = `goalMapLayout:${api.groupName || "unknown"}`;
+    localStorage.setItem(storageKey, "list");
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__explorer-goal")).toHaveLength(3));
+    expect(page.querySelector(".goal-map-page__graph")).toBeNull();
+    expect(page.querySelector('[data-layout="list"]').getAttribute("aria-pressed")).toBe("true");
+    expect(
+      page.querySelector('[data-node-id="quest-cape"]').closest(".goal-map-page__explorer-goal").textContent
+    ).toContain("Required for Nightmare Zone");
+    expect(
+      page.querySelector('[data-node-id="quest-cape"]').closest(".goal-map-page__explorer-goal").textContent
+    ).toContain("Unlock bosses");
+
+    page.querySelector('[data-layout="graph"]').click();
+    expect(localStorage.getItem(storageKey)).toBe("graph");
+    expect(page.querySelector(".goal-map-page__graph")).not.toBeNull();
+    page.remove();
+  });
+
+  it("explores goals by skills found in evaluated requirements", async () => {
+    localStorage.setItem(`goalMapLayout:${api.groupName || "unknown"}`, "list");
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__skill-filter")).not.toBeNull());
+
+    const filter = page.querySelector(".goal-map-page__skill-filter");
+    expect([...filter.options].map((option) => option.textContent)).toEqual(["All skills", "Agility", "Magic"]);
+    filter.value = "Magic";
+    filter.dispatchEvent(new Event("change"));
+
+    expect(page.querySelectorAll(".goal-map-page__explorer-goal")).toHaveLength(1);
+    expect(page.querySelector(".goal-map-page__explorer-goal").textContent).toContain("Nightmare Zone");
+    expect(page.querySelector(".goal-map-page__explorer-goal").textContent).toContain("Magic");
+    page.remove();
+  });
+
+  it("shows what the selected goal benefits and how in its details", async () => {
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__details").textContent).toContain("Quest Cape"));
+
+    const details = page.querySelector(".goal-map-page__details");
+    expect(details.textContent).toContain("Benefits");
+    expect(details.textContent).toContain("Required for Nightmare Zone");
+    expect(details.textContent).toContain("Unlock bosses");
     page.remove();
   });
 

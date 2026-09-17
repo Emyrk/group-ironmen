@@ -5,6 +5,7 @@ import { Item } from "../data/item";
 
 const SELECTED_CHARACTER_KEY = "goalMapSelectedCharacter";
 const PINNED_OBJECTIVES_KEY = "goalMapPinnedObjectives";
+const LAYOUT_KEY = "goalMapLayout";
 const NODE_TYPES = new Set(["goal", "activity", "item", "skill", "unlock"]);
 const EDGE_TYPES = new Set(["requires", "recommended", "optional", "alternative", "unlocks", "improves", "supplies"]);
 
@@ -35,6 +36,8 @@ export class GoalMapPage extends BaseElement {
     this.loading = true;
     this.selectedNodeId = null;
     this.pinnedNodeIds = new Set();
+    this.layout = this.savedLayout;
+    this.selectedSkill = "";
     this.requestNumber = 0;
     this.render();
     this.bindControls();
@@ -48,6 +51,14 @@ export class GoalMapPage extends BaseElement {
 
   get savedCharacter() {
     return localStorage.getItem(SELECTED_CHARACTER_KEY) || undefined;
+  }
+
+  get layoutKey() {
+    return `${LAYOUT_KEY}:${api.groupName || "unknown"}`;
+  }
+
+  get savedLayout() {
+    return localStorage.getItem(this.layoutKey) === "list" ? "list" : "graph";
   }
 
   get pinnedObjectivesKey() {
@@ -123,9 +134,16 @@ export class GoalMapPage extends BaseElement {
   bindControls() {
     const selector = this.querySelector(".goal-map-page__character");
     const refresh = this.querySelector(".goal-map-page__refresh");
+    const skill = this.querySelector(".goal-map-page__skill-filter");
     if (selector) this.eventListener(selector, "change", this.handleCharacterChange.bind(this));
     if (refresh) this.eventListener(refresh, "click", this.handleRefresh.bind(this));
-    for (const button of this.querySelectorAll(".goal-map-page__fallback-node, .goal-map-page__objective-select")) {
+    if (skill) this.eventListener(skill, "change", this.handleSkillChange.bind(this));
+    for (const button of this.querySelectorAll(".goal-map-page__layout-button")) {
+      this.eventListener(button, "click", this.handleLayoutChange.bind(this));
+    }
+    for (const button of this.querySelectorAll(
+      ".goal-map-page__fallback-node, .goal-map-page__objective-select, .goal-map-page__explorer-select"
+    )) {
       this.eventListener(button, "click", this.handleObjectiveClick.bind(this));
     }
     for (const button of this.querySelectorAll(".goal-map-page__objective-pin, .goal-map-page__detail-pin")) {
@@ -144,6 +162,23 @@ export class GoalMapPage extends BaseElement {
     this.loadGoalMap(this.selectedCharacter || this.savedCharacter);
   }
 
+  handleLayoutChange(event) {
+    const layout = event.currentTarget.dataset.layout;
+    if (layout !== "graph" && layout !== "list") return;
+    this.layout = layout;
+    localStorage.setItem(this.layoutKey, layout);
+    this.render();
+    this.bindControls();
+    this.initializeGraph();
+  }
+
+  handleSkillChange(event) {
+    this.selectedSkill = event.target.value;
+    const explorer = this.querySelector(".goal-map-page__explorer");
+    if (explorer) explorer.innerHTML = this.renderGoalExplorer();
+    this.bindControls();
+  }
+
   handleObjectiveClick(event) {
     this.selectNode(event.currentTarget.dataset.nodeId);
   }
@@ -158,8 +193,10 @@ export class GoalMapPage extends BaseElement {
 
   renderObjectiveSidebar() {
     const list = this.querySelector(".goal-map-page__objectives");
+    const explorer = this.querySelector(".goal-map-page__explorer");
     const details = this.querySelector(".goal-map-page__details");
     if (list) list.innerHTML = this.renderObjectiveList();
+    if (explorer) explorer.innerHTML = this.renderGoalExplorer();
     if (details) details.innerHTML = this.renderDetails();
     this.bindControls();
   }
@@ -168,7 +205,9 @@ export class GoalMapPage extends BaseElement {
     this.selectedNodeId = nodeId;
     const details = this.querySelector(".goal-map-page__details");
     if (details) details.innerHTML = this.renderDetails();
-    for (const button of this.querySelectorAll(".goal-map-page__fallback-node, .goal-map-page__objective-select")) {
+    for (const button of this.querySelectorAll(
+      ".goal-map-page__fallback-node, .goal-map-page__objective-select, .goal-map-page__explorer-select"
+    )) {
       button.classList.toggle("selected", button.dataset.nodeId === nodeId);
     }
     this.bindControls();
@@ -206,6 +245,14 @@ export class GoalMapPage extends BaseElement {
       .join("");
     const disabled = this.loading || characters.length === 0 ? " disabled" : "";
     return `
+      <div class="goal-map-page__layout-controls" role="group" aria-label="Goal layout">
+        <button class="goal-map-page__layout-button men-button${
+          this.layout === "graph" ? " selected" : ""
+        }" type="button" data-layout="graph" aria-pressed="${this.layout === "graph"}">Graph</button>
+        <button class="goal-map-page__layout-button men-button${
+          this.layout === "list" ? " selected" : ""
+        }" type="button" data-layout="list" aria-pressed="${this.layout === "list"}">List</button>
+      </div>
       <label class="goal-map-page__character-label">
         Character
         <select class="goal-map-page__character"${disabled}>${options}</select>
@@ -238,6 +285,12 @@ export class GoalMapPage extends BaseElement {
         <span class="blocked"><strong>${summary.blocked}</strong> blocked</span>
         ${updated}
       </section>
+      ${this.layout === "list" ? this.renderListWorkspace() : this.renderGraphWorkspace()}
+    `;
+  }
+
+  renderGraphWorkspace() {
+    return `
       <div class="goal-map-page__workspace">
         <div class="goal-map-page__visual rsborder-tiny rsbackground">
           <div class="goal-map-page__graph" aria-label="Interactive goal map"></div>
@@ -253,6 +306,127 @@ export class GoalMapPage extends BaseElement {
           <aside class="goal-map-page__details rsborder-tiny rsbackground">${this.renderDetails()}</aside>
         </div>
       </div>
+    `;
+  }
+
+  renderListWorkspace() {
+    return `
+      <div class="goal-map-page__workspace goal-map-page__workspace--list">
+        <main class="goal-map-page__explorer rsborder-tiny rsbackground" aria-label="Goal explorer">
+          ${this.renderGoalExplorer()}
+        </main>
+        <aside class="goal-map-page__details rsborder-tiny rsbackground">${this.renderDetails()}</aside>
+      </div>
+    `;
+  }
+
+  getNodeSkills(node) {
+    const evidence = Array.isArray(node.evaluated?.evidence) ? node.evaluated.evidence : [];
+    return [
+      ...new Set(evidence.filter((entry) => entry?.type === "skill" && entry.skill).map((entry) => entry.skill)),
+    ].sort((left, right) => left.localeCompare(right));
+  }
+
+  getSkills() {
+    return [...new Set(this.data.nodes.flatMap((node) => this.getNodeSkills(node)))].sort((left, right) =>
+      left.localeCompare(right)
+    );
+  }
+
+  getBenefits(nodeId) {
+    const nodeById = new Map(this.data.nodes.map((node) => [node.id, node]));
+    return this.data.edges
+      .filter((edge) => edge.source === nodeId && nodeById.has(edge.target))
+      .map((edge) => ({ ...edge, targetNode: nodeById.get(edge.target) }));
+  }
+
+  benefitVerb(type) {
+    return (
+      {
+        requires: "Required for",
+        recommended: "Recommended for",
+        optional: "Optional for",
+        alternative: "Alternative for",
+        unlocks: "Unlocks",
+        improves: "Improves",
+        supplies: "Supplies",
+      }[type] || "Benefits"
+    );
+  }
+
+  renderBenefits(nodeId, emptyMessage = true) {
+    const benefits = this.getBenefits(nodeId);
+    if (benefits.length === 0)
+      return emptyMessage ? '<p class="goal-map-page__no-benefits">No downstream benefits mapped.</p>' : "";
+    return `<ul class="goal-map-page__benefit-list">${benefits
+      .map(
+        (benefit) =>
+          `<li><strong>${escapeHtml(this.benefitVerb(benefit.type))} ${escapeHtml(benefit.targetNode.title)}</strong>${
+            benefit.label ? `<span>${escapeHtml(benefit.label)}</span>` : ""
+          }</li>`
+      )
+      .join("")}</ul>`;
+  }
+
+  renderGoalExplorer() {
+    const skills = this.getSkills();
+    if (this.selectedSkill && !skills.includes(this.selectedSkill)) this.selectedSkill = "";
+    const options = ["", ...skills]
+      .map(
+        (skill) =>
+          `<option value="${escapeHtml(skill)}"${skill === this.selectedSkill ? " selected" : ""}>${escapeHtml(
+            skill || "All skills"
+          )}</option>`
+      )
+      .join("");
+    const nodes = this.data.nodes
+      .filter((node) => !this.selectedSkill || this.getNodeSkills(node).includes(this.selectedSkill))
+      .sort((left, right) => {
+        const pinnedDifference = Number(this.pinnedNodeIds.has(right.id)) - Number(this.pinnedNodeIds.has(left.id));
+        return pinnedDifference || left.title.localeCompare(right.title);
+      });
+    return `
+      <header class="goal-map-page__explorer-header">
+        <div><h2>Goal explorer</h2><p>Browse objectives by skill and see what each one benefits.</p></div>
+        <label>Skill<select class="goal-map-page__skill-filter">${options}</select></label>
+      </header>
+      <div class="goal-map-page__explorer-list">
+        ${
+          nodes.length > 0
+            ? nodes.map((node) => this.renderExplorerGoal(node)).join("")
+            : "<p>No goals use this skill.</p>"
+        }
+      </div>
+    `;
+  }
+
+  renderExplorerGoal(node) {
+    const status = this.getNodeStatus(node);
+    const pinned = this.pinnedNodeIds.has(node.id);
+    const selected = node.id === this.selectedNodeId ? " selected" : "";
+    const skills = this.getNodeSkills(node);
+    return `
+      <article class="goal-map-page__explorer-goal ${status}${pinned ? " pinned" : ""}">
+        <div class="goal-map-page__explorer-title">
+          <button class="goal-map-page__explorer-select${selected}" type="button" data-node-id="${escapeHtml(node.id)}">
+            <span>${escapeHtml(node.title)}</span><small>${status} · ${escapeHtml(node.scope || "character")}</small>
+          </button>
+          <button class="goal-map-page__objective-pin" type="button" data-node-id="${escapeHtml(
+            node.id
+          )}" aria-pressed="${pinned ? "true" : "false"}" aria-label="${pinned ? "Unpin" : "Pin"} ${escapeHtml(
+      node.title
+    )}" title="${pinned ? "Unpin" : "Pin"}">${pinned ? "★" : "☆"}</button>
+        </div>
+        <p>${escapeHtml(node.description || "No description provided.")}</p>
+        ${
+          skills.length > 0
+            ? `<div class="goal-map-page__skill-tags">${skills
+                .map((skill) => `<span>${escapeHtml(skill)}</span>`)
+                .join("")}</div>`
+            : ""
+        }
+        <section class="goal-map-page__benefits"><h3>Benefits</h3>${this.renderBenefits(node.id)}</section>
+      </article>
     `;
   }
 
@@ -384,6 +558,7 @@ export class GoalMapPage extends BaseElement {
         ${completedAt}
       </dl>
       ${this.renderEvidence(evaluated.evidence)}
+      <section class="goal-map-page__benefits"><h3>Benefits</h3>${this.renderBenefits(node.id)}</section>
       ${wikiLink}
     `;
   }

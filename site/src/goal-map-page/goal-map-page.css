@@ -376,6 +376,167 @@ goal-map-page {
   flex: none;
 }
 
+.goal-map-page__layout-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.goal-map-page__layout-button.selected {
+  color: #231f1a;
+  background: var(--orange);
+}
+
+.goal-map-page__workspace--list {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+  min-height: 0;
+}
+
+.goal-map-page__explorer {
+  min-width: 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.goal-map-page__explorer-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.goal-map-page__explorer-header h2,
+.goal-map-page__explorer-header p,
+.goal-map-page__explorer-goal h3 {
+  margin: 0;
+}
+
+.goal-map-page__explorer-header h2,
+.goal-map-page__explorer-goal h3 {
+  color: var(--orange);
+}
+
+.goal-map-page__explorer-header p {
+  margin-top: 4px;
+  color: #bbb;
+}
+
+.goal-map-page__explorer-header label {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  color: var(--orange);
+}
+
+.goal-map-page__skill-filter {
+  padding: 5px 8px;
+  color: var(--primary-text);
+  background: #302a22;
+  border: 1px solid var(--light-border);
+}
+
+.goal-map-page__explorer-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.goal-map-page__explorer-goal {
+  padding: 12px;
+  background: #37332d;
+  border: 1px solid #666;
+}
+
+.goal-map-page__explorer-goal.complete {
+  border-color: #397947;
+}
+
+.goal-map-page__explorer-goal.available {
+  border-color: #806821;
+}
+
+.goal-map-page__explorer-goal.pinned {
+  box-shadow: inset 3px 0 #e6bd4b;
+}
+
+.goal-map-page__explorer-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  border-bottom: 1px solid #555;
+}
+
+.goal-map-page__explorer-select {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 7px 8px;
+  color: var(--primary-text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.goal-map-page__explorer-select span {
+  color: var(--orange);
+  font-size: 1.05rem;
+}
+
+.goal-map-page__explorer-select small {
+  color: #aaa;
+  text-transform: capitalize;
+}
+
+.goal-map-page__explorer-select.selected {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.goal-map-page__explorer-goal > p {
+  line-height: 1.4;
+}
+
+.goal-map-page__skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.goal-map-page__skill-tags span {
+  padding: 3px 6px;
+  color: #d9c58d;
+  background: #28231d;
+  border: 1px solid #665b45;
+}
+
+.goal-map-page__benefits {
+  margin-top: 14px;
+}
+
+.goal-map-page__benefit-list {
+  display: grid;
+  gap: 7px;
+  padding: 0;
+  list-style: none;
+}
+
+.goal-map-page__benefit-list li {
+  display: grid;
+  gap: 2px;
+  padding-left: 9px;
+  border-left: 3px solid #806821;
+}
+
+.goal-map-page__benefit-list span,
+.goal-map-page__no-benefits {
+  color: #aaa;
+}
+
+.goal-map-page__no-benefits {
+  margin-bottom: 0;
+}
+
 @media only screen and (max-width: 900px) {
   .goal-map-page__workspace {
     grid-template-columns: 1fr;
@@ -400,6 +561,15 @@ goal-map-page {
   .goal-map-page__character-label,
   .goal-map-page__character {
     width: 100%;
+  }
+
+  .goal-map-page__explorer-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .goal-map-page__explorer-header label {
+    min-width: 0;
   }
 
   .goal-map-page__updated {
