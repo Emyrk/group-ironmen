@@ -144,18 +144,48 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
-  it("focuses node details from the text fallback without graph editing controls", async () => {
+  it("lists every objective and focuses its details without graph editing controls", async () => {
     vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
     const page = createPage();
     pubsub.publish("get-group-data");
-    await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__fallback-node")).toHaveLength(3));
+    await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__objective-select")).toHaveLength(3));
 
-    page.querySelector('[data-node-id="nightmare-zone"]').click();
+    page.querySelector('.goal-map-page__objective-select[data-node-id="nightmare-zone"]').click();
 
     expect(page.querySelector(".goal-map-page__details").textContent).toContain("Nightmare Zone");
     expect(page.querySelector(".goal-map-page__details").textContent).toContain("2/4");
+    expect(page.querySelector(".goal-map-page__objective-select.selected").dataset.nodeId).toBe("nightmare-zone");
     expect(page.querySelector(".goal-map-page__fallback-node.selected").dataset.nodeId).toBe("nightmare-zone");
     expect(page.querySelector("[contenteditable]")).toBeNull();
+    page.remove();
+  });
+
+  it("pins objectives locally and restores valid pins above other objectives", async () => {
+    const storageKey = `goalMapPinnedObjectives:${api.groupName || "unknown"}`;
+    localStorage.setItem(storageKey, JSON.stringify(["nightmare-zone", "removed-objective"]));
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() =>
+      expect(page.querySelector(".goal-map-page__objective-section h3")?.textContent).toBe("Pinned")
+    );
+    expect(localStorage.getItem(storageKey)).toBe('["nightmare-zone"]');
+    expect(page.querySelector(".goal-map-page__objective-select").dataset.nodeId).toBe("nightmare-zone");
+    expect(
+      page.querySelector('.goal-map-page__objective-pin[data-node-id="nightmare-zone"]').getAttribute("aria-pressed")
+    ).toBe("true");
+
+    page.querySelector('.goal-map-page__objective-pin[data-node-id="berserker-ring"]').click();
+
+    expect(localStorage.getItem(storageKey)).toBe('["nightmare-zone","berserker-ring"]');
+    expect(
+      page.querySelectorAll(".goal-map-page__objective-section")[0].querySelectorAll(".goal-map-page__objective")
+    ).toHaveLength(2);
+
+    page.querySelector('.goal-map-page__detail-pin[data-node-id="quest-cape"]').click();
+    expect(localStorage.getItem(storageKey)).toBe('["nightmare-zone","berserker-ring","quest-cape"]');
+    expect(page.querySelector(".goal-map-page__detail-pin").textContent).toContain("Unpin objective");
     page.remove();
   });
 });

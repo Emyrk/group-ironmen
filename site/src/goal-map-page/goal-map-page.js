@@ -3,6 +3,7 @@ import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 
 const SELECTED_CHARACTER_KEY = "goalMapSelectedCharacter";
+const PINNED_OBJECTIVES_KEY = "goalMapPinnedObjectives";
 const NODE_TYPES = new Set(["goal", "activity", "item", "skill", "unlock"]);
 const EDGE_TYPES = new Set(["requires", "recommended", "optional", "alternative", "unlocks", "improves", "supplies"]);
 
@@ -32,6 +33,7 @@ export class GoalMapPage extends BaseElement {
     this.error = null;
     this.loading = true;
     this.selectedNodeId = null;
+    this.pinnedNodeIds = new Set();
     this.requestNumber = 0;
     this.render();
     this.bindControls();
@@ -45,6 +47,25 @@ export class GoalMapPage extends BaseElement {
 
   get savedCharacter() {
     return localStorage.getItem(SELECTED_CHARACTER_KEY) || undefined;
+  }
+
+  get pinnedObjectivesKey() {
+    return `${PINNED_OBJECTIVES_KEY}:${api.groupName || "unknown"}`;
+  }
+
+  loadPinnedObjectives() {
+    const validNodeIds = new Set(this.data?.nodes.map((node) => node.id) || []);
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.pinnedObjectivesKey) || "[]");
+      this.pinnedNodeIds = new Set(Array.isArray(stored) ? stored.filter((nodeId) => validNodeIds.has(nodeId)) : []);
+    } catch {
+      this.pinnedNodeIds = new Set();
+    }
+    this.savePinnedObjectives();
+  }
+
+  savePinnedObjectives() {
+    localStorage.setItem(this.pinnedObjectivesKey, JSON.stringify([...this.pinnedNodeIds]));
   }
 
   html() {
@@ -81,6 +102,7 @@ export class GoalMapPage extends BaseElement {
       };
       this.selectedCharacter = data.selectedCharacter || character || this.data.characters[0] || "";
       if (this.selectedCharacter) localStorage.setItem(SELECTED_CHARACTER_KEY, this.selectedCharacter);
+      this.loadPinnedObjectives();
       if (!this.data.nodes.some((node) => node.id === this.selectedNodeId)) {
         this.selectedNodeId = this.data.nodes[0]?.id || null;
       }
@@ -102,8 +124,11 @@ export class GoalMapPage extends BaseElement {
     const refresh = this.querySelector(".goal-map-page__refresh");
     if (selector) this.eventListener(selector, "change", this.handleCharacterChange.bind(this));
     if (refresh) this.eventListener(refresh, "click", this.handleRefresh.bind(this));
-    for (const button of this.querySelectorAll(".goal-map-page__fallback-node")) {
-      this.eventListener(button, "click", this.handleFallbackNodeClick.bind(this));
+    for (const button of this.querySelectorAll(".goal-map-page__fallback-node, .goal-map-page__objective-select")) {
+      this.eventListener(button, "click", this.handleObjectiveClick.bind(this));
+    }
+    for (const button of this.querySelectorAll(".goal-map-page__objective-pin, .goal-map-page__detail-pin")) {
+      this.eventListener(button, "click", this.handlePinClick.bind(this));
     }
   }
 
@@ -118,17 +143,34 @@ export class GoalMapPage extends BaseElement {
     this.loadGoalMap(this.selectedCharacter || this.savedCharacter);
   }
 
-  handleFallbackNodeClick(event) {
+  handleObjectiveClick(event) {
     this.selectNode(event.currentTarget.dataset.nodeId);
+  }
+
+  handlePinClick(event) {
+    const nodeId = event.currentTarget.dataset.nodeId;
+    if (this.pinnedNodeIds.has(nodeId)) this.pinnedNodeIds.delete(nodeId);
+    else this.pinnedNodeIds.add(nodeId);
+    this.savePinnedObjectives();
+    this.renderObjectiveSidebar();
+  }
+
+  renderObjectiveSidebar() {
+    const list = this.querySelector(".goal-map-page__objectives");
+    const details = this.querySelector(".goal-map-page__details");
+    if (list) list.innerHTML = this.renderObjectiveList();
+    if (details) details.innerHTML = this.renderDetails();
+    this.bindControls();
   }
 
   selectNode(nodeId) {
     this.selectedNodeId = nodeId;
     const details = this.querySelector(".goal-map-page__details");
     if (details) details.innerHTML = this.renderDetails();
-    for (const button of this.querySelectorAll(".goal-map-page__fallback-node")) {
+    for (const button of this.querySelectorAll(".goal-map-page__fallback-node, .goal-map-page__objective-select")) {
       button.classList.toggle("selected", button.dataset.nodeId === nodeId);
     }
+    this.bindControls();
     if (this.graph) {
       this.graph.nodes().removeClass("selected");
       const node = this.graph.getElementById(nodeId);
@@ -203,7 +245,54 @@ export class GoalMapPage extends BaseElement {
             <div class="goal-map-page__fallback-list">${this.renderFallbackNodes()}</div>
           </div>
         </div>
-        <aside class="goal-map-page__details rsborder-tiny rsbackground">${this.renderDetails()}</aside>
+        <div class="goal-map-page__sidebar">
+          <section class="goal-map-page__objectives rsborder-tiny rsbackground" aria-label="Objectives">
+            ${this.renderObjectiveList()}
+          </section>
+          <aside class="goal-map-page__details rsborder-tiny rsbackground">${this.renderDetails()}</aside>
+        </div>
+      </div>
+    `;
+  }
+
+  renderObjectiveList() {
+    const pinned = this.data.nodes.filter((node) => this.pinnedNodeIds.has(node.id));
+    const others = this.data.nodes.filter((node) => !this.pinnedNodeIds.has(node.id));
+    const sections = [];
+    if (pinned.length > 0) sections.push(this.renderObjectiveSection("Pinned", pinned));
+    sections.push(this.renderObjectiveSection(pinned.length > 0 ? "Other objectives" : "All objectives", others));
+    return `<h2>Objectives</h2>${sections.join("")}`;
+  }
+
+  renderObjectiveSection(title, nodes) {
+    if (nodes.length === 0) return "";
+    return `
+      <section class="goal-map-page__objective-section">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="goal-map-page__objective-list">
+          ${nodes.map((node) => this.renderObjective(node)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  renderObjective(node) {
+    const status = this.getNodeStatus(node);
+    const selected = node.id === this.selectedNodeId ? " selected" : "";
+    const pinned = this.pinnedNodeIds.has(node.id);
+    return `
+      <div class="goal-map-page__objective ${status}${pinned ? " pinned" : ""}">
+        <button class="goal-map-page__objective-select${selected}" type="button" data-node-id="${escapeHtml(node.id)}">
+          <span>${escapeHtml(node.title)}</span>
+          <small>${status} · ${escapeHtml(node.scope || "character")}</small>
+        </button>
+        <button class="goal-map-page__objective-pin" type="button" data-node-id="${escapeHtml(
+          node.id
+        )}" aria-pressed="${pinned ? "true" : "false"}" aria-label="${pinned ? "Unpin" : "Pin"} ${escapeHtml(
+      node.title
+    )}" title="${pinned ? "Unpin" : "Pin"}">
+          ${pinned ? "★" : "☆"}
+        </button>
       </div>
     `;
   }
@@ -255,6 +344,7 @@ export class GoalMapPage extends BaseElement {
         )}" target="_blank" rel="noopener noreferrer">Open wiki</a>`
       : "";
     const scope = node.scope ? `<span>${escapeHtml(node.scope)}</span>` : "";
+    const pinned = this.pinnedNodeIds.has(node.id);
     const progress = this.formatProgress(evaluated.progress);
     const completedAt = evaluated.completedAt
       ? `<dt>Completed</dt><dd>${escapeHtml(new Date(evaluated.completedAt).toLocaleString())}</dd>`
@@ -265,7 +355,12 @@ export class GoalMapPage extends BaseElement {
         <span>${escapeHtml(NODE_TYPES.has(node.type) ? node.type : "goal")}</span>
         ${scope}
       </div>
-      <h2>${escapeHtml(node.title)}</h2>
+      <div class="goal-map-page__detail-title">
+        <h2>${escapeHtml(node.title)}</h2>
+        <button class="goal-map-page__detail-pin men-button" type="button" data-node-id="${escapeHtml(
+          node.id
+        )}" aria-pressed="${pinned ? "true" : "false"}">${pinned ? "Unpin objective" : "Pin objective"}</button>
+      </div>
       <p>${escapeHtml(node.description || "No description provided.")}</p>
       <dl>
         <dt>Progress</dt><dd>${escapeHtml(progress)}</dd>
