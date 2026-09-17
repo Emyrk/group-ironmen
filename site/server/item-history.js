@@ -110,15 +110,24 @@ function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
   if (!snapshots.has(from) || !snapshots.has(to)) {
     throw new RangeError("from and to must reference saved snapshot dates");
   }
-  if (from >= to) {
-    throw new RangeError("from must be earlier than to");
+  if (from > to) {
+    throw new RangeError("from must not be later than to");
   }
+
+  const singleDay = from === to;
+  const selectedIndex = dates.indexOf(to);
+  if (singleDay && selectedIndex === 0) {
+    throw new RangeError("the earliest snapshot has no previous day to compare against");
+  }
+  const baselineDate = singleDay ? dates[selectedIndex - 1] : from;
 
   return {
     dates,
     from,
     to,
-    ...changesBetween(snapshots.get(from), snapshots.get(to)),
+    singleDay,
+    baselineDate,
+    ...changesBetween(snapshots.get(baselineDate), snapshots.get(to)),
     live,
     storage: snapshotStorage(db),
   };

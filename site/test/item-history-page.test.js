@@ -63,6 +63,29 @@ describe("item-history-page", () => {
     page.remove();
   });
 
+  it("requests and labels a single-day diff when both dates match", async () => {
+    const singleDay = {
+      ...history,
+      from: "2026-09-16",
+      to: "2026-09-16",
+      singleDay: true,
+      baselineDate: "2026-09-15",
+    };
+    const getItemHistory = vi.spyOn(api, "getItemHistory").mockResolvedValue(singleDay);
+    const page = document.createElement("item-history-page");
+    document.body.appendChild(page);
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector(".item-history-page__from-date")).not.toBeNull());
+
+    page.querySelector(".item-history-page__from-date").value = "2026-09-16";
+    page.querySelector(".item-history-page__to-date").value = "2026-09-16";
+    page.querySelector(".item-history-page__to-date").dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => expect(getItemHistory).toHaveBeenLastCalledWith("2026-09-16", "2026-09-16"));
+    await vi.waitFor(() => expect(page.textContent).toContain("daily diff"));
+    page.remove();
+  });
+
   it("requests the accumulated diff for selected dates", async () => {
     const getItemHistory = vi.spyOn(api, "getItemHistory").mockResolvedValue(history);
     const page = document.createElement("item-history-page");

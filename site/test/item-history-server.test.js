@@ -139,6 +139,34 @@ describe("private item history service", () => {
     });
   });
 
+  it("treats matching dates as that day's diff from the previous snapshot", () => {
+    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+      "2026-09-14",
+      JSON.stringify({ 995: 1000, 4151: 3 }),
+      "2026-09-14T07:00:00.000Z"
+    );
+    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+      "2026-09-15",
+      JSON.stringify({ 995: 1700, 4151: 1, 11840: 1 }),
+      "2026-09-15T07:00:00.000Z"
+    );
+
+    expect(comparison(db, "2026-09-15", "2026-09-15", "2026-09-15")).toMatchObject({
+      from: "2026-09-15",
+      to: "2026-09-15",
+      singleDay: true,
+      baselineDate: "2026-09-14",
+      gained: [
+        { item_id: 995, quantity: 700 },
+        { item_id: 11840, quantity: 1 },
+      ],
+      lost: [{ item_id: 4151, quantity: 2 }],
+    });
+    expect(() => comparison(db, "2026-09-14", "2026-09-14", "2026-09-15")).toThrow(
+      "the earliest snapshot has no previous day"
+    );
+  });
+
   it("uses a 2 AM Central boundary for the live day", () => {
     expect(centralDate(new Date("2026-09-17T06:59:00.000Z"))).toBe("2026-09-16");
     expect(centralDate(new Date("2026-09-17T07:00:00.000Z"))).toBe("2026-09-17");

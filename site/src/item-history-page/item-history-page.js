@@ -65,8 +65,8 @@ export class ItemHistoryPage extends BaseElement {
   async handleDateChange() {
     const from = this.querySelector(".item-history-page__from-date").value;
     const to = this.querySelector(".item-history-page__to-date").value;
-    if (from >= to) {
-      this.error = new Error("The starting snapshot must be earlier than the ending snapshot.");
+    if (from > to) {
+      this.error = new Error("The starting snapshot must not be later than the ending snapshot.");
       this.render();
       this.bindControls();
       return;
@@ -115,6 +115,9 @@ export class ItemHistoryPage extends BaseElement {
     }
 
     const liveLabel = this.data.to === this.data.live?.date ? " (Today, live)" : "";
+    const title = this.data.singleDay
+      ? `${this.formatDate(this.data.to)} daily diff`
+      : `${this.formatDate(this.data.from)} to ${this.formatDate(this.data.to)}`;
     const updatedLabel =
       this.data.to === this.data.live?.date && this.data.live.updatedAt
         ? `<span class="item-history-page__live-update">Updated ${new Date(
@@ -123,7 +126,7 @@ export class ItemHistoryPage extends BaseElement {
         : "";
     return `
       <section class="item-history-page__day rsborder rsbackground">
-        <h2>${this.formatDate(this.data.from)} to ${this.formatDate(this.data.to)}${liveLabel}</h2>
+        <h2>${title}${liveLabel}</h2>
         ${updatedLabel}
         <div class="item-history-page__columns">
           ${this.renderChanges("Gained", this.data.gained, "gained")}
