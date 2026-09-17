@@ -112,6 +112,31 @@ function openDatabase(filename) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS inventory_setup_sections_live_name
       ON inventory_setup_sections(lower(name)) WHERE deleted_at IS NULL;
+    CREATE TABLE IF NOT EXISTS goal_map_state (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      characters TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT
+    );
+    INSERT OR IGNORE INTO goal_map_state (singleton, characters, updated_at) VALUES (1, '[]', NULL);
+    CREATE TABLE IF NOT EXISTS goal_progress (
+      node_id TEXT NOT NULL,
+      subject_type TEXT NOT NULL CHECK (subject_type IN ('character', 'group')),
+      subject_id TEXT NOT NULL,
+      complete INTEGER NOT NULL CHECK (complete IN (0, 1)),
+      progress TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      completed_at TEXT,
+      evaluated_at TEXT NOT NULL,
+      PRIMARY KEY (node_id, subject_type, subject_id)
+    );
+    CREATE TABLE IF NOT EXISTS goal_progress_events (
+      event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      node_id TEXT NOT NULL,
+      subject_type TEXT NOT NULL CHECK (subject_type IN ('character', 'group')),
+      subject_id TEXT NOT NULL,
+      complete INTEGER NOT NULL CHECK (complete IN (0, 1)),
+      occurred_at TEXT NOT NULL
+    );
   `);
   const itemSnapshotColumns = db.prepare("PRAGMA table_info(item_snapshots)").all();
   if (!itemSnapshotColumns.some((column) => column.name === "baseline_items")) {
