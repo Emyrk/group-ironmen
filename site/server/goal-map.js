@@ -2,7 +2,7 @@ const express = require("express");
 const questData = require("../public/data/quest_data.json");
 const { edges, nodes } = require("./goal-definitions");
 
-const DEFINITION_VERSION = 3;
+const DEFINITION_VERSION = 4;
 const REFRESH_MINUTES = 15;
 const REFRESH_MS = REFRESH_MINUTES * 60 * 1000;
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];

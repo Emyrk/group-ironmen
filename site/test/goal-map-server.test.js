@@ -217,6 +217,54 @@ describe("private goal map service", () => {
     });
   });
 
+  it("tracks Miscellania and Fossil Island teak progression with character and group scope", () => {
+    const alice = member("Alice");
+    alice.quests[123] = 2;
+    alice.quests[11] = 2;
+    alice.skills.Farming = 22406;
+    const bob = member("Bob", [21486, 1]);
+    evaluateGroupData(db, "gim", [alice, bob], new Date("2026-09-17T12:00:00.000Z"));
+
+    const map = readGoalMap(db, "gim", "Alice");
+    expect(map.nodes.find((node) => node.id === "miscellania-hardwood")).toMatchObject({
+      complete: true,
+      scope: "character",
+      evidence: [{ type: "quest", questId: 123, name: "Royal Trouble", state: 2 }],
+    });
+    expect(map.nodes.find((node) => node.id === "teak-seed")).toMatchObject({
+      complete: true,
+      scope: "group",
+      progress: { current: 1, target: 1, unit: "item" },
+      evidence: [{ type: "item", itemId: 21486, quantity: 1 }],
+    });
+    expect(map.nodes.find((node) => node.id === "fossil-island-teaks")).toMatchObject({
+      complete: false,
+      scope: "character",
+      progress: { current: 2, target: 3 },
+      evidence: [
+        { type: "quest", questId: 11, name: "Bone Voyage", state: 2 },
+        { type: "skill", skill: "Farming", level: 35, requiredLevel: 35 },
+        { type: "unobservable", message: expect.stringContaining("cannot be observed automatically") },
+      ],
+    });
+    expect(map.edges).toEqual(
+      expect.arrayContaining([
+        {
+          source: "teak-seed",
+          target: "fossil-island-teaks",
+          type: "requires",
+          label: "Seed for the sapling",
+        },
+        {
+          source: "fossil-island-teaks",
+          target: "house-tablet-construction",
+          type: "supplies",
+          label: "Renewable teak logs",
+        },
+      ])
+    );
+  });
+
   it("supports source-controlled custom JavaScript validators", () => {
     const result = goalMapModule.evaluateValidator(
       {
@@ -257,7 +305,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      3
+      4
     );
   });
 

@@ -119,6 +119,42 @@ const nodes = [
     metadata: { wikiUrl: `${WIKI}Karil_the_Tainted%27s_equipment` },
   },
   {
+    id: "miscellania-hardwood",
+    title: "Unlock Miscellania hardwood",
+    description: "Complete Royal Trouble to assign kingdom workers to gather passive teak or mahogany logs.",
+    scope: "character",
+    category: "Construction",
+    validator: quest(123, "Royal Trouble"),
+    metadata: { wikiUrl: `${WIKI}Managing_Miscellania` },
+  },
+  {
+    id: "teak-seed",
+    title: "Obtain a teak seed",
+    description:
+      "The group owns a teak seed for a renewable teak tree. Seed nests, seed packs, and Wintertodt are practical sources.",
+    scope: "group",
+    category: "Construction",
+    validator: item(21486),
+    metadata: { wikiUrl: `${WIKI}Teak_seed` },
+  },
+  {
+    id: "fossil-island-teaks",
+    title: "Plant teak on Fossil Island",
+    description:
+      "Complete Bone Voyage, reach 35 Farming, and plant a teak sapling in one of Fossil Island's hardwood patches for renewable teak logs.",
+    scope: "character",
+    category: "Construction",
+    validator: every(
+      quest(11, "Bone Voyage"),
+      skill("Farming", 35),
+      custom("manual-observation", {
+        message:
+          "Farming patch state is not present in get-group-data; planting the teak sapling cannot be observed automatically.",
+      })
+    ),
+    metadata: { wikiUrl: `${WIKI}Teak_seed` },
+  },
+  {
     id: "blood-rune-source",
     title: "Blood rune source",
     description: "Reach 77 Runecraft for a renewable blood rune source.",
@@ -203,6 +239,24 @@ const edges = [
     target: "barrows-ready",
     type: "improves",
     label: "Stops prayer drain",
+  },
+  {
+    source: "miscellania-hardwood",
+    target: "house-tablet-construction",
+    type: "supplies",
+    label: "Passive teak logs",
+  },
+  {
+    source: "teak-seed",
+    target: "fossil-island-teaks",
+    type: "requires",
+    label: "Seed for the sapling",
+  },
+  {
+    source: "fossil-island-teaks",
+    target: "house-tablet-construction",
+    type: "supplies",
+    label: "Renewable teak logs",
   },
   {
     source: "house-tablet-construction",
