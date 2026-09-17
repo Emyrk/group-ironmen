@@ -47,6 +47,12 @@ describe("item-history-page", () => {
     await vi.waitFor(() => expect(getItemHistory).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(page.textContent).toContain("365 day retention"));
 
+    const fromDate = page.querySelector(".item-history-page__from-date");
+    const toDate = page.querySelector(".item-history-page__to-date");
+    expect(fromDate.type).toBe("date");
+    expect(fromDate.min).toBe("2026-09-14");
+    expect(toDate.type).toBe("date");
+    expect(toDate.max).toBe("2026-09-16");
     expect(page.textContent).toContain("Today, live");
     expect(page.textContent).toContain("+500");
     expect(interval).toHaveBeenCalledWith(expect.any(Function), 15 * 60 * 1000, false);

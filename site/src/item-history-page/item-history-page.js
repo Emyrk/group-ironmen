@@ -90,23 +90,14 @@ export class ItemHistoryPage extends BaseElement {
     if (this.data.dates.length < 2) {
       return `<div class="item-history-page__storage">${storageText}</div>`;
     }
-    const options = (selected) =>
-      this.data.dates
-        .map(
-          (date) =>
-            `<option value="${date}"${date === selected ? " selected" : ""}>${this.formatDate(date)}${
-              date === this.data.live?.date ? " (Today, live)" : ""
-            }</option>`
-        )
-        .join("");
+    const minDate = this.data.dates[0];
+    const maxDate = this.data.dates[this.data.dates.length - 1];
     return `
       <div class="item-history-page__controls rsborder-tiny rsbackground">
-        <label>From<select class="item-history-page__date-select item-history-page__from-date">${options(
-          this.data.from
-        )}</select></label>
-        <label>To<select class="item-history-page__date-select item-history-page__to-date">${options(
-          this.data.to
-        )}</select></label>
+        <label>From<input type="date" class="item-history-page__date-select item-history-page__from-date"
+          value="${this.data.from}" min="${minDate}" max="${maxDate}" /></label>
+        <label>To<input type="date" class="item-history-page__date-select item-history-page__to-date"
+          value="${this.data.to}" min="${minDate}" max="${maxDate}" /></label>
         <span class="item-history-page__storage">${storageText}</span>
       </div>
     `;

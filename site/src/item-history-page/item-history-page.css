@@ -40,6 +40,7 @@ item-history-page {
   min-width: 150px;
   padding: 4px 6px;
   color: var(--primary-text);
+  color-scheme: dark;
   background: #302a22;
   border: 1px solid var(--light-border);
 }
