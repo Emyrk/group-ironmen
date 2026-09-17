@@ -238,6 +238,7 @@ export class GoalMapPage extends BaseElement {
     if (entry.type === "quest") {
       return `${entry.name}: ${entry.state === 2 || entry.state === "FINISHED" ? "complete" : "incomplete"}`;
     }
+    if (entry.type === "diary") return `${entry.region} ${entry.tier}: ${entry.completed}/${entry.total} tasks`;
     if (entry.type === "item") return `Item ${entry.itemId}: ${entry.quantity} owned`;
     return JSON.stringify(entry);
   }

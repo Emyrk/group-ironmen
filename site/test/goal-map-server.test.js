@@ -32,7 +32,7 @@ function call(server, url = "/api/group/gim/get-goal-map", authorization = "priv
   });
 }
 
-function member(name, bank = []) {
+function member(name, bank = [], diaryVars = []) {
   return {
     name,
     bank,
@@ -42,6 +42,7 @@ function member(name, bank = []) {
     seed_vault: [],
     skills: {},
     quests: {},
+    diary_vars: diaryVars,
   };
 }
 
@@ -143,6 +144,27 @@ describe("private goal map service", () => {
     ]);
   });
 
+  it("tracks Morytania Hard diary task progress from diary variables", () => {
+    const nearlyComplete = Array.from({ length: 62 }, () => 0);
+    nearlyComplete[15] = 0x7f800000;
+    nearlyComplete[16] = 1 << 1;
+    evaluateGroupData(db, "gim", [member("Alice", [], nearlyComplete)], new Date("2026-09-17T12:00:00.000Z"));
+
+    expect(readGoalMap(db, "gim", "Alice").nodes.find((node) => node.id === "morytania-hard")).toMatchObject({
+      complete: false,
+      progress: { current: 9, target: 10, unit: "task" },
+      evidence: [{ type: "diary", region: "Morytania", tier: "Hard", completed: 9, total: 10 }],
+    });
+
+    nearlyComplete[16] |= 1 << 2;
+    evaluateGroupData(db, "gim", [member("Alice", [], nearlyComplete)], new Date("2026-09-17T12:15:00.000Z"));
+    expect(readGoalMap(db, "gim", "Alice").nodes.find((node) => node.id === "morytania-hard")).toMatchObject({
+      complete: true,
+      progress: { current: 10, target: 10, unit: "task" },
+      completedAt: "2026-09-17T12:15:00.000Z",
+    });
+  });
+
   it("supports source-controlled custom JavaScript validators", () => {
     const result = goalMapModule.evaluateValidator(
       {
@@ -173,6 +195,18 @@ describe("private goal map service", () => {
     expect(request).toHaveBeenCalledOnce();
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:15:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes immediately when the goal definition version changes", async () => {
+    db.prepare("UPDATE goal_map_state SET updated_at=?,definition_version=0 WHERE singleton=1").run(
+      "2026-09-17T12:00:00.000Z"
+    );
+
+    expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
+    expect(request).toHaveBeenCalledOnce();
+    expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
+      2
+    );
   });
 
   it("coalesces concurrent GET refreshes into a single upstream request", async () => {

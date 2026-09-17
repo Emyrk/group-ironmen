@@ -2,6 +2,7 @@ const express = require("express");
 const questData = require("../public/data/quest_data.json");
 const { edges, nodes } = require("./goal-definitions");
 
+const DEFINITION_VERSION = 2;
 const REFRESH_MINUTES = 15;
 const REFRESH_MS = REFRESH_MINUTES * 60 * 1000;
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];
@@ -83,6 +84,67 @@ function completeQuestState(state) {
   return state === 2 || state === "FINISHED";
 }
 
+const DIARY_CHECKS = {
+  Morytania: {
+    Easy: [
+      [15, 1],
+      [15, 2],
+      [15, 3],
+      [15, 4],
+      [15, 5],
+      [15, 6],
+      [15, 7],
+      [15, 8],
+      [15, 9],
+      [15, 10],
+      [15, 11],
+    ],
+    Medium: [
+      [15, 12],
+      [15, 13],
+      [15, 14],
+      [15, 15],
+      [15, 16],
+      [15, 17],
+      [15, 18],
+      [15, 19],
+      [15, 20],
+      [15, 21],
+      [15, 22],
+    ],
+    Hard: [
+      [15, 23],
+      [15, 24],
+      [15, 25],
+      [15, 26],
+      [15, 27],
+      [15, 28],
+      [15, 29],
+      [15, 30],
+      [16, 1],
+      [16, 2],
+    ],
+    Elite: [
+      [16, 3],
+      [16, 4],
+      [16, 5],
+      [16, 6],
+      [16, 7],
+      [16, 8],
+    ],
+  },
+};
+
+function diaryProgress(member, region, tier) {
+  const checks = DIARY_CHECKS[region]?.[tier];
+  const diaryVars = member?.diary_vars;
+  if (!checks || !Array.isArray(diaryVars)) return null;
+  const completed = checks.filter(
+    ([varIndex, bitIndex]) => ((Number(diaryVars[varIndex]) >>> bitIndex) & 1) === 1
+  ).length;
+  return { completed, total: checks.length };
+}
+
 const customValidators = {
   "manual-observation": (_context, validator) => ({
     complete: false,
@@ -108,6 +170,23 @@ function evaluateValidator(validator, context) {
       complete,
       progress: { current: complete ? 1 : 0, target: 1 },
       evidence: [{ type: "quest", questId: validator.questId, name: validator.name, state: state ?? "UNKNOWN" }],
+    };
+  }
+  if (validator.type === "diary") {
+    const progress = diaryProgress(context.member, validator.region, validator.tier);
+    if (!progress) {
+      return {
+        complete: false,
+        progress: { current: 0, target: 1, observable: false },
+        evidence: [
+          { type: "unobservable", message: `${validator.region} ${validator.tier} diary data is unavailable.` },
+        ],
+      };
+    }
+    return {
+      complete: progress.completed === progress.total,
+      progress: { current: progress.completed, target: progress.total, unit: "task" },
+      evidence: [{ type: "diary", region: validator.region, tier: validator.tier, ...progress }],
     };
   }
   if (validator.type === "item") {
@@ -208,9 +287,10 @@ function evaluateGroupData(db, groupId, groupData, now = new Date()) {
         );
       }
     }
-    db.prepare("UPDATE goal_map_state SET characters=?,updated_at=? WHERE singleton=1").run(
+    db.prepare("UPDATE goal_map_state SET characters=?,updated_at=?,definition_version=? WHERE singleton=1").run(
       JSON.stringify(characters),
-      evaluatedAt
+      evaluatedAt,
+      DEFINITION_VERSION
     );
     db.exec("COMMIT");
   } catch (failure) {
@@ -221,8 +301,14 @@ function evaluateGroupData(db, groupId, groupData, now = new Date()) {
 }
 
 async function refreshGoalMap(db, config, request, now = new Date()) {
-  const state = db.prepare("SELECT updated_at FROM goal_map_state WHERE singleton=1").get();
-  if (state.updated_at && now.getTime() - new Date(state.updated_at).getTime() < REFRESH_MS) return false;
+  const state = db.prepare("SELECT updated_at,definition_version FROM goal_map_state WHERE singleton=1").get();
+  if (
+    state.definition_version === DEFINITION_VERSION &&
+    state.updated_at &&
+    now.getTime() - new Date(state.updated_at).getTime() < REFRESH_MS
+  ) {
+    return false;
+  }
   const response = await request({
     method: "GET",
     url: `${config.upstreamBaseUrl}/api/group/${encodeURIComponent(config.upstreamGroupName)}/get-group-data`,

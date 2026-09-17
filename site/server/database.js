@@ -115,9 +115,11 @@ function openDatabase(filename) {
     CREATE TABLE IF NOT EXISTS goal_map_state (
       singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
       characters TEXT NOT NULL DEFAULT '[]',
-      updated_at TEXT
+      updated_at TEXT,
+      definition_version INTEGER NOT NULL DEFAULT 0
     );
-    INSERT OR IGNORE INTO goal_map_state (singleton, characters, updated_at) VALUES (1, '[]', NULL);
+    INSERT OR IGNORE INTO goal_map_state (singleton, characters, updated_at, definition_version)
+      VALUES (1, '[]', NULL, 0);
     CREATE TABLE IF NOT EXISTS goal_progress (
       node_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('character', 'group')),
@@ -141,6 +143,10 @@ function openDatabase(filename) {
   const itemSnapshotColumns = db.prepare("PRAGMA table_info(item_snapshots)").all();
   if (!itemSnapshotColumns.some((column) => column.name === "baseline_items")) {
     db.exec("ALTER TABLE item_snapshots ADD COLUMN baseline_items TEXT");
+  }
+  const goalMapStateColumns = db.prepare("PRAGMA table_info(goal_map_state)").all();
+  if (!goalMapStateColumns.some((column) => column.name === "definition_version")) {
+    db.exec("ALTER TABLE goal_map_state ADD COLUMN definition_version INTEGER NOT NULL DEFAULT 0");
   }
   return db;
 }

@@ -4,6 +4,7 @@ const item = (itemId, quantity = 1, alternatives = []) => ({ type: "item", itemI
 const itemSet = (items) => ({ type: "item-set", items });
 const skill = (skillName, level) => ({ type: "skill", skillName, level });
 const quest = (questId, name) => ({ type: "quest", questId, name });
+const diary = (region, tier) => ({ type: "diary", region, tier });
 const every = (...validators) => ({ type: "every", validators });
 const any = (...validators) => ({ type: "any", validators });
 const all = (...validators) => ({ type: "all", validators });
@@ -74,10 +75,7 @@ const nodes = [
     scope: "character",
     category: "Barrows",
     recommended: true,
-    validator: custom("manual-observation", {
-      message:
-        "Raw diary variables are not reliably decoded by the site service, so this recommendation is not guessed.",
-    }),
+    validator: diary("Morytania", "Hard"),
     metadata: { wikiUrl: `${WIKI}Morytania_Diary` },
   },
   {
@@ -203,4 +201,4 @@ const edges = [
   { source: "blood-rune-source", target: "blood-rush-path", type: "supplies", label: "Blood runes" },
 ];
 
-module.exports = { all, any, custom, edges, every, item, itemSet, nodes, quest, skill };
+module.exports = { all, any, custom, diary, edges, every, item, itemSet, nodes, quest, skill };
