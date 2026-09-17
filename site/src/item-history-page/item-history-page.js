@@ -169,7 +169,7 @@ export class ItemHistoryPage extends BaseElement {
             ${imageHtml}
             <span><strong>${
               change.name
-            }</strong> charges went from ${change.from.toLocaleString()} → ${change.to.toLocaleString()}</span>
+            }</strong> (${change.from.toLocaleString()} -> ${change.to.toLocaleString()})</span>
             <strong class="${change.difference > 0 ? "positive" : "negative"}">${difference}</strong>
           </div>
         `;

@@ -55,7 +55,7 @@ describe("item-history-page", () => {
     expect(toDate.type).toBe("date");
     expect(toDate.max).toBe("2026-09-16");
     expect(page.textContent).toContain("Today, live");
-    expect(page.textContent).toContain("Ring of dueling charges went from 412 → 410");
+    expect(page.textContent).toContain("Ring of dueling (412 -> 410)");
     expect(page.textContent).toContain("-2");
     expect(page.textContent).toContain("+500");
     expect(interval).toHaveBeenCalledWith(expect.any(Function), 15 * 60 * 1000, false);
