@@ -91,10 +91,13 @@ describe("private item history service", () => {
       status: 200,
       body: {
         dates: [expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)],
-        from: null,
-        to: null,
+        from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        singleDay: true,
+        baselineAvailable: true,
         gained: [],
         lost: [],
+        charge_changes: [],
         storage: { snapshotCount: 1, retentionDays: 365 },
       },
     });
@@ -112,12 +115,12 @@ describe("private item history service", () => {
   });
 
   it("calculates gained and lost items between daily snapshots", async () => {
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-14",
       JSON.stringify({ 995: 1000, 4151: 3 }),
       "2026-09-14T07:00:00.000Z"
     );
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-15",
       JSON.stringify({ 995: 1200, 4151: 3 }),
       "2026-09-15T12:00:00.000Z"
@@ -139,13 +142,67 @@ describe("private item history service", () => {
     });
   });
 
+  it("combines charged jewelry into total charge changes", () => {
+    const result = historyModule.changesBetween({ 2552: 50, 2554: 1, 995: 1000 }, { 2552: 50, 2556: 1, 995: 1200 });
+
+    expect(result).toEqual({
+      gained: [{ item_id: 995, quantity: 200 }],
+      lost: [],
+      charge_changes: [
+        {
+          name: "Ring of dueling",
+          item_id: 2552,
+          from: 407,
+          to: 406,
+          difference: -1,
+        },
+      ],
+    });
+  });
+
+  it("handles spaced, imbued, and zero-charge item variants", () => {
+    expect(historyModule.changesBetween({ 11980: 1 }, { 11984: 1 })).toEqual({
+      gained: [],
+      lost: [],
+      charge_changes: [
+        {
+          name: "Ring of wealth",
+          item_id: 11980,
+          from: 5,
+          to: 3,
+          difference: -2,
+        },
+      ],
+    });
+    expect(historyModule.changesBetween({ 11988: 1 }, { 2572: 1 })).toMatchObject({
+      gained: [],
+      lost: [],
+      charge_changes: [{ name: "Ring of wealth", from: 1, to: 0, difference: -1 }],
+    });
+    expect(historyModule.changesBetween({ 10360: 1 }, { 10362: 1 })).toMatchObject({
+      gained: [],
+      lost: [],
+      charge_changes: [{ name: "Amulet of glory", from: 1, to: 0, difference: -1 }],
+    });
+  });
+
+  it("counts newly enchanted jewelry as newly added charges", () => {
+    const result = historyModule.changesBetween({}, { 2552: 1 });
+
+    expect(result).toMatchObject({
+      gained: [],
+      lost: [],
+      charge_changes: [{ name: "Ring of dueling", from: 0, to: 8, difference: 8 }],
+    });
+  });
+
   it("treats matching dates as that day's diff from the previous snapshot", () => {
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-14",
       JSON.stringify({ 995: 1000, 4151: 3 }),
       "2026-09-14T07:00:00.000Z"
     );
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-15",
       JSON.stringify({ 995: 1700, 4151: 1, 11840: 1 }),
       "2026-09-15T07:00:00.000Z"
@@ -162,9 +219,42 @@ describe("private item history service", () => {
       ],
       lost: [{ item_id: 4151, quantity: 2 }],
     });
-    expect(() => comparison(db, "2026-09-14", "2026-09-14", "2026-09-15")).toThrow(
-      "the earliest snapshot has no previous day"
+    expect(comparison(db, "2026-09-14", "2026-09-14", "2026-09-15")).toMatchObject({
+      from: "2026-09-14",
+      to: "2026-09-14",
+      singleDay: true,
+      baselineDate: "2026-09-14",
+      baselineAvailable: false,
+      gained: [],
+      lost: [],
+    });
+  });
+
+  it("preserves the live day's opening baseline while overwriting current items", async () => {
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
+      "2026-09-15",
+      JSON.stringify({ 995: 1000, 4151: 3 }),
+      "2026-09-15T12:00:00.000Z"
     );
+
+    await ensureSnapshot(db, config, request, "2026-09-15", new Date("2026-09-15T13:00:00.000Z"));
+    const result = comparison(db, "2026-09-15", "2026-09-15", "2026-09-15");
+
+    expect(result).toMatchObject({
+      singleDay: true,
+      baselineDate: "2026-09-15",
+      baselineAvailable: true,
+      gained: [
+        { item_id: 995, quantity: 1000 },
+        { item_id: 11840, quantity: 1 },
+      ],
+      lost: [{ item_id: 4151, quantity: 1 }],
+    });
+    expect(
+      JSON.parse(
+        db.prepare("SELECT baseline_items FROM item_snapshots WHERE snapshot_date='2026-09-15'").get().baseline_items
+      )
+    ).toEqual({ 995: 1000, 4151: 3 });
   });
 
   it("uses a 2 AM Central boundary for the live day", () => {
@@ -173,7 +263,7 @@ describe("private item history service", () => {
   });
 
   it("overwrites the live snapshot every fifteen minutes and finalizes it at rollover", async () => {
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-16",
       JSON.stringify({ 995: 1000 }),
       "2026-09-16T12:00:00.000Z"
@@ -204,17 +294,17 @@ describe("private item history service", () => {
   });
 
   it("compares any two saved dates through the API", async () => {
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-14",
       JSON.stringify({ 995: 1000, 4151: 3 }),
       "2026-09-14T07:00:00.000Z"
     );
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-15",
       JSON.stringify({ 995: 1200, 4151: 2 }),
       "2026-09-15T07:00:00.000Z"
     );
-    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+    db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
       "2026-09-16",
       JSON.stringify({ 995: 1700, 11840: 1 }),
       "2026-09-16T07:00:00.000Z"
@@ -222,7 +312,11 @@ describe("private item history service", () => {
 
     const liveDate = centralDate();
     if (!db.prepare("SELECT 1 FROM item_snapshots WHERE snapshot_date=?").get(liveDate)) {
-      db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(liveDate, "{}", new Date().toISOString());
+      db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
+        liveDate,
+        "{}",
+        new Date().toISOString()
+      );
     }
 
     const response = await call(
@@ -254,7 +348,11 @@ describe("private item history service", () => {
       const date = new Date(firstDate);
       date.setUTCDate(date.getUTCDate() + offset);
       const snapshotDate = date.toISOString().slice(0, 10);
-      db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(snapshotDate, "{}", `${snapshotDate}T07:00:00.000Z`);
+      db.prepare("INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
+        snapshotDate,
+        "{}",
+        `${snapshotDate}T07:00:00.000Z`
+      );
     }
 
     await ensureSnapshot(db, config, request, "2026-09-01");

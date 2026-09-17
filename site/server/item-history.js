@@ -1,5 +1,43 @@
 const express = require("express");
 
+const itemData = require("../public/data/item_data.json");
+
+const CHARGE_FAMILIES = new Set([
+  "Abyssal bracelet",
+  "Amulet of glory",
+  "Burning amulet",
+  "Castle wars bracelet",
+  "Combat bracelet",
+  "Digsite pendant",
+  "Enchanted lyre",
+  "Games necklace",
+  "Necklace of passage",
+  "Ring of dueling",
+  "Ring of returning",
+  "Ring of wealth",
+  "Skills necklace",
+  "Slayer ring",
+  "Teleport crystal",
+]);
+const ZERO_CHARGE_VARIANTS = new Map([
+  ["Amulet of glory (t)", "Amulet of glory"],
+  ["Ring of wealth (i)", "Ring of wealth"],
+]);
+const chargeItems = new Map();
+const chargeFamilies = new Map();
+for (const [itemIdValue, details] of Object.entries(itemData)) {
+  const match = details.name.match(/^(.*?)\s*\([it]?(\d+)\)$/);
+  const family = match?.[1].trim() || ZERO_CHARGE_VARIANTS.get(details.name) || details.name;
+  if (!CHARGE_FAMILIES.has(family)) continue;
+  const itemId = Number(itemIdValue);
+  const charges = match ? Number(match[2]) : 0;
+  chargeItems.set(itemId, { family, charges });
+  const existing = chargeFamilies.get(family);
+  if (!existing || charges > existing.maxCharges) {
+    chargeFamilies.set(family, { itemId, maxCharges: charges });
+  }
+}
+
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];
 const LIVE_REFRESH_MINUTES = 15;
 const LIVE_REFRESH_MS = LIVE_REFRESH_MINUTES * 60 * 1000;
@@ -46,19 +84,48 @@ function aggregateItems(members) {
   return Object.fromEntries([...totals.entries()].sort(([a], [b]) => a - b));
 }
 
+function chargeTotals(items) {
+  const totals = new Map();
+  for (const [itemIdValue, quantity] of Object.entries(items)) {
+    const chargedItem = chargeItems.get(Number(itemIdValue));
+    if (!chargedItem) continue;
+    totals.set(chargedItem.family, (totals.get(chargedItem.family) || 0) + quantity * chargedItem.charges);
+  }
+  return totals;
+}
+
 function changesBetween(previous, current) {
   const ids = new Set([...Object.keys(previous), ...Object.keys(current)]);
   const gained = [];
   const lost = [];
   for (const id of ids) {
     const itemId = Number(id);
+    if (chargeItems.has(itemId)) continue;
     const difference = (current[id] || 0) - (previous[id] || 0);
     if (difference > 0) gained.push({ item_id: itemId, quantity: difference });
     if (difference < 0) lost.push({ item_id: itemId, quantity: -difference });
   }
   gained.sort((a, b) => a.item_id - b.item_id);
   lost.sort((a, b) => a.item_id - b.item_id);
-  return { gained, lost };
+
+  const previousCharges = chargeTotals(previous);
+  const currentCharges = chargeTotals(current);
+  const chargeChanges = [];
+  const families = new Set([...previousCharges.keys(), ...currentCharges.keys()]);
+  for (const family of families) {
+    const from = previousCharges.get(family) || 0;
+    const to = currentCharges.get(family) || 0;
+    if (from === to) continue;
+    chargeChanges.push({
+      name: family,
+      item_id: chargeFamilies.get(family).itemId,
+      from,
+      to,
+      difference: to - from,
+    });
+  }
+  chargeChanges.sort((a, b) => a.name.localeCompare(b.name));
+  return { gained, lost, charge_changes: chargeChanges };
 }
 
 const RETENTION_DAYS = 365;
@@ -89,7 +156,9 @@ function snapshotStorage(db) {
 }
 
 function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
-  const rows = db.prepare("SELECT snapshot_date,items,created_at FROM item_snapshots ORDER BY snapshot_date").all();
+  const rows = db
+    .prepare("SELECT snapshot_date,items,created_at,baseline_items FROM item_snapshots ORDER BY snapshot_date")
+    .all();
   const dates = rows.map((row) => row.snapshot_date);
   const snapshots = new Map(rows.map((row) => [row.snapshot_date, JSON.parse(row.items)]));
   const liveRow = rows.find((row) => row.snapshot_date === liveDate);
@@ -98,12 +167,24 @@ function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
     updatedAt: liveRow?.created_at || null,
     refreshMinutes: LIVE_REFRESH_MINUTES,
   };
-  if (dates.length < 2) {
-    return { dates, from: null, to: null, gained: [], lost: [], live, storage: snapshotStorage(db) };
+  if (dates.length === 0) {
+    return {
+      dates,
+      from: null,
+      to: null,
+      singleDay: false,
+      baselineDate: null,
+      baselineAvailable: false,
+      gained: [],
+      lost: [],
+      charge_changes: [],
+      live,
+      storage: snapshotStorage(db),
+    };
   }
 
-  const from = requestedFrom || dates[dates.length - 2];
   const to = requestedTo || dates[dates.length - 1];
+  const from = requestedFrom || (dates.length > 1 ? dates[dates.length - 2] : to);
   if (!DATE_PATTERN.test(from) || !DATE_PATTERN.test(to)) {
     throw new RangeError("from and to must use YYYY-MM-DD format");
   }
@@ -116,10 +197,12 @@ function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
 
   const singleDay = from === to;
   const selectedIndex = dates.indexOf(to);
-  if (singleDay && selectedIndex === 0) {
-    throw new RangeError("the earliest snapshot has no previous day to compare against");
-  }
-  const baselineDate = singleDay ? dates[selectedIndex - 1] : from;
+  const selectedRow = rows[selectedIndex];
+  const storedBaseline = selectedRow.baseline_items ? JSON.parse(selectedRow.baseline_items) : null;
+  const previousDateBaseline = selectedIndex > 0 ? snapshots.get(dates[selectedIndex - 1]) : null;
+  const baseline = singleDay ? storedBaseline || previousDateBaseline || snapshots.get(to) : snapshots.get(from);
+  const baselineDate = singleDay ? (storedBaseline ? to : dates[selectedIndex - 1] || to) : from;
+  const baselineAvailable = !singleDay || storedBaseline !== null || previousDateBaseline !== null;
 
   return {
     dates,
@@ -127,14 +210,21 @@ function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
     to,
     singleDay,
     baselineDate,
-    ...changesBetween(snapshots.get(baselineDate), snapshots.get(to)),
+    baselineAvailable,
+    ...changesBetween(baseline, snapshots.get(to)),
     live,
     storage: snapshotStorage(db),
   };
 }
 
 async function ensureSnapshot(db, config, request, snapshotDate = centralDate(), now = new Date()) {
-  const existing = db.prepare("SELECT created_at FROM item_snapshots WHERE snapshot_date=?").get(snapshotDate);
+  const existing = db
+    .prepare("SELECT created_at,items,baseline_items FROM item_snapshots WHERE snapshot_date=?")
+    .get(snapshotDate);
+  if (existing && existing.baseline_items === null) {
+    db.prepare("UPDATE item_snapshots SET baseline_items=items WHERE snapshot_date=?").run(snapshotDate);
+    existing.baseline_items = existing.items;
+  }
   if (existing && now.getTime() - new Date(existing.created_at).getTime() < LIVE_REFRESH_MS) return false;
 
   const response = await request({
@@ -161,8 +251,8 @@ async function ensureSnapshot(db, config, request, snapshotDate = centralDate(),
       );
     }
     db.prepare(
-      "INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?) ON CONFLICT(snapshot_date) DO UPDATE SET items=excluded.items,created_at=excluded.created_at"
-    ).run(snapshotDate, items, updatedAt);
+      "INSERT INTO item_snapshots (snapshot_date,items,created_at,baseline_items) VALUES (?,?,?,?) ON CONFLICT(snapshot_date) DO UPDATE SET items=excluded.items,created_at=excluded.created_at,baseline_items=COALESCE(item_snapshots.baseline_items,item_snapshots.items)"
+    ).run(snapshotDate, items, updatedAt, items);
     db.prepare("DELETE FROM item_snapshots WHERE snapshot_date < ?").run(retentionCutoff(snapshotDate));
     db.exec("COMMIT");
   } catch (failure) {
@@ -208,6 +298,7 @@ module.exports = {
   RETENTION_DAYS,
   aggregateItems,
   centralDate,
+  chargeTotals,
   changesBetween,
   comparison,
   createItemHistoryRouter,

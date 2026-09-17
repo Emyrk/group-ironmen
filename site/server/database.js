@@ -74,7 +74,8 @@ function openDatabase(filename) {
     CREATE TABLE IF NOT EXISTS item_snapshots (
       snapshot_date TEXT PRIMARY KEY,
       items TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      baseline_items TEXT
     );
 
     CREATE TABLE IF NOT EXISTS inventory_setup_state (
@@ -112,6 +113,10 @@ function openDatabase(filename) {
     CREATE UNIQUE INDEX IF NOT EXISTS inventory_setup_sections_live_name
       ON inventory_setup_sections(lower(name)) WHERE deleted_at IS NULL;
   `);
+  const itemSnapshotColumns = db.prepare("PRAGMA table_info(item_snapshots)").all();
+  if (!itemSnapshotColumns.some((column) => column.name === "baseline_items")) {
+    db.exec("ALTER TABLE item_snapshots ADD COLUMN baseline_items TEXT");
+  }
   return db;
 }
 

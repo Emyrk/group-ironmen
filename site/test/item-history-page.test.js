@@ -26,6 +26,7 @@ const history = {
   to: "2026-09-16",
   gained: [{ item_id: 995, quantity: 500 }],
   lost: [{ item_id: 4151, quantity: 1 }],
+  charge_changes: [{ name: "Ring of dueling", item_id: 2552, from: 412, to: 410, difference: -2 }],
   live: { date: "2026-09-16", updatedAt: "2026-09-16T13:15:00.000Z", refreshMinutes: 15 },
   storage,
 };
@@ -54,6 +55,8 @@ describe("item-history-page", () => {
     expect(toDate.type).toBe("date");
     expect(toDate.max).toBe("2026-09-16");
     expect(page.textContent).toContain("Today, live");
+    expect(page.textContent).toContain("Ring of dueling charges went from 412 → 410");
+    expect(page.textContent).toContain("-2");
     expect(page.textContent).toContain("+500");
     expect(interval).toHaveBeenCalledWith(expect.any(Function), 15 * 60 * 1000, false);
 
@@ -83,6 +86,26 @@ describe("item-history-page", () => {
 
     await vi.waitFor(() => expect(getItemHistory).toHaveBeenLastCalledWith("2026-09-16", "2026-09-16"));
     await vi.waitFor(() => expect(page.textContent).toContain("daily diff"));
+    page.remove();
+  });
+
+  it("explains when the first snapshot has no earlier baseline", async () => {
+    const firstDay = {
+      ...history,
+      from: "2026-09-14",
+      to: "2026-09-14",
+      singleDay: true,
+      baselineDate: "2026-09-14",
+      baselineAvailable: false,
+      gained: [],
+      lost: [],
+    };
+    vi.spyOn(api, "getItemHistory").mockResolvedValue(firstDay);
+    const page = document.createElement("item-history-page");
+    document.body.appendChild(page);
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.textContent).toContain("Tracking started on this date"));
     page.remove();
   });
 

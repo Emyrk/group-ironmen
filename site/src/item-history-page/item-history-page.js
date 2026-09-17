@@ -87,7 +87,7 @@ export class ItemHistoryPage extends BaseElement {
           storage.retentionDays
         } day retention`
       : "";
-    if (this.data.dates.length < 2) {
+    if (this.data.dates.length === 0) {
       return `<div class="item-history-page__storage">${storageText}</div>`;
     }
     const minDate = this.data.dates[0];
@@ -110,8 +110,8 @@ export class ItemHistoryPage extends BaseElement {
     if (this.data === null) {
       return '<div class="item-history-page__message rsborder rsbackground">Loading item history...</div>';
     }
-    if (this.data.dates.length < 2) {
-      return '<div class="item-history-page__message rsborder rsbackground">Today’s snapshot is saved. A second daily snapshot is needed before changes can be shown.</div>';
+    if (this.data.dates.length === 0) {
+      return '<div class="item-history-page__message rsborder rsbackground">No item snapshots are available yet.</div>';
     }
 
     const liveLabel = this.data.to === this.data.live?.date ? " (Today, live)" : "";
@@ -124,10 +124,16 @@ export class ItemHistoryPage extends BaseElement {
             this.data.live.updatedAt
           ).toLocaleTimeString()}</span>`
         : "";
+    const baselineLabel =
+      this.data.singleDay && this.data.baselineAvailable === false
+        ? '<span class="item-history-page__live-update">Tracking started on this date, so earlier changes are unavailable.</span>'
+        : "";
     return `
       <section class="item-history-page__day rsborder rsbackground">
         <h2>${title}${liveLabel}</h2>
         ${updatedLabel}
+        ${baselineLabel}
+        ${this.renderChargeChanges(this.data.charge_changes || [])}
         <div class="item-history-page__columns">
           ${this.renderChanges("Gained", this.data.gained, "gained")}
           ${this.renderChanges("Lost", this.data.lost, "lost")}
@@ -148,6 +154,33 @@ export class ItemHistoryPage extends BaseElement {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  renderChargeChanges(changes) {
+    if (changes.length === 0) return "";
+    const items = changes
+      .map((change) => {
+        const details = Item.itemDetails?.[change.item_id];
+        const image = details ? Item.imageUrl(change.item_id, 1) : "";
+        const imageHtml = image ? `<img src="${image}" width="36" height="32" loading="lazy" />` : "";
+        const difference = `${change.difference > 0 ? "+" : ""}${change.difference.toLocaleString()}`;
+        return `
+          <div class="item-history-page__charge-item">
+            ${imageHtml}
+            <span><strong>${
+              change.name
+            }</strong> charges went from ${change.from.toLocaleString()} → ${change.to.toLocaleString()}</span>
+            <strong class="${change.difference > 0 ? "positive" : "negative"}">${difference}</strong>
+          </div>
+        `;
+      })
+      .join("");
+    return `
+      <div class="item-history-page__charges">
+        <h3>Charge changes (${changes.length})</h3>
+        <div class="item-history-page__charge-items">${items}</div>
+      </div>
+    `;
   }
 
   renderChanges(title, changes, type) {
