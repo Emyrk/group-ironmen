@@ -1,6 +1,8 @@
 const express = require("express");
 
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];
+const LIVE_REFRESH_MINUTES = 15;
+const LIVE_REFRESH_MS = LIVE_REFRESH_MINUTES * 60 * 1000;
 
 function centralDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -8,9 +10,21 @@ function centralDate(now = new Date()) {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
   }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
+  const date = `${values.year}-${values.month}-${values.day}`;
+  if (Number(values.hour) >= 2) return date;
+  const previous = new Date(`${date}T12:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous.toISOString().slice(0, 10);
+}
+
+function previousDate(date) {
+  const previous = new Date(`${date}T12:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous.toISOString().slice(0, 10);
 }
 
 function addItemPairs(items, totals) {
@@ -74,12 +88,18 @@ function snapshotStorage(db) {
   };
 }
 
-function comparison(db, requestedFrom, requestedTo) {
-  const rows = db.prepare("SELECT snapshot_date,items FROM item_snapshots ORDER BY snapshot_date").all();
+function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
+  const rows = db.prepare("SELECT snapshot_date,items,created_at FROM item_snapshots ORDER BY snapshot_date").all();
   const dates = rows.map((row) => row.snapshot_date);
   const snapshots = new Map(rows.map((row) => [row.snapshot_date, JSON.parse(row.items)]));
+  const liveRow = rows.find((row) => row.snapshot_date === liveDate);
+  const live = {
+    date: liveDate,
+    updatedAt: liveRow?.created_at || null,
+    refreshMinutes: LIVE_REFRESH_MINUTES,
+  };
   if (dates.length < 2) {
-    return { dates, from: null, to: null, gained: [], lost: [], storage: snapshotStorage(db) };
+    return { dates, from: null, to: null, gained: [], lost: [], live, storage: snapshotStorage(db) };
   }
 
   const from = requestedFrom || dates[dates.length - 2];
@@ -99,13 +119,14 @@ function comparison(db, requestedFrom, requestedTo) {
     from,
     to,
     ...changesBetween(snapshots.get(from), snapshots.get(to)),
+    live,
     storage: snapshotStorage(db),
   };
 }
 
-async function ensureSnapshot(db, config, request, snapshotDate = centralDate()) {
-  const existing = db.prepare("SELECT 1 FROM item_snapshots WHERE snapshot_date=?").get(snapshotDate);
-  if (existing) return false;
+async function ensureSnapshot(db, config, request, snapshotDate = centralDate(), now = new Date()) {
+  const existing = db.prepare("SELECT created_at FROM item_snapshots WHERE snapshot_date=?").get(snapshotDate);
+  if (existing && now.getTime() - new Date(existing.created_at).getTime() < LIVE_REFRESH_MS) return false;
 
   const response = await request({
     method: "GET",
@@ -116,15 +137,23 @@ async function ensureSnapshot(db, config, request, snapshotDate = centralDate())
     timeout: 15000,
     maxContentLength: 10 * 1024 * 1024,
   });
-  const items = aggregateItems(response.data);
+  const items = JSON.stringify(aggregateItems(response.data));
+  const updatedAt = now.toISOString();
 
   db.exec("BEGIN IMMEDIATE");
   try {
-    db.prepare("INSERT OR IGNORE INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?)").run(
-      snapshotDate,
-      JSON.stringify(items),
-      new Date().toISOString()
-    );
+    if (!existing) {
+      // At the 2 AM Central rollover, the first refresh becomes the final value for yesterday
+      // and the initial value for the new live day. This keeps the boundary diff at zero.
+      db.prepare("UPDATE item_snapshots SET items=?,created_at=? WHERE snapshot_date=?").run(
+        items,
+        updatedAt,
+        previousDate(snapshotDate)
+      );
+    }
+    db.prepare(
+      "INSERT INTO item_snapshots (snapshot_date,items,created_at) VALUES (?,?,?) ON CONFLICT(snapshot_date) DO UPDATE SET items=excluded.items,created_at=excluded.created_at"
+    ).run(snapshotDate, items, updatedAt);
     db.prepare("DELETE FROM item_snapshots WHERE snapshot_date < ?").run(retentionCutoff(snapshotDate));
     db.exec("COMMIT");
   } catch (failure) {
@@ -136,10 +165,24 @@ async function ensureSnapshot(db, config, request, snapshotDate = centralDate())
 
 function createItemHistoryRouter(db, auth, config, request) {
   const router = express.Router({ mergeParams: true });
+  let refreshPromise;
+  const refresh = () => {
+    if (!refreshPromise) {
+      refreshPromise = ensureSnapshot(db, config, request).finally(() => {
+        refreshPromise = undefined;
+      });
+    }
+    return refreshPromise;
+  };
+  const timer = setInterval(() => {
+    refresh().catch((failure) => console.error("Failed to refresh live item snapshot", failure));
+  }, LIVE_REFRESH_MS);
+  timer.unref?.();
+
   router.use(auth);
   router.get("/get-item-history", async (req, res, next) => {
     try {
-      await ensureSnapshot(db, config, request);
+      await refresh();
       return res.json(comparison(db, req.query.from, req.query.to));
     } catch (failure) {
       if (failure instanceof RangeError) {
@@ -152,6 +195,7 @@ function createItemHistoryRouter(db, auth, config, request) {
 }
 
 module.exports = {
+  LIVE_REFRESH_MINUTES,
   RETENTION_DAYS,
   aggregateItems,
   centralDate,
@@ -159,6 +203,7 @@ module.exports = {
   comparison,
   createItemHistoryRouter,
   ensureSnapshot,
+  previousDate,
   retentionCutoff,
   snapshotStorage,
 };

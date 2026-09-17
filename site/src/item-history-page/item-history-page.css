@@ -66,6 +66,12 @@ item-history-page {
   box-sizing: border-box;
 }
 
+.item-history-page__live-update {
+  display: block;
+  margin-top: 4px;
+  color: #aaa;
+}
+
 .item-history-page__columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

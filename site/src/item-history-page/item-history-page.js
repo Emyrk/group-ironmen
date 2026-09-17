@@ -1,6 +1,9 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { Item } from "../data/item";
+import { utility } from "../utility";
+
+const LIVE_REFRESH_MS = 15 * 60 * 1000;
 
 export class ItemHistoryPage extends BaseElement {
   connectedCallback() {
@@ -9,6 +12,11 @@ export class ItemHistoryPage extends BaseElement {
     this.error = null;
     this.render();
     this.subscribeOnce("get-group-data", () => this.loadHistory());
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.historyInterval) window.clearInterval(this.historyInterval);
   }
 
   html() {
@@ -25,6 +33,9 @@ export class ItemHistoryPage extends BaseElement {
     }
     this.render();
     this.bindControls();
+    if (!this.historyInterval && this.data) {
+      this.historyInterval = utility.callOnInterval(() => this.refreshLiveHistory(), LIVE_REFRESH_MS, false);
+    }
   }
 
   bindControls() {
@@ -36,11 +47,18 @@ export class ItemHistoryPage extends BaseElement {
   }
 
   async handleRefresh() {
-    const from = this.data?.from;
-    const to = this.data?.to;
-    this.data = null;
-    this.error = null;
-    this.render();
+    await this.refreshLiveHistory(true);
+  }
+
+  async refreshLiveHistory(showLoader = false) {
+    const trackingLive = this.data?.to === this.data?.live?.date;
+    const from = trackingLive ? undefined : this.data?.from;
+    const to = trackingLive ? undefined : this.data?.to;
+    if (showLoader) {
+      this.data = null;
+      this.error = null;
+      this.render();
+    }
     await this.loadHistory(from, to);
   }
 
@@ -75,7 +93,10 @@ export class ItemHistoryPage extends BaseElement {
     const options = (selected) =>
       this.data.dates
         .map(
-          (date) => `<option value="${date}"${date === selected ? " selected" : ""}>${this.formatDate(date)}</option>`
+          (date) =>
+            `<option value="${date}"${date === selected ? " selected" : ""}>${this.formatDate(date)}${
+              date === this.data.live?.date ? " (Today, live)" : ""
+            }</option>`
         )
         .join("");
     return `
@@ -102,9 +123,17 @@ export class ItemHistoryPage extends BaseElement {
       return '<div class="item-history-page__message rsborder rsbackground">Today’s snapshot is saved. A second daily snapshot is needed before changes can be shown.</div>';
     }
 
+    const liveLabel = this.data.to === this.data.live?.date ? " (Today, live)" : "";
+    const updatedLabel =
+      this.data.to === this.data.live?.date && this.data.live.updatedAt
+        ? `<span class="item-history-page__live-update">Updated ${new Date(
+            this.data.live.updatedAt
+          ).toLocaleTimeString()}</span>`
+        : "";
     return `
       <section class="item-history-page__day rsborder rsbackground">
-        <h2>${this.formatDate(this.data.from)} to ${this.formatDate(this.data.to)}</h2>
+        <h2>${this.formatDate(this.data.from)} to ${this.formatDate(this.data.to)}${liveLabel}</h2>
+        ${updatedLabel}
         <div class="item-history-page__columns">
           ${this.renderChanges("Gained", this.data.gained, "gained")}
           ${this.renderChanges("Lost", this.data.lost, "lost")}

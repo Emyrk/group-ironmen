@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
 import { pubsub } from "../src/data/pubsub";
 import { ItemHistoryPage } from "../src/item-history-page/item-history-page";
+import { utility } from "../src/utility";
 
 ItemHistoryPage.prototype.html = function () {
   return `
@@ -25,11 +26,17 @@ const history = {
   to: "2026-09-16",
   gained: [{ item_id: 995, quantity: 500 }],
   lost: [{ item_id: 4151, quantity: 1 }],
+  live: { date: "2026-09-16", updatedAt: "2026-09-16T13:15:00.000Z", refreshMinutes: 15 },
   storage,
 };
 
 describe("item-history-page", () => {
-  it("waits for authenticated group data before loading history", async () => {
+  it("waits for authenticated group data and refreshes the live diff every fifteen minutes", async () => {
+    let intervalCallback;
+    const interval = vi.spyOn(utility, "callOnInterval").mockImplementation((callback) => {
+      intervalCallback = callback;
+      return 99;
+    });
     const getItemHistory = vi.spyOn(api, "getItemHistory").mockResolvedValue(history);
     const page = document.createElement("item-history-page");
     document.body.appendChild(page);
@@ -40,7 +47,13 @@ describe("item-history-page", () => {
     await vi.waitFor(() => expect(getItemHistory).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(page.textContent).toContain("365 day retention"));
 
+    expect(page.textContent).toContain("Today, live");
     expect(page.textContent).toContain("+500");
+    expect(interval).toHaveBeenCalledWith(expect.any(Function), 15 * 60 * 1000, false);
+
+    await intervalCallback();
+    expect(getItemHistory).toHaveBeenCalledTimes(2);
+    expect(getItemHistory).toHaveBeenLastCalledWith(undefined, undefined);
     page.remove();
   });
 
