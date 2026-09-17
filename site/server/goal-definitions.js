@@ -137,6 +137,17 @@ const nodes = [
     metadata: { wikiUrl: `${WIKI}Guardians_of_the_Rift` },
   },
   {
+    id: "house-tablet-construction",
+    title: "67 Construction for house tablets",
+    description:
+      "Build a mahogany eagle lectern to make Teleport to House tablets. Making each tablet also requires 40 Magic and the tablet materials.",
+    scope: "character",
+    category: "Guardians of the Rift",
+    recommended: true,
+    validator: skill("Construction", 67),
+    metadata: { wikiUrl: `${WIKI}Teleport_to_house_(tablet)` },
+  },
+  {
     id: "raiments-of-the-eye",
     title: "Raiments of the Eye",
     description: "Own the full four-piece outfit. Recolours count.",
@@ -192,6 +203,12 @@ const edges = [
     target: "barrows-ready",
     type: "improves",
     label: "Stops prayer drain",
+  },
+  {
+    source: "house-tablet-construction",
+    target: "guardians-of-the-rift",
+    type: "improves",
+    label: "Convenient teleport",
   },
   { source: "guardians-of-the-rift", target: "raiments-of-the-eye", type: "supplies", label: "Abyssal pearls" },
   { source: "guardians-of-the-rift", target: "abyssal-lantern", type: "supplies", label: "Reward/shop" },

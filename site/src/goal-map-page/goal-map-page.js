@@ -1,6 +1,7 @@
 import cytoscape from "cytoscape";
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
+import { Item } from "../data/item";
 
 const SELECTED_CHARACTER_KEY = "goalMapSelectedCharacter";
 const PINNED_OBJECTIVES_KEY = "goalMapPinnedObjectives";
@@ -328,8 +329,24 @@ export class GoalMapPage extends BaseElement {
       return `${entry.name}: ${entry.state === 2 || entry.state === "FINISHED" ? "complete" : "incomplete"}`;
     }
     if (entry.type === "diary") return `${entry.region} ${entry.tier}: ${entry.completed}/${entry.total} tasks`;
-    if (entry.type === "item") return `Item ${entry.itemId}: ${entry.quantity} owned`;
     return JSON.stringify(entry);
+  }
+
+  renderEvidenceEntry(entry) {
+    if (typeof entry === "object" && entry?.type === "item") {
+      const details = Item.itemDetails?.[entry.itemId];
+      if (details) {
+        const quantity = Number(entry.quantity) || 0;
+        return `
+          <span class="goal-map-page__item-evidence">
+            <img src="${escapeHtml(Item.imageUrl(entry.itemId, quantity))}" alt="" loading="lazy" />
+            <span><strong>${escapeHtml(details.name)}</strong><small>${quantity.toLocaleString()} owned</small></span>
+          </span>
+        `;
+      }
+      return escapeHtml(`Item ${entry.itemId}: ${entry.quantity} owned`);
+    }
+    return escapeHtml(this.formatEvidence(entry));
   }
 
   renderDetails() {
@@ -374,11 +391,7 @@ export class GoalMapPage extends BaseElement {
   renderEvidence(evidence) {
     if (evidence === undefined || evidence === null || evidence === "") return "";
     const entries = Array.isArray(evidence) ? evidence : [evidence];
-    const items = entries
-      .map((entry) => {
-        return `<li>${escapeHtml(this.formatEvidence(entry))}</li>`;
-      })
-      .join("");
+    const items = entries.map((entry) => `<li>${this.renderEvidenceEntry(entry)}</li>`).join("");
     return `<section class="goal-map-page__evidence"><h3>Evidence</h3><ul>${items}</ul></section>`;
   }
 

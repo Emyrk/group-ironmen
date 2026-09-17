@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
+import { Item } from "../src/data/item";
 import { pubsub } from "../src/data/pubsub";
 import { GoalMapPage } from "../src/goal-map-page/goal-map-page";
 
@@ -48,7 +49,11 @@ const goalMap = {
       scope: "character",
       description: "Obtain and imbue the ring.",
       wikiUrl: null,
-      evaluated: { complete: false, progress: 0, evidence: null },
+      evaluated: {
+        complete: false,
+        progress: 0,
+        evidence: [{ type: "item", itemId: 4732, quantity: 1 }],
+      },
     },
   ],
   edges: [
@@ -64,6 +69,12 @@ function createPage() {
 }
 
 describe("goal-map-page", () => {
+  beforeEach(() => {
+    Item.itemDetails = {
+      4732: { id: 4732, name: "Karil's coif", highalch: 7800, stacks: null },
+    };
+  });
+
   it("is registered on the authenticated /group/goals route", () => {
     const indexHtml = readFileSync("src/index.html", "utf8");
     expect(indexHtml).toContain('route-path="/goals"');
@@ -157,6 +168,22 @@ describe("goal-map-page", () => {
     expect(page.querySelector(".goal-map-page__objective-select.selected").dataset.nodeId).toBe("nightmare-zone");
     expect(page.querySelector(".goal-map-page__fallback-node.selected").dataset.nodeId).toBe("nightmare-zone");
     expect(page.querySelector("[contenteditable]")).toBeNull();
+    page.remove();
+  });
+
+  it("renders item evidence with its name and image instead of only its id", async () => {
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__objective-select")).toHaveLength(3));
+
+    page.querySelector('.goal-map-page__objective-select[data-node-id="berserker-ring"]').click();
+
+    const evidence = page.querySelector(".goal-map-page__item-evidence");
+    expect(evidence.textContent).toContain("Karil's coif");
+    expect(evidence.textContent).toContain("1 owned");
+    expect(evidence.querySelector("img").getAttribute("src")).toBe("/icons/items/4732.webp");
+    expect(page.querySelector(".goal-map-page__details").textContent).not.toContain("Item 4732");
     page.remove();
   });
 

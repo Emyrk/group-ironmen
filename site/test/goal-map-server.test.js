@@ -196,6 +196,27 @@ describe("private goal map service", () => {
     });
   });
 
+  it("tracks 67 Construction as a recommended Guardians of the Rift objective", () => {
+    const alice = member("Alice");
+    alice.skills.Construction = 547953;
+    evaluateGroupData(db, "gim", [alice], new Date("2026-09-17T12:00:00.000Z"));
+
+    const map = readGoalMap(db, "gim", "Alice");
+    expect(map.nodes.find((node) => node.id === "house-tablet-construction")).toMatchObject({
+      complete: true,
+      recommended: true,
+      progress: { current: 67, target: 67, unit: "level" },
+      evidence: [{ type: "skill", skill: "Construction", level: 67, requiredLevel: 67 }],
+      wikiUrl: "https://oldschool.runescape.wiki/w/Teleport_to_house_(tablet)",
+    });
+    expect(map.edges).toContainEqual({
+      source: "house-tablet-construction",
+      target: "guardians-of-the-rift",
+      type: "improves",
+      label: "Convenient teleport",
+    });
+  });
+
   it("supports source-controlled custom JavaScript validators", () => {
     const result = goalMapModule.evaluateValidator(
       {
@@ -236,7 +257,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      2
+      3
     );
   });
 
