@@ -1,8 +1,9 @@
 <div class="item-history-page__header">
   <div>
     <h1>Item History</h1>
-    <p>Daily group item changes, captured around 2:00 AM Central time. The latest 30 days are shown.</p>
+    <p>Compare the accumulated item changes between any two saved daily snapshots.</p>
   </div>
   <button class="item-history-page__refresh men-button" type="button">Refresh</button>
 </div>
+${this.renderControls()}
 <div class="item-history-page__days">${this.renderHistory()}</div>

@@ -186,16 +186,16 @@ describe("api", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("fetches authenticated item history", async () => {
+  it("fetches authenticated item history for an optional date range", async () => {
     api.setCredentials("gim", "token");
-    const history = [{ date: "2026-09-16", gained: [], lost: [] }];
+    const history = { dates: ["2026-09-15", "2026-09-16"], from: "2026-09-15", to: "2026-09-16" };
     globalThis.fetch.mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue(history),
     });
 
-    await expect(api.getItemHistory()).resolves.toEqual(history);
-    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/gim/get-item-history", {
+    await expect(api.getItemHistory("2026-09-15", "2026-09-16")).resolves.toEqual(history);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/gim/get-item-history?from=2026-09-15&to=2026-09-16", {
       headers: { Authorization: "token" },
     });
   });

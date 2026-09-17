@@ -47,22 +47,60 @@ function changesBetween(previous, current) {
   return { gained, lost };
 }
 
-function history(db) {
-  const rows = db.prepare("SELECT snapshot_date,items FROM item_snapshots ORDER BY snapshot_date").all();
-  const result = [];
-  for (let i = 1; i < rows.length; i += 1) {
-    result.push({
-      date: rows[i].snapshot_date,
-      ...changesBetween(JSON.parse(rows[i - 1].items), JSON.parse(rows[i].items)),
-    });
-  }
-  return result.reverse().slice(0, 30);
-}
+const RETENTION_DAYS = 365;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function retentionCutoff(snapshotDate) {
   const cutoff = new Date(`${snapshotDate}T12:00:00Z`);
-  cutoff.setUTCDate(cutoff.getUTCDate() - 30);
+  cutoff.setUTCDate(cutoff.getUTCDate() - (RETENTION_DAYS - 1));
   return cutoff.toISOString().slice(0, 10);
+}
+
+function snapshotStorage(db) {
+  const snapshots = db
+    .prepare(
+      "SELECT COUNT(*) AS snapshot_count, COALESCE(SUM(length(items)), 0) AS snapshot_bytes, MIN(snapshot_date) AS oldest_date, MAX(snapshot_date) AS newest_date FROM item_snapshots"
+    )
+    .get();
+  const pageCount = db.prepare("PRAGMA page_count").get().page_count;
+  const pageSize = db.prepare("PRAGMA page_size").get().page_size;
+  return {
+    snapshotCount: snapshots.snapshot_count,
+    snapshotBytes: snapshots.snapshot_bytes,
+    databaseBytes: pageCount * pageSize,
+    oldestDate: snapshots.oldest_date,
+    newestDate: snapshots.newest_date,
+    retentionDays: RETENTION_DAYS,
+  };
+}
+
+function comparison(db, requestedFrom, requestedTo) {
+  const rows = db.prepare("SELECT snapshot_date,items FROM item_snapshots ORDER BY snapshot_date").all();
+  const dates = rows.map((row) => row.snapshot_date);
+  const snapshots = new Map(rows.map((row) => [row.snapshot_date, JSON.parse(row.items)]));
+  if (dates.length < 2) {
+    return { dates, from: null, to: null, gained: [], lost: [], storage: snapshotStorage(db) };
+  }
+
+  const from = requestedFrom || dates[dates.length - 2];
+  const to = requestedTo || dates[dates.length - 1];
+  if (!DATE_PATTERN.test(from) || !DATE_PATTERN.test(to)) {
+    throw new RangeError("from and to must use YYYY-MM-DD format");
+  }
+  if (!snapshots.has(from) || !snapshots.has(to)) {
+    throw new RangeError("from and to must reference saved snapshot dates");
+  }
+  if (from >= to) {
+    throw new RangeError("from must be earlier than to");
+  }
+
+  return {
+    dates,
+    from,
+    to,
+    ...changesBetween(snapshots.get(from), snapshots.get(to)),
+    storage: snapshotStorage(db),
+  };
 }
 
 async function ensureSnapshot(db, config, request, snapshotDate = centralDate()) {
@@ -99,11 +137,14 @@ async function ensureSnapshot(db, config, request, snapshotDate = centralDate())
 function createItemHistoryRouter(db, auth, config, request) {
   const router = express.Router({ mergeParams: true });
   router.use(auth);
-  router.get("/get-item-history", async (_req, res, next) => {
+  router.get("/get-item-history", async (req, res, next) => {
     try {
       await ensureSnapshot(db, config, request);
-      return res.json(history(db));
+      return res.json(comparison(db, req.query.from, req.query.to));
     } catch (failure) {
+      if (failure instanceof RangeError) {
+        return res.status(400).json({ error: "invalid_date_range", message: failure.message });
+      }
       return next(failure);
     }
   });
@@ -111,11 +152,13 @@ function createItemHistoryRouter(db, auth, config, request) {
 }
 
 module.exports = {
+  RETENTION_DAYS,
   aggregateItems,
   centralDate,
   changesBetween,
+  comparison,
   createItemHistoryRouter,
   ensureSnapshot,
-  history,
   retentionCutoff,
+  snapshotStorage,
 };

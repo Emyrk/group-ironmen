@@ -194,11 +194,16 @@ class Api {
     }
   }
 
-  async getItemHistory() {
+  async getItemHistory(from, to) {
     if (!this.groupName || !this.groupToken) {
       throw new Error("Group credentials are not initialized");
     }
-    const response = await fetch(this.itemHistoryUrl, {
+    const query = new URLSearchParams();
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
+    const queryString = query.toString();
+    const url = queryString ? `${this.itemHistoryUrl}?${queryString}` : this.itemHistoryUrl;
+    const response = await fetch(url, {
       headers: {
         Authorization: this.groupToken,
       },

@@ -21,6 +21,39 @@ item-history-page {
   color: #c7c7c7;
 }
 
+.item-history-page__controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px;
+}
+
+.item-history-page__controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--orange);
+}
+
+.item-history-page__date-select {
+  min-width: 150px;
+  padding: 4px 6px;
+  color: var(--primary-text);
+  background: #302a22;
+  border: 1px solid var(--light-border);
+}
+
+.item-history-page__storage {
+  color: #aaa;
+  font-size: 0.9em;
+}
+
+.item-history-page__controls .item-history-page__storage {
+  margin-left: auto;
+  padding-bottom: 5px;
+}
+
 .item-history-page__days {
   display: grid;
   gap: 14px;

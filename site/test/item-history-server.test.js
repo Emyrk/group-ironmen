@@ -9,9 +9,9 @@ import appModule from "../server/app";
 import historyModule from "../server/item-history";
 
 const { createApp } = appModule;
-const { ensureSnapshot, history } = historyModule;
+const { comparison, ensureSnapshot } = historyModule;
 
-function call(server, authorization = "private-token") {
+function call(server, authorization = "private-token", url = "/api/group/gim/get-item-history") {
   return new Promise((resolve, reject) => {
     const address = server.address();
     const req = http.request(
@@ -19,7 +19,7 @@ function call(server, authorization = "private-token") {
         hostname: "127.0.0.1",
         port: address.port,
         method: "GET",
-        path: "/api/group/gim/get-item-history",
+        path: url,
         headers: { Authorization: authorization },
       },
       (res) => {
@@ -82,7 +82,17 @@ describe("private item history service", () => {
 
     const response = await call(server);
 
-    expect(response).toMatchObject({ status: 200, body: [] });
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        dates: [expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)],
+        from: null,
+        to: null,
+        gained: [],
+        lost: [],
+        storage: { snapshotCount: 1, retentionDays: 365 },
+      },
+    });
     expect(request).toHaveBeenCalledOnce();
     expect(request.mock.calls[0][0]).toMatchObject({
       method: "GET",
@@ -105,27 +115,71 @@ describe("private item history service", () => {
 
     await ensureSnapshot(db, config, request, "2026-09-15");
 
-    expect(history(db)).toEqual([
-      {
-        date: "2026-09-15",
-        gained: [
-          { item_id: 995, quantity: 1000 },
-          { item_id: 11840, quantity: 1 },
-        ],
-        lost: [{ item_id: 4151, quantity: 1 }],
-      },
-    ]);
+    expect(comparison(db, "2026-09-14", "2026-09-15")).toMatchObject({
+      dates: ["2026-09-14", "2026-09-15"],
+      from: "2026-09-14",
+      to: "2026-09-15",
+      gained: [
+        { item_id: 995, quantity: 1000 },
+        { item_id: 11840, quantity: 1 },
+      ],
+      lost: [{ item_id: 4151, quantity: 1 }],
+      storage: { snapshotCount: 2, retentionDays: 365 },
+    });
   });
 
-  it("keeps only the baseline needed for thirty daily comparisons", async () => {
-    for (let day = 1; day <= 31; day += 1) {
-      const date = `2026-08-${String(day).padStart(2, "0")}`;
-      db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(date, "{}", `${date}T07:00:00.000Z`);
+  it("compares any two saved dates through the API", async () => {
+    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+      "2026-09-14",
+      JSON.stringify({ 995: 1000, 4151: 3 }),
+      "2026-09-14T07:00:00.000Z"
+    );
+    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+      "2026-09-15",
+      JSON.stringify({ 995: 1200, 4151: 2 }),
+      "2026-09-15T07:00:00.000Z"
+    );
+    db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(
+      "2026-09-16",
+      JSON.stringify({ 995: 1700, 11840: 1 }),
+      "2026-09-16T07:00:00.000Z"
+    );
+
+    const response = await call(
+      server,
+      "private-token",
+      "/api/group/gim/get-item-history?from=2026-09-14&to=2026-09-16"
+    );
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        from: "2026-09-14",
+        to: "2026-09-16",
+        gained: [
+          { item_id: 995, quantity: 700 },
+          { item_id: 11840, quantity: 1 },
+        ],
+        lost: [{ item_id: 4151, quantity: 3 }],
+      },
+    });
+    expect(
+      await call(server, "private-token", "/api/group/gim/get-item-history?from=2026-09-16&to=2026-09-14")
+    ).toMatchObject({ status: 400, body: { error: "invalid_date_range" } });
+  });
+
+  it("keeps 365 daily snapshots", async () => {
+    const firstDate = new Date("2025-09-01T12:00:00Z");
+    for (let offset = 0; offset < 365; offset += 1) {
+      const date = new Date(firstDate);
+      date.setUTCDate(date.getUTCDate() + offset);
+      const snapshotDate = date.toISOString().slice(0, 10);
+      db.prepare("INSERT INTO item_snapshots VALUES (?,?,?)").run(snapshotDate, "{}", `${snapshotDate}T07:00:00.000Z`);
     }
 
     await ensureSnapshot(db, config, request, "2026-09-01");
 
-    expect(db.prepare("SELECT MIN(snapshot_date) AS date FROM item_snapshots").get().date).toBe("2026-08-02");
-    expect(db.prepare("SELECT COUNT(*) AS count FROM item_snapshots").get().count).toBe(31);
+    expect(db.prepare("SELECT MIN(snapshot_date) AS date FROM item_snapshots").get().date).toBe("2025-09-02");
+    expect(db.prepare("SELECT COUNT(*) AS count FROM item_snapshots").get().count).toBe(365);
   });
 });
