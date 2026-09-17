@@ -118,8 +118,8 @@ function openDatabase(filename) {
       updated_at TEXT,
       definition_version INTEGER NOT NULL DEFAULT 0
     );
-    INSERT OR IGNORE INTO goal_map_state (singleton, characters, updated_at, definition_version)
-      VALUES (1, '[]', NULL, 0);
+    INSERT OR IGNORE INTO goal_map_state (singleton, characters, updated_at)
+      VALUES (1, '[]', NULL);
     CREATE TABLE IF NOT EXISTS goal_progress (
       node_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('character', 'group')),

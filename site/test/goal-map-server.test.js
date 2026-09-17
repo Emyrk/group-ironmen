@@ -3,10 +3,14 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import http from "http";
+import { createRequire } from "module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import appModule from "../server/app";
+import databaseModule from "../server/database";
 import goalMapModule from "../server/goal-map";
 
+const require = createRequire(import.meta.url);
+const { DatabaseSync } = require("node:sqlite");
 const { createApp } = appModule;
 const { evaluateGroupData, readGoalMap, refreshGoalMap } = goalMapModule;
 
@@ -45,6 +49,33 @@ function member(name, bank = [], diaryVars = []) {
     diary_vars: diaryVars,
   };
 }
+
+describe("goal map database migration", () => {
+  it("adds the definition version after initializing an existing goal map state table", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "goal-map-migration-"));
+    const filename = path.join(directory, "test.sqlite3");
+    const legacy = new DatabaseSync(filename);
+    legacy.exec(`
+      CREATE TABLE goal_map_state (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        characters TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT
+      );
+      INSERT INTO goal_map_state (singleton, characters, updated_at) VALUES (1, '["Alice"]', NULL);
+    `);
+    legacy.close();
+
+    const migrated = databaseModule.openDatabase(filename);
+    expect(
+      migrated.prepare("SELECT characters,definition_version FROM goal_map_state WHERE singleton=1").get()
+    ).toEqual({
+      characters: '["Alice"]',
+      definition_version: 0,
+    });
+    migrated.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+});
 
 describe("private goal map service", () => {
   let directory;
