@@ -120,7 +120,10 @@ const htmlBuildPlugin = {
       htmlFile = htmlFile.replace("{{style}}", css);
 
       const jsContent = await fs.promises.readFile('public/app.js', 'utf8');
-      htmlFile = htmlFile.replace("{{js}}", jsContent);
+      // A replacement function keeps `$&`, `$`` and `$'` sequences in bundled dependencies literal.
+      // Escape closing tags too, so dependency strings cannot terminate the inline script early.
+      const safeJsContent = jsContent.replace(/<\/script/gi, '<\\/script');
+      htmlFile = htmlFile.replace("{{js}}", () => safeJsContent);
 
       await fs.promises.writeFile("public/index.html", htmlFile);
     });
