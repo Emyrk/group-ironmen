@@ -73,6 +73,24 @@ item-history-page {
   color: #aaa;
 }
 
+.item-history-page__high-alch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 14px;
+  padding: 8px 10px;
+  background: var(--elevated);
+  border: 1px solid var(--light-border);
+}
+
+.item-history-page__high-alch .positive {
+  color: #5ee35e;
+}
+
+.item-history-page__high-alch .negative {
+  color: #ff7373;
+}
+
 .item-history-page__charges {
   margin-top: 14px;
 }

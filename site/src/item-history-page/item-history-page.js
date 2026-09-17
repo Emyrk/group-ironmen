@@ -133,6 +133,7 @@ export class ItemHistoryPage extends BaseElement {
         <h2>${title}${liveLabel}</h2>
         ${updatedLabel}
         ${baselineLabel}
+        ${this.renderHighAlch(this.data.high_alch)}
         ${this.renderChargeChanges(this.data.charge_changes || [])}
         <div class="item-history-page__columns">
           ${this.renderChanges("Gained", this.data.gained, "gained")}
@@ -154,6 +155,19 @@ export class ItemHistoryPage extends BaseElement {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  renderHighAlch(highAlch) {
+    if (!highAlch) return "";
+    const netClass = highAlch.net > 0 ? "positive" : highAlch.net < 0 ? "negative" : "";
+    const netSign = highAlch.net > 0 ? "+" : "";
+    return `
+      <div class="item-history-page__high-alch">
+        <span>Gained HA <strong class="positive">${highAlch.gained.toLocaleString()} gp</strong></span>
+        <span>Lost HA <strong class="negative">${highAlch.lost.toLocaleString()} gp</strong></span>
+        <span>Net HA <strong class="${netClass}">${netSign}${highAlch.net.toLocaleString()} gp</strong></span>
+      </div>
+    `;
   }
 
   renderChargeChanges(changes) {

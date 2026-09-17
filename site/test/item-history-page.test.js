@@ -27,6 +27,7 @@ const history = {
   gained: [{ item_id: 995, quantity: 500 }],
   lost: [{ item_id: 4151, quantity: 1 }],
   charge_changes: [{ name: "Ring of dueling", item_id: 2552, from: 412, to: 410, difference: -2 }],
+  high_alch: { gained: 500, lost: 72000, net: -71500 },
   live: { date: "2026-09-16", updatedAt: "2026-09-16T13:15:00.000Z", refreshMinutes: 15 },
   storage,
 };
@@ -55,6 +56,9 @@ describe("item-history-page", () => {
     expect(toDate.type).toBe("date");
     expect(toDate.max).toBe("2026-09-16");
     expect(page.textContent).toContain("Today, live");
+    expect(page.textContent).toContain("Gained HA 500 gp");
+    expect(page.textContent).toContain("Lost HA 72,000 gp");
+    expect(page.textContent).toContain("Net HA -71,500 gp");
     expect(page.textContent).toContain("Ring of dueling (412 -> 410)");
     expect(page.textContent).toContain("-2");
     expect(page.textContent).toContain("+500");

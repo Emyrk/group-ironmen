@@ -157,6 +157,7 @@ describe("private item history service", () => {
           difference: -1,
         },
       ],
+      high_alch: { gained: 200, lost: 0, net: 200 },
     });
   });
 
@@ -173,6 +174,7 @@ describe("private item history service", () => {
           difference: -2,
         },
       ],
+      high_alch: { gained: 0, lost: 0, net: 0 },
     });
     expect(historyModule.changesBetween({ 11988: 1 }, { 2572: 1 })).toMatchObject({
       gained: [],
@@ -193,6 +195,7 @@ describe("private item history service", () => {
       gained: [],
       lost: [],
       charge_changes: [{ name: "Ring of dueling", from: 0, to: 8, difference: 8 }],
+      high_alch: { gained: 765, lost: 0, net: 765 },
     });
   });
 
@@ -218,6 +221,7 @@ describe("private item history service", () => {
         { item_id: 11840, quantity: 1 },
       ],
       lost: [{ item_id: 4151, quantity: 2 }],
+      high_alch: { gained: 12700, lost: 144000, net: -131300 },
     });
     expect(comparison(db, "2026-09-14", "2026-09-14", "2026-09-15")).toMatchObject({
       from: "2026-09-14",

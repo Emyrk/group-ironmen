@@ -94,38 +94,74 @@ function chargeTotals(items) {
   return totals;
 }
 
+function highAlchValue(itemId) {
+  if (itemId === 995) return 1;
+  return itemData[itemId]?.highalch || 0;
+}
+
+function chargeCounts(items) {
+  const counts = new Map();
+  for (const [itemIdValue, quantity] of Object.entries(items)) {
+    const chargedItem = chargeItems.get(Number(itemIdValue));
+    if (!chargedItem) continue;
+    counts.set(chargedItem.family, (counts.get(chargedItem.family) || 0) + quantity);
+  }
+  return counts;
+}
+
 function changesBetween(previous, current) {
   const ids = new Set([...Object.keys(previous), ...Object.keys(current)]);
   const gained = [];
   const lost = [];
+  let gainedHighAlch = 0;
+  let lostHighAlch = 0;
   for (const id of ids) {
     const itemId = Number(id);
     if (chargeItems.has(itemId)) continue;
     const difference = (current[id] || 0) - (previous[id] || 0);
-    if (difference > 0) gained.push({ item_id: itemId, quantity: difference });
-    if (difference < 0) lost.push({ item_id: itemId, quantity: -difference });
+    const value = highAlchValue(itemId);
+    if (difference > 0) {
+      gained.push({ item_id: itemId, quantity: difference });
+      gainedHighAlch += difference * value;
+    }
+    if (difference < 0) {
+      lost.push({ item_id: itemId, quantity: -difference });
+      lostHighAlch += -difference * value;
+    }
   }
   gained.sort((a, b) => a.item_id - b.item_id);
   lost.sort((a, b) => a.item_id - b.item_id);
 
   const previousCharges = chargeTotals(previous);
   const currentCharges = chargeTotals(current);
+  const previousChargeCounts = chargeCounts(previous);
+  const currentChargeCounts = chargeCounts(current);
   const chargeChanges = [];
   const families = new Set([...previousCharges.keys(), ...currentCharges.keys()]);
   for (const family of families) {
     const from = previousCharges.get(family) || 0;
     const to = currentCharges.get(family) || 0;
+    const familyDetails = chargeFamilies.get(family);
+    const countDifference = (currentChargeCounts.get(family) || 0) - (previousChargeCounts.get(family) || 0);
+    const value = highAlchValue(familyDetails.itemId);
+    if (countDifference > 0) gainedHighAlch += countDifference * value;
+    if (countDifference < 0) lostHighAlch += -countDifference * value;
     if (from === to) continue;
     chargeChanges.push({
       name: family,
-      item_id: chargeFamilies.get(family).itemId,
+      item_id: familyDetails.itemId,
       from,
       to,
       difference: to - from,
     });
   }
   chargeChanges.sort((a, b) => a.name.localeCompare(b.name));
-  return { gained, lost, charge_changes: chargeChanges };
+  return {
+    gained,
+    lost,
+    charge_changes: chargeChanges,
+    high_alch: { gained: gainedHighAlch, lost: lostHighAlch, net: gainedHighAlch - lostHighAlch },
+  };
 }
 
 const RETENTION_DAYS = 365;
@@ -178,6 +214,7 @@ function comparison(db, requestedFrom, requestedTo, liveDate = centralDate()) {
       gained: [],
       lost: [],
       charge_changes: [],
+      high_alch: { gained: 0, lost: 0, net: 0 },
       live,
       storage: snapshotStorage(db),
     };
