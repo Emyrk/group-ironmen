@@ -60,16 +60,12 @@ const nodes = [
   },
   {
     id: "barrows-ready",
-    title: "Barrows activity",
-    description: "Barrows progression hub. Morytania Hard and Medium Combat Achievements are recommendations.",
+    title: "Barrows access",
+    description: "Complete Priest in Peril to enter Morytania and access Barrows.",
     scope: "character",
     category: "Barrows",
-    recommended: true,
-    validator: custom("manual-observation", {
-      message:
-        "Barrows kill count is not present in get-group-data, so activity completion cannot be observed automatically.",
-    }),
-    metadata: { wikiUrl: `${WIKI}Barrows` },
+    validator: quest(111, "Priest in Peril"),
+    metadata: { wikiUrl: `${WIKI}Barrows/Strategies` },
   },
   {
     id: "morytania-hard",
@@ -135,14 +131,11 @@ const nodes = [
   },
   {
     id: "guardians-of-the-rift",
-    title: "Guardians of the Rift",
-    description: "Participate in Guardians of the Rift.",
+    title: "Guardians of the Rift access",
+    description: "Complete Temple of the Eye and reach 27 Runecraft to enter the minigame.",
     scope: "character",
     category: "Guardians of the Rift",
-    validator: custom("manual-observation", {
-      message:
-        "Guardians of the Rift participation is not present in get-group-data and cannot be observed automatically.",
-    }),
+    validator: every(quest(167, "Temple of the Eye"), skill("Runecraft", 27)),
     metadata: { wikiUrl: `${WIKI}Guardians_of_the_Rift` },
   },
   {
@@ -165,26 +158,49 @@ const nodes = [
   },
   {
     id: "lantern-firemaking",
-    title: "75 Firemaking lantern support",
-    description: "Reach 75 Firemaking to use stronger Abyssal lantern log effects.",
+    title: "62 Firemaking for blisterwood",
+    description: "Use blisterwood logs in the Abyssal lantern for 20% more blood runes in Guardians of the Rift.",
     scope: "character",
     category: "Guardians of the Rift",
     recommended: true,
-    validator: skill("Firemaking", 75),
+    validator: skill("Firemaking", 62),
     metadata: { wikiUrl: `${WIKI}Abyssal_lantern` },
   },
 ];
 
 const edges = [
-  { source: "fire-cape-stats", target: "fire-cape" },
-  { source: "blood-rush-path", target: "fire-cape", optional: true },
-  { source: "barrows-ready", target: "guthans-set" },
-  { source: "barrows-ready", target: "karils-useful-pieces" },
-  { source: "karils-useful-pieces", target: "karils-set", optional: true },
-  { source: "guardians-of-the-rift", target: "raiments-of-the-eye" },
-  { source: "guardians-of-the-rift", target: "abyssal-lantern" },
-  { source: "lantern-firemaking", target: "abyssal-lantern" },
-  { source: "blood-rune-source", target: "blood-rush-path", optional: true },
+  { source: "fire-cape-stats", target: "fire-cape", type: "recommended", label: "Recommended stats" },
+  {
+    source: "blood-rush-path",
+    target: "fire-cape",
+    type: "alternative",
+    alternativeGroup: "fight-cave-sustain",
+    label: "Sustain option",
+  },
+  {
+    source: "guthans-set",
+    target: "fire-cape",
+    type: "alternative",
+    alternativeGroup: "fight-cave-sustain",
+    label: "Shared sustain option",
+  },
+  { source: "karils-useful-pieces", target: "fire-cape", type: "recommended", label: "Ranged defence" },
+  { source: "barrows-ready", target: "guthans-set", type: "supplies", label: "Drops" },
+  { source: "barrows-ready", target: "karils-useful-pieces", type: "supplies", label: "Drops" },
+  { source: "karils-useful-pieces", target: "karils-set", type: "optional", label: "Complete the set" },
+  { source: "morytania-hard", target: "barrows-ready", type: "improves", label: "+50% runes" },
+  {
+    source: "medium-combat-achievements",
+    target: "barrows-ready",
+    type: "improves",
+    label: "Stops prayer drain",
+  },
+  { source: "guardians-of-the-rift", target: "raiments-of-the-eye", type: "supplies", label: "Abyssal pearls" },
+  { source: "guardians-of-the-rift", target: "abyssal-lantern", type: "supplies", label: "Reward/shop" },
+  { source: "abyssal-lantern", target: "blood-rune-source", type: "improves", label: "More runes" },
+  { source: "lantern-firemaking", target: "abyssal-lantern", type: "improves", label: "+20% blood runes" },
+  { source: "raiments-of-the-eye", target: "blood-rune-source", type: "improves", label: "+60% runes" },
+  { source: "blood-rune-source", target: "blood-rush-path", type: "supplies", label: "Blood runes" },
 ];
 
 module.exports = { all, any, custom, edges, every, item, itemSet, nodes, quest, skill };

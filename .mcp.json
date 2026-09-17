@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "osrs": {
+      "command": "npx",
+      "args": ["-y", "@jayarrowz/mcp-osrs@0.7.2"]
+    }
+  }
+}

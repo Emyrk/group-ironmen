@@ -4,7 +4,7 @@ import { api } from "../data/api";
 
 const SELECTED_CHARACTER_KEY = "goalMapSelectedCharacter";
 const NODE_TYPES = new Set(["goal", "activity", "item", "skill", "unlock"]);
-const EDGE_TYPES = new Set(["requires", "recommended", "optional", "alternative", "improves", "supplies"]);
+const EDGE_TYPES = new Set(["requires", "recommended", "optional", "alternative", "unlocks", "improves", "supplies"]);
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -221,6 +221,27 @@ export class GoalMapPage extends BaseElement {
       .join("");
   }
 
+  formatProgress(progress) {
+    if (progress === undefined || progress === null) return "Not reported";
+    if (typeof progress !== "object") return String(progress);
+    if (progress.observable === false) return "Not automatically observable";
+    const current = progress.current ?? 0;
+    const target = progress.target ?? 1;
+    const unit = progress.unit === "level" ? " level" : "";
+    return `${current}/${target}${unit}`;
+  }
+
+  formatEvidence(entry) {
+    if (typeof entry !== "object" || entry === null) return String(entry);
+    if (entry.message) return entry.message;
+    if (entry.type === "skill") return `${entry.skill}: level ${entry.level}/${entry.requiredLevel}`;
+    if (entry.type === "quest") {
+      return `${entry.name}: ${entry.state === 2 || entry.state === "FINISHED" ? "complete" : "incomplete"}`;
+    }
+    if (entry.type === "item") return `Item ${entry.itemId}: ${entry.quantity} owned`;
+    return JSON.stringify(entry);
+  }
+
   renderDetails() {
     const node = this.data?.nodes.find((candidate) => candidate.id === this.selectedNodeId);
     if (!node) return "<p>Select a goal to see its details.</p>";
@@ -233,8 +254,7 @@ export class GoalMapPage extends BaseElement {
         )}" target="_blank" rel="noopener noreferrer">Open wiki</a>`
       : "";
     const scope = node.scope ? `<span>${escapeHtml(node.scope)}</span>` : "";
-    const progress =
-      evaluated.progress === undefined || evaluated.progress === null ? "Not reported" : evaluated.progress;
+    const progress = this.formatProgress(evaluated.progress);
     const completedAt = evaluated.completedAt
       ? `<dt>Completed</dt><dd>${escapeHtml(new Date(evaluated.completedAt).toLocaleString())}</dd>`
       : "";
@@ -260,8 +280,7 @@ export class GoalMapPage extends BaseElement {
     const entries = Array.isArray(evidence) ? evidence : [evidence];
     const items = entries
       .map((entry) => {
-        const text = typeof entry === "object" ? JSON.stringify(entry) : String(entry);
-        return `<li>${escapeHtml(text)}</li>`;
+        return `<li>${escapeHtml(this.formatEvidence(entry))}</li>`;
       })
       .join("");
     return `<section class="goal-map-page__evidence"><h3>Evidence</h3><ul>${items}</ul></section>`;
@@ -364,6 +383,7 @@ export class GoalMapPage extends BaseElement {
         selector: "edge.alternative",
         style: { "line-style": "dashed", "line-color": "#b77bd1", "target-arrow-color": "#b77bd1" },
       },
+      { selector: "edge.unlocks", style: { "line-color": "#8bc34a", "target-arrow-color": "#8bc34a" } },
       { selector: "edge.improves", style: { "line-color": "#5bc0be", "target-arrow-color": "#5bc0be" } },
       {
         selector: "edge.supplies",

@@ -87,10 +87,14 @@ describe("private goal map service", () => {
     expect(response.body.selectedCharacter).toBe("Alice");
     expect(response.body.updatedAt).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/));
     expect(response.body.edges.length).toBeGreaterThan(0);
+    expect(response.body.edges.every((edge) => typeof edge.type === "string")).toBe(true);
     expect(response.body.nodes.find((node) => node.id === "fire-cape")).toMatchObject({
+      type: "goal",
       complete: true,
       scope: "character",
+      wikiUrl: "https://oldschool.runescape.wiki/w/Fire_cape",
       completedAt: expect.any(String),
+      evaluated: { complete: true, completedAt: expect.any(String) },
     });
     expect(response.body.nodes.find((node) => node.id === "guthans-set")).toMatchObject({
       complete: true,
@@ -137,6 +141,29 @@ describe("private goal map service", () => {
       { complete: 0, occurred_at: second.toISOString() },
       { complete: 1, occurred_at: third.toISOString() },
     ]);
+  });
+
+  it("supports source-controlled custom JavaScript validators", () => {
+    const result = goalMapModule.evaluateValidator(
+      {
+        type: "custom",
+        evaluate(context) {
+          const current = context.items.get(995) || 0;
+          return {
+            complete: current >= 1000,
+            progress: { current, target: 1000, unit: "item" },
+            evidence: [{ type: "item", itemId: 995, quantity: current }],
+          };
+        },
+      },
+      { items: new Map([[995, 1500]]) }
+    );
+
+    expect(result).toEqual({
+      complete: true,
+      progress: { current: 1500, target: 1000, unit: "item" },
+      evidence: [{ type: "item", itemId: 995, quantity: 1500 }],
+    });
   });
 
   it("throttles refreshes for fifteen minutes", async () => {

@@ -135,6 +135,9 @@ function evaluateValidator(validator, context) {
       evidence: children.flatMap((child) => child.evidence),
     };
   }
+  if (validator.type === "custom" && typeof validator.evaluate === "function") {
+    return validator.evaluate(context, validator);
+  }
   if (validator.type === "custom" && customValidators[validator.name]) {
     return customValidators[validator.name](context, validator);
   }
@@ -233,6 +236,17 @@ async function refreshGoalMap(db, config, request, now = new Date()) {
   return true;
 }
 
+function nodeType(node) {
+  if (node.type) return node.type;
+  if (node.id === "fire-cape") return "goal";
+  if (node.id === "barrows-ready" || node.id === "guardians-of-the-rift") return "activity";
+  if (node.id === "fire-cape-stats" || node.id === "blood-rune-source" || node.id === "lantern-firemaking") {
+    return "skill";
+  }
+  if (node.validator?.type === "item" || node.validator?.type === "item-set") return "item";
+  return "unlock";
+}
+
 function readGoalMap(db, groupId, requestedCharacter) {
   const state = db.prepare("SELECT characters,updated_at FROM goal_map_state WHERE singleton=1").get();
   const characters = JSON.parse(state.characters);
@@ -249,15 +263,27 @@ function readGoalMap(db, groupId, requestedCharacter) {
           )
           .get(node.id, node.scope, subjectId)
       : undefined;
+    const complete = Boolean(row?.complete);
+    const progress = row ? JSON.parse(row.progress) : { current: 0, target: 1, observable: false };
+    const evidence = row
+      ? JSON.parse(row.evidence)
+      : [{ type: "unobservable", message: "No group data has been evaluated." }];
+    const completedAt = row?.completed_at || null;
     return {
-      ...node,
-      complete: Boolean(row?.complete),
-      progress: row ? JSON.parse(row.progress) : { current: 0, target: 1, observable: false },
-      evidence: row
-        ? JSON.parse(row.evidence)
-        : [{ type: "unobservable", message: "No group data has been evaluated." }],
-      completedAt: row?.completed_at || null,
+      id: node.id,
+      title: node.title,
+      type: nodeType(node),
       scope: node.scope,
+      category: node.category,
+      description: node.description,
+      wikiUrl: node.wikiUrl || node.metadata?.wikiUrl || null,
+      recommended: Boolean(node.recommended),
+      optional: Boolean(node.optional),
+      complete,
+      progress,
+      evidence,
+      completedAt,
+      evaluated: { complete, progress, evidence, completedAt },
     };
   });
   return { updatedAt: state.updated_at, characters, selectedCharacter, nodes: enrichedNodes, edges };
