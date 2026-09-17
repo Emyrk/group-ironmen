@@ -33,6 +33,7 @@ describe("api", () => {
     expect(api.amILoggedInUrl).toContain("/group/iron-team/am-i-logged-in");
     expect(api.skillDataUrl).toContain("/group/iron-team/get-skill-data");
     expect(api.itemHistoryUrl).toContain("/group/iron-team/get-item-history");
+    expect(api.goalMapUrl).toContain("/group/iron-team/get-goal-map");
   });
 
   it("enable waits for data-load events and starts polling once", async () => {
@@ -205,6 +206,29 @@ describe("api", () => {
     globalThis.fetch.mockResolvedValue({ ok: false, status: 500 });
 
     await expect(api.getItemHistory()).rejects.toThrow("Failed to load item history (500)");
+  });
+
+  it("fetches an authenticated goal map for the selected character", async () => {
+    api.setCredentials("gim", "token");
+    const goalMap = { selectedCharacter: "Alice", characters: ["Alice"], nodes: [], edges: [] };
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(goalMap),
+    });
+
+    await expect(api.getGoalMap("Alice & Bob")).resolves.toEqual(goalMap);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/gim/get-goal-map?character=Alice+%26+Bob", {
+      headers: { Authorization: "token" },
+    });
+  });
+
+  it("rejects goal map requests without credentials or after failed responses", async () => {
+    await expect(api.getGoalMap("Alice")).rejects.toThrow("Group credentials are not initialized");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    api.setCredentials("gim", "token");
+    globalThis.fetch.mockResolvedValue({ ok: false, status: 503 });
+    await expect(api.getGoalMap("Alice")).rejects.toThrow("Failed to load goal map (503)");
   });
 
   it("restart re-enables with existing credentials", async () => {

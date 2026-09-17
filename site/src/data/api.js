@@ -43,6 +43,10 @@ class Api {
     return `${this.baseUrl}/group/${this.groupName}/get-item-history`;
   }
 
+  get goalMapUrl() {
+    return `${this.baseUrl}/group/${this.groupName}/get-goal-map`;
+  }
+
   get captchaEnabledUrl() {
     return `${this.baseUrl}/captcha-enabled`;
   }
@@ -210,6 +214,25 @@ class Api {
     });
     if (!response.ok) {
       throw new Error(`Failed to load item history (${response.status})`);
+    }
+    return response.json();
+  }
+
+  async getGoalMap(character) {
+    if (!this.groupName || !this.groupToken) {
+      throw new Error("Group credentials are not initialized");
+    }
+    const query = new URLSearchParams();
+    if (character) query.set("character", character);
+    const queryString = query.toString();
+    const url = queryString ? `${this.goalMapUrl}?${queryString}` : this.goalMapUrl;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: this.groupToken,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load goal map (${response.status})`);
     }
     return response.json();
   }

@@ -42,5 +42,8 @@
     "prepare": "cd .. && husky install site/.husky",
     "precommit": "npm run format:check && npm run lint"
   },
-  "author": "Christopher Brown"
+  "author": "Christopher Brown",
+  "dependencies": {
+    "cytoscape": "^3.34.3"
+  }
 }
