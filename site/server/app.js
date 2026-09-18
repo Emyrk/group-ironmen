@@ -17,6 +17,7 @@ function invalidJsonError(pathname) {
   }
   if (pathname.includes("/inventory-setup-sections/")) return "invalid_section";
   if (pathname.includes("/inventory-setups/")) return "invalid_setup";
+  if (pathname.includes("/combat-achievements/")) return "invalid_combat_achievement_snapshot";
   return "invalid_tag";
 }
 

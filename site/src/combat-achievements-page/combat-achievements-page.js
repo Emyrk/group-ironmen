@@ -83,9 +83,13 @@ export class CombatAchievementsPage extends BaseElement {
     this.bindControls();
   }
 
+  effectiveStatus(task) {
+    return task.syncedComplete ? "completed" : task.status;
+  }
+
   summary() {
-    const completed = this.data.tasks.filter((task) => task.status === "completed").length;
-    const planned = this.data.tasks.filter((task) => task.status === "planned").length;
+    const completed = this.data.tasks.filter((task) => this.effectiveStatus(task) === "completed").length;
+    const planned = this.data.tasks.filter((task) => this.effectiveStatus(task) === "planned").length;
     const earned = this.data.externalPoints + completed * this.data.pointsPerTask;
     const projected = earned + planned * this.data.pointsPerTask;
     const remaining = Math.max(0, this.data.rewardPoints - earned);
@@ -104,11 +108,14 @@ export class CombatAchievementsPage extends BaseElement {
     return this.data.tasks
       .filter((task) => !this.filters.monster || task.monster === this.filters.monster)
       .filter((task) => !this.filters.type || task.type === this.filters.type)
-      .filter((task) => !this.filters.status || task.status === this.filters.status)
+      .filter((task) => !this.filters.status || this.effectiveStatus(task) === this.filters.status)
       .filter((task) => !search || `${task.name} ${task.monster} ${task.description}`.toLowerCase().includes(search))
       .sort((left, right) => {
         const statusRank = { planned: 0, unplanned: 1, completed: 2 };
-        return statusRank[left.status] - statusRank[right.status] || right.completionPercent - left.completionPercent;
+        return (
+          statusRank[this.effectiveStatus(left)] - statusRank[this.effectiveStatus(right)] ||
+          right.completionPercent - left.completionPercent
+        );
       });
   }
 
@@ -168,10 +175,14 @@ export class CombatAchievementsPage extends BaseElement {
     return tasks
       .map(
         (task) => `
-        <article class="combat-achievements-page__task ${task.status}" data-task-id="${escapeHtml(task.id)}">
+        <article class="combat-achievements-page__task ${this.effectiveStatus(task)}" data-task-id="${escapeHtml(
+          task.id
+        )}">
           <header><div><small>${escapeHtml(task.monster)} · ${escapeHtml(task.type)}</small><h2>${escapeHtml(
           task.name
-        )}</h2></div><strong>${task.points} pts</strong></header>
+        )}</h2>${
+          task.syncedComplete ? '<span class="combat-achievements-page__synced">Completed in game</span>' : ""
+        }</div><strong>${task.points} pts</strong></header>
           <p>${escapeHtml(task.description)}</p>
           <div class="combat-achievements-page__task-meta"><span>${
             task.completionPercent
@@ -207,7 +218,13 @@ export class CombatAchievementsPage extends BaseElement {
       return '<p class="combat-achievements-page__message rsborder rsbackground">Loading Combat Achievements...</p>';
     if (!this.data.selectedCharacter)
       return '<p class="combat-achievements-page__message">Open the Goal Map once to load group characters.</p>';
-    return `${this.renderCalculator()}${this.renderFilters()}<section class="combat-achievements-page__tasks">${this.renderTasks()}</section>`;
+    return `${
+      this.data.syncedSnapshot
+        ? `<p class="combat-achievements-page__sync-status">In-game completion synced at ${escapeHtml(
+            new Date(this.data.syncedSnapshot.updatedAt).toLocaleString()
+          )}.</p>`
+        : ""
+    }${this.renderCalculator()}${this.renderFilters()}<section class="combat-achievements-page__tasks">${this.renderTasks()}</section>`;
   }
 }
 

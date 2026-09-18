@@ -105,6 +105,15 @@ combat-achievements-page {
   min-height: 46px;
   resize: vertical;
 }
+.combat-achievements-page__sync-status {
+  color: #9fca8c;
+}
+.combat-achievements-page__synced {
+  display: inline-block;
+  margin-top: 4px;
+  color: #9fca8c;
+  font-size: 0.8rem;
+}
 .combat-achievements-page__message {
   padding: 16px;
 }

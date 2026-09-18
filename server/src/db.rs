@@ -1186,6 +1186,29 @@ CREATE TABLE IF NOT EXISTS groupironman.inventory_setup_groups (
         transaction.commit().await?;
     }
 
+    if !has_migration_run(client, "create_combat_achievement_snapshots_table").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+CREATE TABLE IF NOT EXISTS groupironman.combat_achievement_snapshots (
+  group_id BIGINT NOT NULL REFERENCES groupironman.groups(group_id) ON DELETE CASCADE,
+  normalized_player_name TEXT NOT NULL,
+  player_name TEXT NOT NULL,
+  client_revision BIGINT NOT NULL CHECK (client_revision >= 0),
+  completed_task_ids TEXT[] NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (group_id, normalized_player_name)
+);
+CREATE INDEX IF NOT EXISTS combat_achievement_snapshots_group_idx
+  ON groupironman.combat_achievement_snapshots (group_id);
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "create_combat_achievement_snapshots_table").await?;
+        transaction.commit().await?;
+    }
+
     if !has_migration_run(client, "create_item_snapshots_table").await? {
         let transaction = client.transaction().await?;
         transaction

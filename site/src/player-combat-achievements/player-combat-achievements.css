@@ -1,0 +1,15 @@
+player-combat-achievements {
+  display: block;
+  padding: 0 8px 8px;
+}
+
+player-combat-achievements h2 {
+  margin-top: 0;
+  color: var(--orange);
+}
+
+player-combat-achievements .men-button {
+  display: inline-block;
+  padding: 6px 10px;
+  text-decoration: none;
+}

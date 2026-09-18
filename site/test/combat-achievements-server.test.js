@@ -118,4 +118,72 @@ describe("medium combat achievement planner service", () => {
       })
     ).toMatchObject({ status: 400, body: { error: "invalid_combat_achievement_progress" } });
   });
+
+  it("stores latest exact snapshots for normalized current members and preserves planner data", async () => {
+    const progressUrl = "/api/group/gim/combat-achievements/medium/progress";
+    await call(server, "PUT", progressUrl, {
+      character: "Alice",
+      taskId: "barrows-champion",
+      status: "planned",
+      notes: "Keep this plan",
+    });
+
+    const snapshotUrl = "/api/group/gim/combat-achievements/snapshot";
+    const uploaded = await call(server, "PUT", snapshotUrl, {
+      schemaVersion: 1,
+      playerName: " alice ",
+      clientRevision: 123,
+      completedTaskIds: ["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
+    });
+    expect(uploaded).toMatchObject({
+      status: 200,
+      body: {
+        schemaVersion: 1,
+        playerName: "Alice",
+        clientRevision: 123,
+        completedTaskIds: ["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
+      },
+    });
+
+    const snapshots = await call(server, "GET", "/api/group/gim/combat-achievements/snapshots");
+    expect(snapshots.body.snapshots).toHaveLength(1);
+    const planner = await call(server, "GET", "/api/group/gim/combat-achievements/medium?character=Alice");
+    expect(planner.body.tasks.find((task) => task.id === "barrows-champion")).toMatchObject({
+      status: "planned",
+      notes: "Keep this plan",
+      syncedComplete: true,
+    });
+
+    expect(
+      await call(server, "PUT", snapshotUrl, {
+        schemaVersion: 1,
+        playerName: "Alice",
+        clientRevision: 122,
+        completedTaskIds: [],
+      })
+    ).toMatchObject({ status: 409, body: { error: "stale_client_revision" } });
+
+    const replacement = await call(server, "PUT", snapshotUrl, {
+      schemaVersion: 1,
+      playerName: "Alice",
+      clientRevision: 124,
+      completedTaskIds: [],
+    });
+    expect(replacement.body.completedTaskIds).toEqual([]);
+    const replacedPlanner = await call(server, "GET", "/api/group/gim/combat-achievements/medium?character=Alice");
+    expect(replacedPlanner.body.tasks.find((task) => task.id === "barrows-champion")).toMatchObject({
+      status: "planned",
+      notes: "Keep this plan",
+      syncedComplete: false,
+    });
+
+    expect(
+      await call(server, "PUT", snapshotUrl, {
+        schemaVersion: 1,
+        playerName: "Mallory",
+        clientRevision: 1,
+        completedTaskIds: [],
+      })
+    ).toMatchObject({ status: 400, body: { error: "invalid_player_name" } });
+  });
 });

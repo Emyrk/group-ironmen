@@ -154,6 +154,15 @@ function openDatabase(filename) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (group_id, character)
     );
+    CREATE TABLE IF NOT EXISTS combat_achievement_snapshots (
+      group_id TEXT NOT NULL,
+      normalized_player_name TEXT NOT NULL,
+      player_name TEXT NOT NULL,
+      client_revision INTEGER NOT NULL CHECK (client_revision >= 0),
+      completed_task_ids TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (group_id, normalized_player_name)
+    );
     CREATE TABLE IF NOT EXISTS goal_progress_events (
       event_id INTEGER PRIMARY KEY AUTOINCREMENT,
       node_id TEXT NOT NULL,

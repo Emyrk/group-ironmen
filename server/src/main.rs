@@ -1,6 +1,7 @@
 use server::auth_middleware::AuthenticateMiddlewareFactory;
 use server::authed;
 use server::bank_tags;
+use server::combat_achievements;
 use server::config::Config;
 use server::db;
 use server::inventory_setups;
@@ -62,6 +63,8 @@ async fn main() -> std::io::Result<()> {
             .service(bank_tags::put_tag)
             .service(bank_tags::delete_tag)
             .service(bank_tags::put_order)
+            .service(combat_achievements::get_snapshots)
+            .service(combat_achievements::put_snapshot)
             .service(inventory_setups::get_manifest)
             .service(inventory_setups::get_setup)
             .service(inventory_setups::put_setup)

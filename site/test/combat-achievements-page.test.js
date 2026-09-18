@@ -124,4 +124,32 @@ describe("combat-achievements-page", () => {
     await vi.waitFor(() => expect(get).toHaveBeenLastCalledWith("Bob"));
     page.remove();
   });
+
+  it("renders synchronized completion separately without overwriting manual plans", async () => {
+    const syncedData = {
+      ...data,
+      syncedSnapshot: { clientRevision: 123, updatedAt: "2026-09-18T12:00:00Z" },
+      tasks: data.tasks.map((task) =>
+        task.id === "pray-for-success" ? { ...task, syncedComplete: true } : { ...task, syncedComplete: false }
+      ),
+    };
+    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue(syncedData);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector(".combat-achievements-page__synced")).not.toBeNull());
+
+    const row = page.querySelector('[data-task-id="pray-for-success"]');
+    expect(row.classList.contains("completed")).toBe(true);
+    expect(row.querySelector(".combat-achievements-page__task-status").value).toBe("planned");
+    expect(row.querySelector(".combat-achievements-page__notes").value).toBe("Use freezes");
+    expect(page.summary()).toMatchObject({ completed: 2, planned: 0 });
+    page.remove();
+  });
+
+  it("registers a player minibar Combat Achievements component", () => {
+    const panel = readFileSync("src/player-panel/player-panel.html", "utf8");
+    const components = JSON.parse(readFileSync("components.json", "utf8"));
+    expect(panel).toContain('data-component="player-combat-achievements"');
+    expect(components).toContain("player-combat-achievements");
+  });
 });
