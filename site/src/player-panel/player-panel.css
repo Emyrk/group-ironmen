@@ -47,12 +47,6 @@ player-panel.expanded .player-panel__content {
   padding: 8px 0;
 }
 
-.player-panel__combat-achievements-icon {
-  color: var(--orange);
-  font-weight: bold;
-  pointer-events: none;
-}
-
 .player-panel__collection-log img {
   image-rendering: initial;
 }

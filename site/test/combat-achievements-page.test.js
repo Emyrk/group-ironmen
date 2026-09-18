@@ -150,6 +150,7 @@ describe("combat-achievements-page", () => {
     const panel = readFileSync("src/player-panel/player-panel.html", "utf8");
     const components = JSON.parse(readFileSync("components.json", "utf8"));
     expect(panel).toContain('data-component="player-combat-achievements"');
+    expect(panel).toContain('src="/ui/combat-achievements.png"');
     expect(components).toContain("player-combat-achievements");
   });
 });
