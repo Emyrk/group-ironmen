@@ -578,14 +578,18 @@ export class GoalMapPage extends BaseElement {
       )} tasks</strong>
           <ol class="goal-map-page__diary-tasks">
             ${entry.tasks
-              .map(
-                (task) =>
-                  `<li class="${task.complete ? "complete" : "incomplete"}"><span aria-hidden="true">${
-                    task.complete ? "✓" : "○"
-                  }</span><div><span class="goal-map-page__diary-task-name">${escapeHtml(
-                    task.name
-                  )}</span>${this.renderDiaryRequirements(task.requirements)}</div></li>`
-              )
+              .map((task) => {
+                const missingSkillRequirements = (task.requirements || []).some(
+                  (requirement) => requirement.type === "skill" && !requirement.complete
+                );
+                return `<li class="${task.complete ? "complete" : "incomplete"}${
+                  missingSkillRequirements ? " missing-skill-requirements" : ""
+                }"><span aria-hidden="true">${
+                  task.complete ? "✓" : "○"
+                }</span><div><span class="goal-map-page__diary-task-name">${escapeHtml(
+                  task.name
+                )}</span>${this.renderDiaryRequirements(task.requirements)}</div></li>`;
+              })
               .join("")}
           </ol>
         </div>

@@ -277,6 +277,18 @@ goal-map-page {
   color: #aaa;
 }
 
+.goal-map-page__diary-tasks li.missing-skill-requirements {
+  padding: 6px;
+  color: #ffd0d0;
+  background: #482424;
+  border: 1px solid #a34d4d;
+  border-radius: 3px;
+}
+
+.goal-map-page__diary-tasks li.missing-skill-requirements > span {
+  color: #ff8585;
+}
+
 .goal-map-page__diary-tasks li > div {
   display: grid;
   gap: 5px;

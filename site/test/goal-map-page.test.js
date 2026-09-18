@@ -306,6 +306,8 @@ describe("goal-map-page", () => {
     expect(tasks[0].classList.contains("complete")).toBe(true);
     expect(tasks[1].textContent).toContain("Pray at the Altar of Nature with Piety activated.");
     expect(tasks[1].classList.contains("incomplete")).toBe(true);
+    expect(tasks[0].classList.contains("missing-skill-requirements")).toBe(false);
+    expect(tasks[1].classList.contains("missing-skill-requirements")).toBe(true);
     const requirements = tasks[1].querySelectorAll(".goal-map-page__diary-requirement");
     expect(requirements).toHaveLength(2);
     expect(requirements[0].textContent).toContain("70 Prayer");
