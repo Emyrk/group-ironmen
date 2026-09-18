@@ -240,6 +240,43 @@ goal-map-page {
   overflow-wrap: anywhere;
 }
 
+.goal-map-page__diary-evidence {
+  display: grid;
+  gap: 9px;
+}
+
+.goal-map-page__diary-tasks {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goal-map-page__diary-tasks li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 5px;
+  line-height: 1.3;
+}
+
+.goal-map-page__diary-tasks li > span {
+  color: #888;
+  font-weight: bold;
+}
+
+.goal-map-page__diary-tasks li.complete {
+  color: #9fdaa9;
+}
+
+.goal-map-page__diary-tasks li.complete > span {
+  color: #72e083;
+}
+
+.goal-map-page__diary-tasks li.incomplete {
+  color: #aaa;
+}
+
 .goal-map-page__item-evidence {
   display: flex;
   align-items: center;

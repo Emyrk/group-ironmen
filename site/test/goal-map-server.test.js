@@ -196,6 +196,16 @@ describe("private goal map service", () => {
       progress: { current: 9, target: 10, unit: "task" },
       evidence: [{ type: "diary", region: "Morytania", tier: "Hard", completed: 9, total: 10 }],
     });
+    const easyTasks = first.nodes.find((node) => node.id === "morytania-easy").evidence[0].tasks;
+    expect(easyTasks).toHaveLength(11);
+    expect(easyTasks[2]).toEqual({
+      name: "Get a slayer task from the Slayer Master in Canifis.",
+      complete: true,
+    });
+    const hardTasks = first.nodes.find((node) => node.id === "morytania-hard").evidence[0].tasks;
+    expect(hardTasks).toHaveLength(10);
+    expect(hardTasks[0]).toEqual({ name: "Enter the Kharyrll portal in your POH.", complete: true });
+    expect(hardTasks[9]).toEqual({ name: "Mine some Mithril ore in the Abandoned Mine.", complete: false });
     expect(first.nodes.find((node) => node.id === "morytania-elite")).toMatchObject({
       complete: false,
       progress: { current: 3, target: 6, unit: "task" },
@@ -339,7 +349,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      5
+      6
     );
   });
 

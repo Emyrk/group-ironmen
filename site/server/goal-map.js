@@ -1,8 +1,9 @@
 const express = require("express");
+const diaryData = require("../public/data/diary_data.json");
 const questData = require("../public/data/quest_data.json");
 const { edges, nodes } = require("./goal-definitions");
 
-const DEFINITION_VERSION = 5;
+const DEFINITION_VERSION = 6;
 const REFRESH_MINUTES = 15;
 const REFRESH_MS = REFRESH_MINUTES * 60 * 1000;
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];
@@ -139,10 +140,11 @@ function diaryProgress(member, region, tier) {
   const checks = DIARY_CHECKS[region]?.[tier];
   const diaryVars = member?.diary_vars;
   if (!checks || !Array.isArray(diaryVars)) return null;
-  const completed = checks.filter(
-    ([varIndex, bitIndex]) => ((Number(diaryVars[varIndex]) >>> bitIndex) & 1) === 1
-  ).length;
-  return { completed, total: checks.length };
+  const tasks = checks.map(([varIndex, bitIndex], index) => ({
+    name: diaryData[region]?.[tier]?.[index]?.task || `${region} ${tier} task ${index + 1}`,
+    complete: ((Number(diaryVars[varIndex]) >>> bitIndex) & 1) === 1,
+  }));
+  return { completed: tasks.filter((task) => task.complete).length, total: tasks.length, tasks };
 }
 
 const customValidators = {

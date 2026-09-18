@@ -257,6 +257,52 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
+  it("enumerates diary tasks with their completion state", async () => {
+    const diaryMap = {
+      ...goalMap,
+      nodes: [
+        {
+          id: "morytania-hard",
+          title: "Morytania Hard Diary",
+          type: "goal",
+          scope: "character",
+          category: "Morytania Diary",
+          description: "Complete all hard tasks.",
+          evaluated: {
+            complete: false,
+            progress: { current: 1, target: 2, unit: "task" },
+            evidence: [
+              {
+                type: "diary",
+                region: "Morytania",
+                tier: "Hard",
+                completed: 1,
+                total: 2,
+                tasks: [
+                  { name: "Enter the Kharyrll portal in your POH.", complete: true },
+                  { name: "Mine some Mithril ore in the Abandoned Mine.", complete: false },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      edges: [],
+    };
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(diaryMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__diary-tasks li")).toHaveLength(2));
+    const tasks = page.querySelectorAll(".goal-map-page__diary-tasks li");
+    expect(tasks[0].textContent).toContain("Enter the Kharyrll portal in your POH.");
+    expect(tasks[0].classList.contains("complete")).toBe(true);
+    expect(tasks[1].textContent).toContain("Mine some Mithril ore in the Abandoned Mine.");
+    expect(tasks[1].classList.contains("incomplete")).toBe(true);
+    expect(page.querySelector(".goal-map-page__diary-evidence").textContent).toContain("Morytania Hard: 1/2 tasks");
+    page.remove();
+  });
+
   it("renders item evidence with its name and image instead of only its id", async () => {
     vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
     const page = createPage();

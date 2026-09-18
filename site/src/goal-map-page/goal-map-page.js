@@ -537,6 +537,25 @@ export class GoalMapPage extends BaseElement {
   }
 
   renderEvidenceEntry(entry) {
+    if (typeof entry === "object" && entry?.type === "diary" && Array.isArray(entry.tasks)) {
+      return `
+        <div class="goal-map-page__diary-evidence">
+          <strong>${escapeHtml(entry.region)} ${escapeHtml(entry.tier)}: ${escapeHtml(entry.completed)}/${escapeHtml(
+        entry.total
+      )} tasks</strong>
+          <ol class="goal-map-page__diary-tasks">
+            ${entry.tasks
+              .map(
+                (task) =>
+                  `<li class="${task.complete ? "complete" : "incomplete"}"><span aria-hidden="true">${
+                    task.complete ? "✓" : "○"
+                  }</span>${escapeHtml(task.name)}</li>`
+              )
+              .join("")}
+          </ol>
+        </div>
+      `;
+    }
     if (typeof entry === "object" && entry?.type === "item") {
       const details = Item.itemDetails?.[entry.itemId];
       if (details) {
