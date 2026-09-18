@@ -368,6 +368,7 @@ describe("private goal map service", () => {
 
   it("tracks Miscellania and Fossil Island teak progression with character and group scope", () => {
     const alice = member("Alice");
+    alice.quests[147] = 2;
     alice.quests[123] = 2;
     alice.quests[11] = 2;
     alice.skills.Farming = 22406;
@@ -378,7 +379,11 @@ describe("private goal map service", () => {
     expect(map.nodes.find((node) => node.id === "miscellania-hardwood")).toMatchObject({
       complete: true,
       scope: "character",
-      evidence: [{ type: "quest", questId: 123, name: "Royal Trouble", state: 2 }],
+      progress: { current: 2, target: 2 },
+      evidence: [
+        { type: "quest", questId: 147, name: "Throne of Miscellania", state: 2 },
+        { type: "quest", questId: 123, name: "Royal Trouble", state: 2 },
+      ],
     });
     expect(map.nodes.find((node) => node.id === "teak-seed")).toMatchObject({
       complete: true,
@@ -523,7 +528,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      8
+      9
     );
   });
 

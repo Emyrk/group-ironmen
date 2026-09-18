@@ -188,11 +188,12 @@ const nodes = [
   },
   {
     id: "miscellania-hardwood",
-    title: "Unlock Miscellania hardwood",
-    description: "Complete Royal Trouble to assign kingdom workers to gather passive teak or mahogany logs.",
+    title: "Miscellania teak logs",
+    description:
+      "Complete Throne of Miscellania to manage the kingdom, then Royal Trouble to assign workers to passive teak or mahogany logs.",
     scope: "character",
     category: "Construction",
-    validator: quest(123, "Royal Trouble"),
+    validator: every(quest(147, "Throne of Miscellania"), quest(123, "Royal Trouble")),
     metadata: { wikiUrl: `${WIKI}Managing_Miscellania` },
   },
   {
