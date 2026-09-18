@@ -296,11 +296,24 @@ describe("goal-map-page", () => {
       ],
       edges: [],
     };
+    localStorage.setItem(`goalMapLayout:${api.groupName || "unknown"}`, "graph");
     vi.spyOn(api, "getGoalMap").mockResolvedValue(diaryMap);
     const page = createPage();
     pubsub.publish("get-group-data");
 
     await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__diary-tasks li")).toHaveLength(2));
+    expect(page.getNodeStatus(diaryMap.nodes[0])).toBe("blocked");
+    expect(page.querySelector('.goal-map-page__fallback-node[data-node-id="morytania-hard"]').classList).toContain(
+      "blocked"
+    );
+    const blockedGraphStyle = page.graphStyles().find((entry) => entry.selector === "node.blocked");
+    expect(blockedGraphStyle.style).toMatchObject({
+      "background-color": "#6b2828",
+      "border-color": "#e26464",
+    });
+
+    page.querySelector('[data-layout="list"]').click();
+    expect(page.querySelector(".goal-map-page__explorer-goal").classList).toContain("blocked");
     const tasks = page.querySelectorAll(".goal-map-page__diary-tasks li");
     expect(tasks[0].textContent).toContain("Enter the Kharyrll portal in your POH.");
     expect(tasks[0].classList.contains("complete")).toBe(true);

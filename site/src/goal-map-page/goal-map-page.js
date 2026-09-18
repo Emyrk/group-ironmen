@@ -220,8 +220,23 @@ export class GoalMapPage extends BaseElement {
     }
   }
 
+  hasUnmetSkillRequirements(node) {
+    const evidence = Array.isArray(node.evaluated?.evidence) ? node.evaluated.evidence : [];
+    return evidence.some(
+      (entry) =>
+        entry?.type === "diary" &&
+        Array.isArray(entry.tasks) &&
+        entry.tasks.some(
+          (task) =>
+            Array.isArray(task.requirements) &&
+            task.requirements.some((requirement) => requirement.type === "skill" && !requirement.complete)
+        )
+    );
+  }
+
   getNodeStatus(node) {
     if (node.evaluated?.complete) return "complete";
+    if (this.hasUnmetSkillRequirements(node)) return "blocked";
     const requiredSources = (this.data?.edges || [])
       .filter((edge) => edge.target === node.id && edge.type === "requires")
       .map((edge) => edge.source);
@@ -734,7 +749,7 @@ export class GoalMapPage extends BaseElement {
       },
       { selector: "node.complete", style: { "background-color": "#286b35", "border-color": "#63d879" } },
       { selector: "node.available", style: { "background-color": "#775d16", "border-color": "#e6bd4b" } },
-      { selector: "node.blocked", style: { "background-color": "#444", "border-color": "#777", opacity: 0.78 } },
+      { selector: "node.blocked", style: { "background-color": "#6b2828", "border-color": "#e26464" } },
       { selector: "node.goal", style: { shape: "round-rectangle" } },
       { selector: "node.activity", style: { shape: "ellipse" } },
       { selector: "node.item", style: { shape: "diamond", width: 76, height: 76 } },

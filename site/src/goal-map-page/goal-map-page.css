@@ -85,8 +85,8 @@ goal-map-page {
 
 .goal-map-page__summary .blocked,
 .goal-map-page__status.blocked {
-  color: #aaa;
-  border-color: #666;
+  color: #ff9b9b;
+  border-color: #a34d4d;
 }
 
 .goal-map-page__updated {
@@ -160,8 +160,9 @@ goal-map-page {
 }
 
 .goal-map-page__fallback-node.blocked {
-  color: #aaa;
-  opacity: 0.78;
+  color: #ffd0d0;
+  background: #482424;
+  border-color: #e26464;
 }
 
 .goal-map-page__fallback-node.item {
@@ -420,6 +421,11 @@ goal-map-page {
   border-color: #806821;
 }
 
+.goal-map-page__objective.blocked {
+  background: #482424;
+  border-color: #e26464;
+}
+
 .goal-map-page__objective.pinned {
   box-shadow: inset 3px 0 #e6bd4b;
 }
@@ -558,6 +564,11 @@ goal-map-page {
   border-color: #806821;
 }
 
+.goal-map-page__explorer-goal.blocked {
+  background: #482424;
+  border-color: #e26464;
+}
+
 .goal-map-page__explorer-goal.pinned {
   box-shadow: inset 3px 0 #e6bd4b;
 }
@@ -635,6 +646,10 @@ goal-map-page {
 
 .goal-map-page__status-dot.available {
   background: #f0c85b;
+}
+
+.goal-map-page__status-dot.blocked {
+  background: #e26464;
 }
 
 .goal-map-page__skill-requirements {
