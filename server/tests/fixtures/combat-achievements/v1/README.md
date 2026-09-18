@@ -11,11 +11,12 @@ All endpoints are under `/api/group/{groupName}` and use the existing group toke
   "schemaVersion": 1,
   "playerName": "Display Name",
   "clientRevision": 123,
+  "achievementPoints": 321,
   "completedTaskIds": ["CA_TASK_BARROWS_CHAMPION_COMPLETED"]
 }
 ```
 
-`playerName` must match a current group member after trimming, converting underscores to spaces, collapsing whitespace, and case folding. Task IDs must be unique RuneLite completion var names matching `CA_TASK_*_COMPLETED`. A lower `clientRevision` than the stored snapshot returns `409 stale_client_revision`. Equal revisions are idempotently replaceable.
+`playerName` must match a current group member after trimming, converting underscores to spaces, collapsing whitespace, and case folding. `achievementPoints` is the non-negative Combat Achievement point total read from game state and must not exceed 10000. Task IDs must be unique RuneLite completion var names matching `CA_TASK_*_COMPLETED`. A lower `clientRevision` than the stored snapshot returns `409 stale_client_revision`. Equal revisions are idempotently replaceable.
 
 The server stores only the latest snapshot for each normalized member name. It stores no account hash or history.
 

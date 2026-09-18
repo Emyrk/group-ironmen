@@ -8,8 +8,7 @@ player-combat-achievements h2 {
   color: var(--orange);
 }
 
-player-combat-achievements .men-button {
-  display: inline-block;
+player-combat-achievements button.men-button {
+  display: inline-flex;
   padding: 6px 10px;
-  text-decoration: none;
 }

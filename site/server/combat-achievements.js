@@ -3,7 +3,7 @@ const catalog = require("./combat-achievements-medium.json");
 
 const STATUSES = new Set(["unplanned", "planned", "completed"]);
 const taskIds = new Set(catalog.tasks.map((task) => task.id));
-const SNAPSHOT_KEYS = ["clientRevision", "completedTaskIds", "playerName", "schemaVersion"];
+const SNAPSHOT_KEYS = ["achievementPoints", "clientRevision", "completedTaskIds", "playerName", "schemaVersion"];
 
 function normalizePlayerName(name) {
   return String(name || "")
@@ -38,7 +38,15 @@ function validateSnapshot(db, body) {
   if (Object.keys(body).sort().join(",") !== SNAPSHOT_KEYS.join(",")) return null;
   const member = matchingCharacter(db, body.playerName);
   if (!member) throw new RangeError("playerName must name a current group member");
-  if (body.schemaVersion !== 1 || !Number.isSafeInteger(body.clientRevision) || body.clientRevision < 0) return null;
+  if (
+    body.schemaVersion !== 1 ||
+    !Number.isSafeInteger(body.clientRevision) ||
+    body.clientRevision < 0 ||
+    !Number.isSafeInteger(body.achievementPoints) ||
+    body.achievementPoints < 0 ||
+    body.achievementPoints > 10000
+  )
+    return null;
   if (!Array.isArray(body.completedTaskIds) || body.completedTaskIds.length > 1000) return null;
   const ids = new Set(body.completedTaskIds);
   if (
@@ -54,7 +62,7 @@ function readSnapshots(db, groupId) {
     schemaVersion: 1,
     snapshots: db
       .prepare(
-        `SELECT player_name,client_revision,completed_task_ids,updated_at
+        `SELECT player_name,client_revision,achievement_points,completed_task_ids,updated_at
          FROM combat_achievement_snapshots WHERE group_id=? ORDER BY normalized_player_name`
       )
       .all(groupId)
@@ -62,6 +70,7 @@ function readSnapshots(db, groupId) {
         schemaVersion: 1,
         playerName: row.player_name,
         clientRevision: row.client_revision,
+        achievementPoints: row.achievement_points,
         completedTaskIds: JSON.parse(row.completed_task_ids),
         updatedAt: row.updated_at,
       })),
@@ -88,7 +97,7 @@ function readMediumPlan(db, groupId, requestedCharacter) {
   const snapshot = selectedCharacter
     ? db
         .prepare(
-          "SELECT client_revision,completed_task_ids,updated_at FROM combat_achievement_snapshots WHERE group_id=? AND normalized_player_name=?"
+          "SELECT client_revision,achievement_points,completed_task_ids,updated_at FROM combat_achievement_snapshots WHERE group_id=? AND normalized_player_name=?"
         )
         .get(groupId, normalizePlayerName(selectedCharacter))
     : undefined;
@@ -103,7 +112,13 @@ function readMediumPlan(db, groupId, requestedCharacter) {
     characters: members,
     selectedCharacter,
     externalPoints: settings?.external_points || 0,
-    syncedSnapshot: snapshot ? { clientRevision: snapshot.client_revision, updatedAt: snapshot.updated_at } : null,
+    syncedSnapshot: snapshot
+      ? {
+          clientRevision: snapshot.client_revision,
+          achievementPoints: snapshot.achievement_points,
+          updatedAt: snapshot.updated_at,
+        }
+      : null,
     tasks: catalog.tasks.map((task) => ({
       ...task,
       status: progressByTask.get(task.id)?.status || "unplanned",
@@ -129,11 +144,12 @@ function createCombatAchievementsRouter(db, auth) {
       const result = db
         .prepare(
           `INSERT INTO combat_achievement_snapshots
-             (group_id,normalized_player_name,player_name,client_revision,completed_task_ids,updated_at)
-           VALUES (?,?,?,?,?,?)
+             (group_id,normalized_player_name,player_name,client_revision,achievement_points,completed_task_ids,updated_at)
+           VALUES (?,?,?,?,?,?,?)
            ON CONFLICT(group_id,normalized_player_name) DO UPDATE SET
              player_name=excluded.player_name,
              client_revision=excluded.client_revision,
+             achievement_points=excluded.achievement_points,
              completed_task_ids=excluded.completed_task_ids,
              updated_at=excluded.updated_at
            WHERE combat_achievement_snapshots.client_revision <= excluded.client_revision`
@@ -143,6 +159,7 @@ function createCombatAchievementsRouter(db, auth) {
           snapshot.normalizedPlayerName,
           snapshot.playerName,
           snapshot.clientRevision,
+          snapshot.achievementPoints,
           JSON.stringify(snapshot.completedTaskIds),
           now
         );

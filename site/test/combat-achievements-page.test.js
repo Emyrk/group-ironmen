@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
 import { pubsub } from "../src/data/pubsub";
 import { CombatAchievementsPage } from "../src/combat-achievements-page/combat-achievements-page";
+import { PlayerCombatAchievements } from "../src/player-combat-achievements/player-combat-achievements";
 
 CombatAchievementsPage.prototype.html = function () {
   return `<header>${this.renderHeader()}</header><main>${this.renderContent()}</main>`;
@@ -62,7 +63,10 @@ function createPage() {
 }
 
 describe("combat-achievements-page", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    window.history.replaceState("", "", "/group");
+  });
 
   it("is registered on the authenticated combat achievements route", () => {
     const html = readFileSync("src/index.html", "utf8");
@@ -128,7 +132,7 @@ describe("combat-achievements-page", () => {
   it("renders synchronized completion separately without overwriting manual plans", async () => {
     const syncedData = {
       ...data,
-      syncedSnapshot: { clientRevision: 123, updatedAt: "2026-09-18T12:00:00Z" },
+      syncedSnapshot: { clientRevision: 123, achievementPoints: 321, updatedAt: "2026-09-18T12:00:00Z" },
       tasks: data.tasks.map((task) =>
         task.id === "pray-for-success" ? { ...task, syncedComplete: true } : { ...task, syncedComplete: false }
       ),
@@ -146,11 +150,45 @@ describe("combat-achievements-page", () => {
     page.remove();
   });
 
+  it("shows synchronized points and opens the selected player's planner with a styled button", async () => {
+    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue({
+      ...data,
+      syncedSnapshot: { clientRevision: 123, achievementPoints: 321, updatedAt: "2026-09-18T12:00:00Z" },
+    });
+    const summary = document.createElement("player-combat-achievements");
+    summary.setAttribute("player-name", "Alice");
+    document.body.appendChild(summary);
+
+    await vi.waitFor(() => expect(summary.textContent).toContain("321 Combat Achievement points."));
+    expect(summary.textContent).not.toContain("Medium tasks complete");
+    const button = summary.querySelector("button.men-button");
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    expect(localStorage.getItem("combatAchievementsSelectedCharacter")).toBe("Alice");
+
+    button.click();
+    expect(window.location.pathname).toBe("/group/combat-achievements");
+    expect(localStorage.getItem("combatAchievementsSelectedCharacter")).toBe("Alice");
+    summary.remove();
+  });
+
+  it("shows a clear fallback before Combat Achievement points are synchronized", async () => {
+    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue({ ...data, syncedSnapshot: null });
+    const summary = document.createElement("player-combat-achievements");
+    summary.setAttribute("player-name", "Bob");
+    document.body.appendChild(summary);
+
+    await vi.waitFor(() =>
+      expect(summary.textContent).toContain("Combat Achievement points have not synchronized from RuneLite yet.")
+    );
+    summary.remove();
+  });
+
   it("registers a player minibar Combat Achievements component", () => {
     const panel = readFileSync("src/player-panel/player-panel.html", "utf8");
     const components = JSON.parse(readFileSync("components.json", "utf8"));
     expect(panel).toContain('data-component="player-combat-achievements"');
     expect(panel).toContain('src="/ui/combat-achievements.png"');
     expect(components).toContain("player-combat-achievements");
+    expect(customElements.get("player-combat-achievements")).toBe(PlayerCombatAchievements);
   });
 });

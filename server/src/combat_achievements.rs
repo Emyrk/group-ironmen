@@ -8,6 +8,7 @@ use std::collections::HashSet;
 
 pub const SCHEMA_VERSION: u32 = 1;
 const MAX_TASKS: usize = 1_000;
+const MAX_ACHIEVEMENT_POINTS: i32 = 10_000;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -15,6 +16,7 @@ pub struct CombatAchievementSnapshotInput {
     pub schema_version: u32,
     pub player_name: String,
     pub client_revision: i64,
+    pub achievement_points: i32,
     pub completed_task_ids: Vec<String>,
 }
 
@@ -24,6 +26,7 @@ pub struct CombatAchievementSnapshot {
     pub schema_version: u32,
     pub player_name: String,
     pub client_revision: i64,
+    pub achievement_points: i32,
     pub completed_task_ids: Vec<String>,
     pub updated_at: DateTime<Utc>,
 }
@@ -61,7 +64,11 @@ fn validate_snapshot(snapshot: &CombatAchievementSnapshotInput) -> Result<String
             .json(serde_json::json!({"error": "unsupported_schema_version"})));
     }
     let normalized_name = normalize_player_name(&snapshot.player_name);
-    if normalized_name.is_empty() || normalized_name.len() > 12 || snapshot.client_revision < 0 {
+    if normalized_name.is_empty()
+        || normalized_name.len() > 12
+        || snapshot.client_revision < 0
+        || !(0..=MAX_ACHIEVEMENT_POINTS).contains(&snapshot.achievement_points)
+    {
         return Err(HttpResponse::BadRequest()
             .json(serde_json::json!({"error": "invalid_combat_achievement_snapshot"})));
     }
@@ -114,21 +121,23 @@ pub async fn put_snapshot(
         .query_opt(
             r#"
 INSERT INTO groupironman.combat_achievement_snapshots
-  (group_id, normalized_player_name, player_name, client_revision, completed_task_ids, updated_at)
-VALUES ($1,$2,$3,$4,$5,NOW())
+  (group_id, normalized_player_name, player_name, client_revision, achievement_points, completed_task_ids, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,NOW())
 ON CONFLICT (group_id, normalized_player_name) DO UPDATE SET
   player_name=EXCLUDED.player_name,
   client_revision=EXCLUDED.client_revision,
+  achievement_points=EXCLUDED.achievement_points,
   completed_task_ids=EXCLUDED.completed_task_ids,
   updated_at=NOW()
 WHERE groupironman.combat_achievement_snapshots.client_revision <= EXCLUDED.client_revision
-RETURNING player_name,client_revision,completed_task_ids,updated_at
+RETURNING player_name,client_revision,achievement_points,completed_task_ids,updated_at
 "#,
             &[
                 &auth.group_id,
                 &normalized_name,
                 &member_name,
                 &snapshot.client_revision,
+                &snapshot.achievement_points,
                 &snapshot.completed_task_ids,
             ],
         )
@@ -142,6 +151,7 @@ RETURNING player_name,client_revision,completed_task_ids,updated_at
         schema_version: SCHEMA_VERSION,
         player_name: row.try_get("player_name")?,
         client_revision: row.try_get("client_revision")?,
+        achievement_points: row.try_get("achievement_points")?,
         completed_task_ids: row.try_get("completed_task_ids")?,
         updated_at: row.try_get("updated_at")?,
     }))
@@ -156,7 +166,7 @@ pub async fn get_snapshots(
     let rows = client
         .query(
             r#"
-SELECT player_name,client_revision,completed_task_ids,updated_at
+SELECT player_name,client_revision,achievement_points,completed_task_ids,updated_at
 FROM groupironman.combat_achievement_snapshots
 WHERE group_id=$1
 ORDER BY normalized_player_name
@@ -171,6 +181,7 @@ ORDER BY normalized_player_name
                 schema_version: SCHEMA_VERSION,
                 player_name: row.try_get("player_name")?,
                 client_revision: row.try_get("client_revision")?,
+                achievement_points: row.try_get("achievement_points")?,
                 completed_task_ids: row.try_get("completed_task_ids")?,
                 updated_at: row.try_get("updated_at")?,
             })
@@ -197,6 +208,7 @@ mod tests {
             schema_version: 1,
             player_name: "Alice".to_owned(),
             client_revision: 123,
+            achievement_points: 321,
             completed_task_ids: vec!["CA_TASK_BARROWS_CHAMPION_COMPLETED".to_owned()],
         };
         assert!(validate_snapshot(&valid).is_ok());

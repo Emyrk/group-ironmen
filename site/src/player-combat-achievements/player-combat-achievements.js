@@ -26,14 +26,28 @@ export class PlayerCombatAchievements extends BaseElement {
   html() {
     if (this.error) return `<p>${escapeHtml(this.error.message)}</p>`;
     if (!this.data) return "<p>Loading Combat Achievements...</p>";
-    const completed = this.data.tasks.filter((task) => task.syncedComplete || task.status === "completed").length;
-    const synced = this.data.tasks.filter((task) => task.syncedComplete).length;
+    const points = this.data.syncedSnapshot?.achievementPoints;
     return `
       <h2>Combat Achievements</h2>
-      <p><strong>${completed}</strong> of ${this.data.tasks.length} Medium tasks complete.</p>
-      <p>${synced} completion${synced === 1 ? "" : "s"} synchronized from RuneLite.</p>
-      <a class="men-button" href="/group/combat-achievements">Open ${escapeHtml(this.playerName)}'s planner</a>
+      ${
+        Number.isInteger(points)
+          ? `<p><strong>${points}</strong> Combat Achievement points.</p>`
+          : "<p>Combat Achievement points have not synchronized from RuneLite yet.</p>"
+      }
+      <button class="men-button" type="button">Open ${escapeHtml(this.playerName)}'s planner</button>
     `;
+  }
+
+  render() {
+    this.unbindEvents();
+    super.render();
+    const button = this.querySelector("button.men-button");
+    if (button) this.eventListener(button, "click", this.navigateToPlanner.bind(this));
+  }
+
+  navigateToPlanner() {
+    localStorage.setItem(CHARACTER_KEY, this.playerName);
+    window.history.pushState("", "", "/group/combat-achievements");
   }
 
   async load() {

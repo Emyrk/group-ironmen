@@ -8,6 +8,7 @@ fn plugin_upload_fixture_matches_input_contract() {
         serde_json::from_str(include_str!("fixtures/combat-achievements/v1/upload.json")).unwrap();
     assert_eq!(upload.player_name, "Display Name");
     assert_eq!(upload.client_revision, 123);
+    assert_eq!(upload.achievement_points, 321);
 }
 
 #[test]
@@ -17,6 +18,7 @@ fn frozen_v1_fixtures_match_models() {
     ))
     .unwrap();
     assert_eq!(snapshot.client_revision, 123);
+    assert_eq!(snapshot.achievement_points, 321);
     assert_eq!(
         snapshot.completed_task_ids,
         ["CA_TASK_BARROWS_CHAMPION_COMPLETED"]

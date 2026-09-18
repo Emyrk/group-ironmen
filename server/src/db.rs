@@ -1196,6 +1196,7 @@ CREATE TABLE IF NOT EXISTS groupironman.combat_achievement_snapshots (
   normalized_player_name TEXT NOT NULL,
   player_name TEXT NOT NULL,
   client_revision BIGINT NOT NULL CHECK (client_revision >= 0),
+  achievement_points INTEGER NOT NULL DEFAULT 0 CHECK (achievement_points BETWEEN 0 AND 10000),
   completed_task_ids TEXT[] NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ NOT NULL,
   PRIMARY KEY (group_id, normalized_player_name)
@@ -1206,6 +1207,21 @@ CREATE INDEX IF NOT EXISTS combat_achievement_snapshots_group_idx
             )
             .await?;
         commit_migration(&transaction, "create_combat_achievement_snapshots_table").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "add_combat_achievement_points").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+ALTER TABLE groupironman.combat_achievement_snapshots
+ADD COLUMN IF NOT EXISTS achievement_points INTEGER NOT NULL DEFAULT 0
+CHECK (achievement_points BETWEEN 0 AND 10000);
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "add_combat_achievement_points").await?;
         transaction.commit().await?;
     }
 

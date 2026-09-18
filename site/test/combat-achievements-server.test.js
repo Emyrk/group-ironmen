@@ -133,6 +133,7 @@ describe("medium combat achievement planner service", () => {
       schemaVersion: 1,
       playerName: " alice ",
       clientRevision: 123,
+      achievementPoints: 321,
       completedTaskIds: ["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
     });
     expect(uploaded).toMatchObject({
@@ -141,13 +142,16 @@ describe("medium combat achievement planner service", () => {
         schemaVersion: 1,
         playerName: "Alice",
         clientRevision: 123,
+        achievementPoints: 321,
         completedTaskIds: ["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
       },
     });
 
     const snapshots = await call(server, "GET", "/api/group/gim/combat-achievements/snapshots");
     expect(snapshots.body.snapshots).toHaveLength(1);
+    expect(snapshots.body.snapshots[0].achievementPoints).toBe(321);
     const planner = await call(server, "GET", "/api/group/gim/combat-achievements/medium?character=Alice");
+    expect(planner.body.syncedSnapshot).toMatchObject({ clientRevision: 123, achievementPoints: 321 });
     expect(planner.body.tasks.find((task) => task.id === "barrows-champion")).toMatchObject({
       status: "planned",
       notes: "Keep this plan",
@@ -159,6 +163,7 @@ describe("medium combat achievement planner service", () => {
         schemaVersion: 1,
         playerName: "Alice",
         clientRevision: 122,
+        achievementPoints: 300,
         completedTaskIds: [],
       })
     ).toMatchObject({ status: 409, body: { error: "stale_client_revision" } });
@@ -167,10 +172,12 @@ describe("medium combat achievement planner service", () => {
       schemaVersion: 1,
       playerName: "Alice",
       clientRevision: 124,
+      achievementPoints: 400,
       completedTaskIds: [],
     });
-    expect(replacement.body.completedTaskIds).toEqual([]);
+    expect(replacement.body).toMatchObject({ achievementPoints: 400, completedTaskIds: [] });
     const replacedPlanner = await call(server, "GET", "/api/group/gim/combat-achievements/medium?character=Alice");
+    expect(replacedPlanner.body.syncedSnapshot.achievementPoints).toBe(400);
     expect(replacedPlanner.body.tasks.find((task) => task.id === "barrows-champion")).toMatchObject({
       status: "planned",
       notes: "Keep this plan",
@@ -182,8 +189,19 @@ describe("medium combat achievement planner service", () => {
         schemaVersion: 1,
         playerName: "Mallory",
         clientRevision: 1,
+        achievementPoints: 1,
         completedTaskIds: [],
       })
     ).toMatchObject({ status: 400, body: { error: "invalid_player_name" } });
+
+    expect(
+      await call(server, "PUT", snapshotUrl, {
+        schemaVersion: 1,
+        playerName: "Alice",
+        clientRevision: 125,
+        achievementPoints: 10001,
+        completedTaskIds: [],
+      })
+    ).toMatchObject({ status: 400, body: { error: "invalid_combat_achievement_snapshot" } });
   });
 });

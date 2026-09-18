@@ -159,6 +159,7 @@ function openDatabase(filename) {
       normalized_player_name TEXT NOT NULL,
       player_name TEXT NOT NULL,
       client_revision INTEGER NOT NULL CHECK (client_revision >= 0),
+      achievement_points INTEGER NOT NULL DEFAULT 0 CHECK (achievement_points BETWEEN 0 AND 10000),
       completed_task_ids TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (group_id, normalized_player_name)
@@ -179,6 +180,12 @@ function openDatabase(filename) {
   const goalMapStateColumns = db.prepare("PRAGMA table_info(goal_map_state)").all();
   if (!goalMapStateColumns.some((column) => column.name === "definition_version")) {
     db.exec("ALTER TABLE goal_map_state ADD COLUMN definition_version INTEGER NOT NULL DEFAULT 0");
+  }
+  const combatAchievementSnapshotColumns = db.prepare("PRAGMA table_info(combat_achievement_snapshots)").all();
+  if (!combatAchievementSnapshotColumns.some((column) => column.name === "achievement_points")) {
+    db.exec(
+      "ALTER TABLE combat_achievement_snapshots ADD COLUMN achievement_points INTEGER NOT NULL DEFAULT 0 CHECK (achievement_points BETWEEN 0 AND 10000)"
+    );
   }
   return db;
 }

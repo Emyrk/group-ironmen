@@ -73,7 +73,7 @@ async fn snapshots_require_membership_and_replace_exactly() {
         .service(combat_achievements::put_snapshot);
     let app = test::init_service(App::new().app_data(web::Data::new(pool)).service(scope)).await;
 
-    let upload = |revision, player_name: &str, completed: Vec<&str>| {
+    let upload = |revision, player_name: &str, achievement_points, completed: Vec<&str>| {
         authenticated(
             test::TestRequest::put()
                 .uri(&format!("/api/group/{GROUP}/combat-achievements/snapshot")),
@@ -82,6 +82,7 @@ async fn snapshots_require_membership_and_replace_exactly() {
             "schemaVersion": 1,
             "playerName": player_name,
             "clientRevision": revision,
+            "achievementPoints": achievement_points,
             "completedTaskIds": completed,
         }))
         .to_request()
@@ -92,6 +93,7 @@ async fn snapshots_require_membership_and_replace_exactly() {
         upload(
             123,
             " display_name ",
+            321,
             vec!["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
         ),
     )
@@ -99,8 +101,9 @@ async fn snapshots_require_membership_and_replace_exactly() {
     assert_eq!(response.status(), 200);
     let stored: Value = test::read_body_json(response).await;
     assert_eq!(stored["playerName"], "Display Name");
+    assert_eq!(stored["achievementPoints"], 321);
 
-    let response = test::call_service(&app, upload(124, "Display Name", vec![])).await;
+    let response = test::call_service(&app, upload(124, "Display Name", 400, vec![])).await;
     assert_eq!(response.status(), 200);
     let response = test::call_service(
         &app,
@@ -113,16 +116,23 @@ async fn snapshots_require_membership_and_replace_exactly() {
     .await;
     let snapshots: Value = test::read_body_json(response).await;
     assert_eq!(snapshots["snapshots"].as_array().unwrap().len(), 1);
+    assert_eq!(snapshots["snapshots"][0]["achievementPoints"], 400);
     assert_eq!(snapshots["snapshots"][0]["completedTaskIds"], json!([]));
 
     assert_eq!(
-        test::call_service(&app, upload(122, "Display Name", vec![]))
+        test::call_service(&app, upload(122, "Display Name", 399, vec![]))
             .await
             .status(),
         409
     );
     assert_eq!(
-        test::call_service(&app, upload(1, "Mallory", vec![]))
+        test::call_service(&app, upload(1, "Mallory", 1, vec![]))
+            .await
+            .status(),
+        400
+    );
+    assert_eq!(
+        test::call_service(&app, upload(125, "Display Name", 10_001, vec![]))
             .await
             .status(),
         400
