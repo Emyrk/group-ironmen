@@ -277,6 +277,59 @@ goal-map-page {
   color: #aaa;
 }
 
+.goal-map-page__diary-tasks li > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.goal-map-page__diary-task-name {
+  color: inherit;
+}
+
+.goal-map-page__diary-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.goal-map-page__diary-requirements > small {
+  margin-right: 2px;
+  color: #888;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.goal-map-page__diary-requirement {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  color: #bbb;
+  font-size: 0.78rem;
+  background: #302d28;
+  border: 1px solid #625d54;
+  border-radius: 3px;
+}
+
+.goal-map-page__diary-requirement.complete {
+  color: #ccefd3;
+  background: #233d29;
+  border-color: #487c53;
+}
+
+.goal-map-page__diary-requirement.incomplete {
+  opacity: 0.82;
+}
+
+.goal-map-page__diary-requirement img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: crisp-edges;
+}
+
 .goal-map-page__item-evidence {
   display: flex;
   align-items: center;

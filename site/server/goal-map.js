@@ -3,7 +3,7 @@ const diaryData = require("../public/data/diary_data.json");
 const questData = require("../public/data/quest_data.json");
 const { edges, nodes } = require("./goal-definitions");
 
-const DEFINITION_VERSION = 6;
+const DEFINITION_VERSION = 7;
 const REFRESH_MINUTES = 15;
 const REFRESH_MS = REFRESH_MINUTES * 60 * 1000;
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];
@@ -37,6 +37,7 @@ const QUEST_IDS = Object.entries(questData)
   .filter(([, details]) => !details.hidden)
   .map(([id]) => Number(id))
   .sort((a, b) => a - b);
+const QUEST_ID_BY_NAME = new Map(Object.entries(questData).map(([id, details]) => [details.name, Number(id)]));
 
 function levelForXp(xp) {
   let points = 0;
@@ -83,6 +84,43 @@ function questState(member, questId) {
 
 function completeQuestState(state) {
   return state === 2 || state === "FINISHED";
+}
+
+function combatLevel(member) {
+  const level = (skill) => levelForXp(skillXp(member, skill));
+  const base = 0.25 * (level("Defence") + level("Hitpoints") + Math.floor(level("Prayer") / 2));
+  const melee = 0.325 * (level("Attack") + level("Strength"));
+  const ranged = 0.325 * Math.floor(level("Ranged") * 1.5);
+  const magic = 0.325 * Math.floor(level("Magic") * 1.5);
+  return Math.floor(base + Math.max(melee, ranged, magic));
+}
+
+function diaryTaskRequirements(member, requirementData = {}) {
+  const requirements = Object.entries(requirementData.skills || {}).map(([skill, requiredLevel]) => {
+    const level = levelForXp(skillXp(member, skill));
+    return { type: "skill", skill, level, requiredLevel, complete: level >= requiredLevel };
+  });
+  for (const name of requirementData.quests || []) {
+    const questId = QUEST_ID_BY_NAME.get(name);
+    const state = questId === undefined ? undefined : questState(member, questId);
+    requirements.push({
+      type: "quest",
+      name,
+      questId: questId ?? null,
+      state: state ?? "UNKNOWN",
+      complete: completeQuestState(state),
+    });
+  }
+  if (requirementData.combat) {
+    const level = combatLevel(member);
+    requirements.push({
+      type: "combat",
+      level,
+      requiredLevel: requirementData.combat,
+      complete: level >= requirementData.combat,
+    });
+  }
+  return requirements;
 }
 
 const DIARY_CHECKS = {
@@ -140,10 +178,14 @@ function diaryProgress(member, region, tier) {
   const checks = DIARY_CHECKS[region]?.[tier];
   const diaryVars = member?.diary_vars;
   if (!checks || !Array.isArray(diaryVars)) return null;
-  const tasks = checks.map(([varIndex, bitIndex], index) => ({
-    name: diaryData[region]?.[tier]?.[index]?.task || `${region} ${tier} task ${index + 1}`,
-    complete: ((Number(diaryVars[varIndex]) >>> bitIndex) & 1) === 1,
-  }));
+  const tasks = checks.map(([varIndex, bitIndex], index) => {
+    const taskData = diaryData[region]?.[tier]?.[index];
+    return {
+      name: taskData?.task || `${region} ${tier} task ${index + 1}`,
+      complete: ((Number(diaryVars[varIndex]) >>> bitIndex) & 1) === 1,
+      requirements: diaryTaskRequirements(member, taskData?.requirements),
+    };
+  });
   return { completed: tasks.filter((task) => task.complete).length, total: tasks.length, tasks };
 }
 

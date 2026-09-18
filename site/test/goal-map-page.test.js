@@ -280,7 +280,14 @@ describe("goal-map-page", () => {
                 total: 2,
                 tasks: [
                   { name: "Enter the Kharyrll portal in your POH.", complete: true },
-                  { name: "Mine some Mithril ore in the Abandoned Mine.", complete: false },
+                  {
+                    name: "Pray at the Altar of Nature with Piety activated.",
+                    complete: false,
+                    requirements: [
+                      { type: "skill", skill: "Prayer", level: 69, requiredLevel: 70, complete: false },
+                      { type: "quest", name: "King's Ransom", state: 2, complete: true },
+                    ],
+                  },
                 ],
               },
             ],
@@ -297,8 +304,16 @@ describe("goal-map-page", () => {
     const tasks = page.querySelectorAll(".goal-map-page__diary-tasks li");
     expect(tasks[0].textContent).toContain("Enter the Kharyrll portal in your POH.");
     expect(tasks[0].classList.contains("complete")).toBe(true);
-    expect(tasks[1].textContent).toContain("Mine some Mithril ore in the Abandoned Mine.");
+    expect(tasks[1].textContent).toContain("Pray at the Altar of Nature with Piety activated.");
     expect(tasks[1].classList.contains("incomplete")).toBe(true);
+    const requirements = tasks[1].querySelectorAll(".goal-map-page__diary-requirement");
+    expect(requirements).toHaveLength(2);
+    expect(requirements[0].textContent).toContain("70 Prayer");
+    expect(requirements[0].classList.contains("incomplete")).toBe(true);
+    expect(requirements[0].getAttribute("title")).toBe("Prayer: 69/70");
+    expect(requirements[0].querySelector("img").getAttribute("src")).toBe("/ui/201-0.png");
+    expect(requirements[1].textContent).toContain("King's Ransom");
+    expect(requirements[1].classList.contains("complete")).toBe(true);
     expect(page.querySelector(".goal-map-page__diary-evidence").textContent).toContain("Morytania Hard: 1/2 tasks");
     page.remove();
   });

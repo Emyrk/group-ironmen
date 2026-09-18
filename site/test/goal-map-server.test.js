@@ -180,7 +180,12 @@ describe("private goal map service", () => {
     for (let bit = 1; bit <= 22; bit += 1) diaryVars[15] |= 1 << bit;
     for (let bit = 23; bit <= 30; bit += 1) diaryVars[15] |= 1 << bit;
     diaryVars[16] = (1 << 1) | (1 << 3) | (1 << 4) | (1 << 5);
-    evaluateGroupData(db, "gim", [member("Alice", [], diaryVars)], new Date("2026-09-17T12:00:00.000Z"));
+    const alice = member("Alice", [], diaryVars);
+    alice.skills.Defence = 737627;
+    alice.skills.Prayer = 668051;
+    alice.quests[82] = 2;
+    alice.quests[103] = 0;
+    evaluateGroupData(db, "gim", [alice], new Date("2026-09-17T12:00:00.000Z"));
 
     const first = readGoalMap(db, "gim", "Alice");
     expect(first.nodes.find((node) => node.id === "morytania-easy")).toMatchObject({
@@ -198,14 +203,27 @@ describe("private goal map service", () => {
     });
     const easyTasks = first.nodes.find((node) => node.id === "morytania-easy").evidence[0].tasks;
     expect(easyTasks).toHaveLength(11);
-    expect(easyTasks[2]).toEqual({
+    expect(easyTasks[2]).toMatchObject({
       name: "Get a slayer task from the Slayer Master in Canifis.",
       complete: true,
+      requirements: [{ type: "combat", requiredLevel: 20 }],
     });
     const hardTasks = first.nodes.find((node) => node.id === "morytania-hard").evidence[0].tasks;
     expect(hardTasks).toHaveLength(10);
-    expect(hardTasks[0]).toEqual({ name: "Enter the Kharyrll portal in your POH.", complete: true });
-    expect(hardTasks[9]).toEqual({ name: "Mine some Mithril ore in the Abandoned Mine.", complete: false });
+    expect(hardTasks[0]).toMatchObject({ name: "Enter the Kharyrll portal in your POH.", complete: true });
+    expect(hardTasks[7].requirements).toEqual([
+      { type: "skill", skill: "Defence", level: 70, requiredLevel: 70, complete: true },
+      { type: "skill", skill: "Prayer", level: 69, requiredLevel: 70, complete: false },
+      { type: "quest", name: "Nature Spirit", questId: 103, state: 0, complete: false },
+      { type: "quest", name: "King's Ransom", questId: 82, state: 2, complete: true },
+    ]);
+    expect(hardTasks[9]).toMatchObject({
+      name: "Mine some Mithril ore in the Abandoned Mine.",
+      complete: false,
+    });
+    expect(hardTasks[9].requirements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "skill", skill: "Mining", requiredLevel: 55 })])
+    );
     expect(first.nodes.find((node) => node.id === "morytania-elite")).toMatchObject({
       complete: false,
       progress: { current: 3, target: 6, unit: "task" },
@@ -349,7 +367,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      6
+      7
     );
   });
 

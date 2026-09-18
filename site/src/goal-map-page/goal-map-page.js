@@ -536,6 +536,39 @@ export class GoalMapPage extends BaseElement {
     return JSON.stringify(entry);
   }
 
+  renderDiaryRequirement(requirement) {
+    const status = requirement.complete ? "complete" : "incomplete";
+    if (requirement.type === "skill") {
+      const icon = Skill.getIcon(requirement.skill);
+      return `<span class="goal-map-page__diary-requirement ${status}" title="${escapeHtml(
+        `${requirement.skill}: ${requirement.level}/${requirement.requiredLevel}`
+      )}">
+        ${icon ? `<img src="${escapeHtml(icon)}" alt="" />` : ""}
+        <strong>${escapeHtml(requirement.requiredLevel)}</strong> ${escapeHtml(requirement.skill)}
+      </span>`;
+    }
+    if (requirement.type === "quest") {
+      return `<span class="goal-map-page__diary-requirement ${status}"><span aria-hidden="true">${
+        requirement.complete ? "✓" : "○"
+      }</span>${escapeHtml(requirement.name)}</span>`;
+    }
+    if (requirement.type === "combat") {
+      return `<span class="goal-map-page__diary-requirement ${status}" title="${escapeHtml(
+        `Combat: ${requirement.level}/${requirement.requiredLevel}`
+      )}"><strong>${escapeHtml(requirement.requiredLevel)}</strong> Combat</span>`;
+    }
+    return "";
+  }
+
+  renderDiaryRequirements(requirements) {
+    const rendered = (Array.isArray(requirements) ? requirements : [])
+      .map((requirement) => this.renderDiaryRequirement(requirement))
+      .filter(Boolean)
+      .join("");
+    if (!rendered) return "";
+    return `<div class="goal-map-page__diary-requirements"><small>Requires</small>${rendered}</div>`;
+  }
+
   renderEvidenceEntry(entry) {
     if (typeof entry === "object" && entry?.type === "diary" && Array.isArray(entry.tasks)) {
       return `
@@ -549,7 +582,9 @@ export class GoalMapPage extends BaseElement {
                 (task) =>
                   `<li class="${task.complete ? "complete" : "incomplete"}"><span aria-hidden="true">${
                     task.complete ? "✓" : "○"
-                  }</span>${escapeHtml(task.name)}</li>`
+                  }</span><div><span class="goal-map-page__diary-task-name">${escapeHtml(
+                    task.name
+                  )}</span>${this.renderDiaryRequirements(task.requirements)}</div></li>`
               )
               .join("")}
           </ol>
