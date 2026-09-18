@@ -68,6 +68,8 @@ describe("combat-achievements-page", () => {
     const html = readFileSync("src/index.html", "utf8");
     expect(html).toContain('route-path="/combat-achievements"');
     expect(html).toContain('route-component="combat-achievements-page"');
+    const components = JSON.parse(readFileSync("components.json", "utf8"));
+    expect(components).toContain("combat-achievements-page");
     expect(customElements.get("combat-achievements-page")).toBe(CombatAchievementsPage);
   });
 
