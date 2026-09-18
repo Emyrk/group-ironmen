@@ -39,6 +39,7 @@ export class GoalMapPage extends BaseElement {
     this.pinnedNodeIds = new Set();
     this.layout = this.savedLayout;
     this.selectedSkill = "";
+    this.searchQuery = "";
     this.requestNumber = 0;
     this.savingManualCompletion = false;
     this.manualCompletionError = "";
@@ -137,9 +138,14 @@ export class GoalMapPage extends BaseElement {
   bindControls() {
     const selector = this.querySelector(".goal-map-page__character");
     const refresh = this.querySelector(".goal-map-page__refresh");
+    const search = this.querySelector(".goal-map-page__search");
     const skill = this.querySelector(".goal-map-page__skill-filter");
     if (selector) this.eventListener(selector, "change", this.handleCharacterChange.bind(this));
     if (refresh) this.eventListener(refresh, "click", this.handleRefresh.bind(this));
+    if (search) {
+      this.eventListener(search, "input", this.handleSearchInput.bind(this));
+      this.eventListener(search, "keydown", this.handleSearchKeyDown.bind(this));
+    }
     if (skill) this.eventListener(skill, "change", this.handleSkillChange.bind(this));
     for (const button of this.querySelectorAll(".goal-map-page__layout-button")) {
       this.eventListener(button, "click", this.handleLayoutChange.bind(this));
@@ -179,11 +185,32 @@ export class GoalMapPage extends BaseElement {
     this.initializeGraph();
   }
 
+  handleSearchInput(event) {
+    this.searchQuery = event.target.value;
+    this.applySearchHighlights();
+  }
+
+  handleSearchKeyDown(event) {
+    if (event.key === "Escape" && this.searchQuery) {
+      event.preventDefault();
+      event.currentTarget.value = "";
+      this.searchQuery = "";
+      this.applySearchHighlights();
+      return;
+    }
+    if (event.key !== "Enter") return;
+    const [match] = this.getSearchMatches();
+    if (!match) return;
+    event.preventDefault();
+    this.selectNode(match.id);
+  }
+
   handleSkillChange(event) {
     this.selectedSkill = event.target.value;
     const explorer = this.querySelector(".goal-map-page__explorer");
     if (explorer) explorer.innerHTML = this.renderGoalExplorer();
     this.bindControls();
+    this.applySearchHighlights();
   }
 
   handleObjectiveClick(event) {
@@ -233,6 +260,7 @@ export class GoalMapPage extends BaseElement {
     if (explorer) explorer.innerHTML = this.renderGoalExplorer();
     if (details) details.innerHTML = this.renderDetails();
     this.bindControls();
+    this.applySearchHighlights();
   }
 
   selectNode(nodeId) {
@@ -250,6 +278,42 @@ export class GoalMapPage extends BaseElement {
       const node = this.graph.getElementById(nodeId);
       node.addClass("selected");
       this.graph.animate({ center: { eles: node }, duration: 200 });
+    }
+  }
+
+  getSearchMatches() {
+    const query = this.searchQuery.trim().toLocaleLowerCase();
+    if (!query) return [];
+    return (this.data?.nodes || []).filter((node) =>
+      [node.title, node.description, node.category, node.type, node.scope, node.id]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase().includes(query))
+    );
+  }
+
+  applySearchHighlights() {
+    const query = this.searchQuery.trim();
+    const matchIds = new Set(this.getSearchMatches().map((node) => node.id));
+    const searchActive = query.length > 0;
+    const status = this.querySelector(".goal-map-page__search-status");
+    if (status) {
+      status.textContent = searchActive ? `${matchIds.size} matching goal${matchIds.size === 1 ? "" : "s"}` : "";
+    }
+
+    for (const button of this.querySelectorAll(
+      ".goal-map-page__fallback-node, .goal-map-page__objective-select, .goal-map-page__explorer-select"
+    )) {
+      const element = button.closest(".goal-map-page__objective, .goal-map-page__explorer-goal") || button;
+      const matches = matchIds.has(button.dataset.nodeId);
+      element.classList.toggle("search-match", searchActive && matches);
+      element.classList.toggle("search-dimmed", searchActive && !matches);
+    }
+
+    if (!this.graph) return;
+    for (const node of this.graph.nodes()) {
+      const matches = matchIds.has(node.id());
+      node.toggleClass("search-match", searchActive && matches);
+      node.toggleClass("search-dimmed", searchActive && !matches);
     }
   }
 
@@ -302,6 +366,13 @@ export class GoalMapPage extends BaseElement {
           this.layout === "list" ? " selected" : ""
         }" type="button" data-layout="list" aria-pressed="${this.layout === "list"}">List</button>
       </div>
+      <label class="goal-map-page__search-label">
+        Search
+        <input class="goal-map-page__search" type="search" placeholder="Search goals" value="${escapeHtml(
+          this.searchQuery
+        )}" aria-describedby="goal-map-search-status"${disabled}>
+        <small id="goal-map-search-status" class="goal-map-page__search-status" aria-live="polite"></small>
+      </label>
       <label class="goal-map-page__character-label">
         Character
         <select class="goal-map-page__character"${disabled}>${options}</select>
@@ -759,6 +830,7 @@ export class GoalMapPage extends BaseElement {
     const container = this.querySelector(".goal-map-page__graph");
     const fallback = this.querySelector(".goal-map-page__fallback");
     if (!container || !this.data?.nodes.length) return;
+    this.applySearchHighlights();
     const bounds = container.getBoundingClientRect();
     if (bounds.width === 0 || bounds.height === 0) return;
 
@@ -789,6 +861,7 @@ export class GoalMapPage extends BaseElement {
         style: this.graphStyles(),
       });
       this.graph.on("tap", "node", (event) => this.selectNode(event.target.id()));
+      this.applySearchHighlights();
       fallback.hidden = true;
     } catch (error) {
       console.warn("Cytoscape could not initialize; using the goal list fallback.", error);
@@ -824,6 +897,18 @@ export class GoalMapPage extends BaseElement {
       { selector: "node.skill", style: { shape: "hexagon" } },
       { selector: "node.unlock", style: { shape: "tag" } },
       { selector: "node.selected", style: { "border-width": 6, "border-color": "#fff" } },
+      { selector: "node.search-dimmed", style: { opacity: 0.2 } },
+      {
+        selector: "node.search-match",
+        style: {
+          opacity: 1,
+          "border-width": 7,
+          "border-color": "#fff176",
+          "shadow-blur": 18,
+          "shadow-color": "#fff176",
+          "shadow-opacity": 0.9,
+        },
+      },
       {
         selector: "edge",
         style: {

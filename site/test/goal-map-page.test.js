@@ -180,6 +180,39 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
+  it("searches goals, highlights matches, and selects the first match with Enter", async () => {
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelectorAll(".goal-map-page__fallback-node")).toHaveLength(3));
+
+    const search = page.querySelector(".goal-map-page__search");
+    search.value = "berserker";
+    search.dispatchEvent(new Event("input"));
+
+    expect(page.querySelector(".goal-map-page__search-status").textContent).toBe("1 matching goal");
+    expect(page.querySelector('.goal-map-page__fallback-node[data-node-id="berserker-ring"]').classList).toContain(
+      "search-match"
+    );
+    expect(page.querySelector('.goal-map-page__fallback-node[data-node-id="quest-cape"]').classList).toContain(
+      "search-dimmed"
+    );
+    expect(page.graphStyles().find((entry) => entry.selector === "node.search-match")?.style).toMatchObject({
+      "border-color": "#fff176",
+      "border-width": 7,
+    });
+
+    search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(page.querySelector(".goal-map-page__details").textContent).toContain("Berserker ring (i)");
+
+    search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(search.value).toBe("");
+    expect(page.querySelector(".goal-map-page__search-status").textContent).toBe("");
+    expect(page.querySelector(".search-match")).toBeNull();
+    expect(page.querySelector(".search-dimmed")).toBeNull();
+    page.remove();
+  });
+
   it("offers a persistent list layout that explains downstream benefits", async () => {
     const storageKey = `goalMapLayout:${api.groupName || "unknown"}`;
     localStorage.setItem(storageKey, "list");
