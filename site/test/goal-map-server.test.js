@@ -175,24 +175,58 @@ describe("private goal map service", () => {
     ]);
   });
 
-  it("tracks Morytania Hard diary task progress from diary variables", () => {
-    const nearlyComplete = Array.from({ length: 62 }, () => 0);
-    nearlyComplete[15] = 0x7f800000;
-    nearlyComplete[16] = 1 << 1;
-    evaluateGroupData(db, "gim", [member("Alice", [], nearlyComplete)], new Date("2026-09-17T12:00:00.000Z"));
+  it("tracks each Morytania diary tier from diary variables", () => {
+    const diaryVars = Array.from({ length: 62 }, () => 0);
+    for (let bit = 1; bit <= 22; bit += 1) diaryVars[15] |= 1 << bit;
+    for (let bit = 23; bit <= 30; bit += 1) diaryVars[15] |= 1 << bit;
+    diaryVars[16] = (1 << 1) | (1 << 3) | (1 << 4) | (1 << 5);
+    evaluateGroupData(db, "gim", [member("Alice", [], diaryVars)], new Date("2026-09-17T12:00:00.000Z"));
 
-    expect(readGoalMap(db, "gim", "Alice").nodes.find((node) => node.id === "morytania-hard")).toMatchObject({
+    const first = readGoalMap(db, "gim", "Alice");
+    expect(first.nodes.find((node) => node.id === "morytania-easy")).toMatchObject({
+      complete: true,
+      progress: { current: 11, target: 11, unit: "task" },
+    });
+    expect(first.nodes.find((node) => node.id === "morytania-medium")).toMatchObject({
+      complete: true,
+      progress: { current: 11, target: 11, unit: "task" },
+    });
+    expect(first.nodes.find((node) => node.id === "morytania-hard")).toMatchObject({
       complete: false,
       progress: { current: 9, target: 10, unit: "task" },
       evidence: [{ type: "diary", region: "Morytania", tier: "Hard", completed: 9, total: 10 }],
     });
+    expect(first.nodes.find((node) => node.id === "morytania-elite")).toMatchObject({
+      complete: false,
+      progress: { current: 3, target: 6, unit: "task" },
+    });
+    expect(first.edges).toEqual(
+      expect.arrayContaining([
+        {
+          source: "morytania-easy",
+          target: "morytania-medium",
+          type: "unlocks",
+          label: "Claim the next tier",
+        },
+        {
+          source: "morytania-hard",
+          target: "morytania-elite",
+          type: "unlocks",
+          label: "Claim the next tier",
+        },
+      ])
+    );
 
-    nearlyComplete[16] |= 1 << 2;
-    evaluateGroupData(db, "gim", [member("Alice", [], nearlyComplete)], new Date("2026-09-17T12:15:00.000Z"));
-    expect(readGoalMap(db, "gim", "Alice").nodes.find((node) => node.id === "morytania-hard")).toMatchObject({
+    diaryVars[16] |= (1 << 2) | (1 << 6) | (1 << 7) | (1 << 8);
+    evaluateGroupData(db, "gim", [member("Alice", [], diaryVars)], new Date("2026-09-17T12:15:00.000Z"));
+    const completed = readGoalMap(db, "gim", "Alice");
+    expect(completed.nodes.find((node) => node.id === "morytania-hard")).toMatchObject({
       complete: true,
-      progress: { current: 10, target: 10, unit: "task" },
       completedAt: "2026-09-17T12:15:00.000Z",
+    });
+    expect(completed.nodes.find((node) => node.id === "morytania-elite")).toMatchObject({
+      complete: true,
+      progress: { current: 6, target: 6, unit: "task" },
     });
   });
 
@@ -305,7 +339,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      4
+      5
     );
   });
 
