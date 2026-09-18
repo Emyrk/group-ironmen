@@ -1,0 +1,129 @@
+combat-achievements-page {
+  display: block;
+}
+.combat-achievements-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+.combat-achievements-page__header h1,
+.combat-achievements-page__header p,
+.combat-achievements-page__task h2 {
+  margin: 0;
+}
+.combat-achievements-page__header p {
+  margin-top: 4px;
+  color: #bbb;
+}
+.combat-achievements-page__header label,
+.combat-achievements-page__calculator label {
+  display: grid;
+  gap: 4px;
+  color: var(--orange);
+}
+.combat-achievements-page__header select,
+.combat-achievements-page__filters input,
+.combat-achievements-page__filters select,
+.combat-achievements-page__calculator input,
+.combat-achievements-page__task select,
+.combat-achievements-page__task textarea {
+  padding: 6px;
+  color: var(--primary-text);
+  background: #302a22;
+  border: 1px solid var(--light-border);
+}
+.combat-achievements-page__calculator {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+}
+.combat-achievements-page__calculator div {
+  display: grid;
+  gap: 3px;
+}
+.combat-achievements-page__calculator strong {
+  color: var(--orange);
+  font-size: 1.6rem;
+}
+.combat-achievements-page__calculator span {
+  color: #bbb;
+}
+.combat-achievements-page__filters {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+}
+.combat-achievements-page__tasks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.combat-achievements-page__task {
+  padding: 12px;
+  background: #37332d;
+  border: 1px solid #666;
+}
+.combat-achievements-page__task.planned {
+  border-color: #e6bd4b;
+  box-shadow: inset 3px 0 #e6bd4b;
+}
+.combat-achievements-page__task.completed {
+  border-color: #55a967;
+  background: #233d29;
+}
+.combat-achievements-page__task header,
+.combat-achievements-page__task-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.combat-achievements-page__task header > strong,
+.combat-achievements-page__task h2,
+.combat-achievements-page__task a {
+  color: var(--orange);
+}
+.combat-achievements-page__task small,
+.combat-achievements-page__task-meta {
+  color: #aaa;
+}
+.combat-achievements-page__task p {
+  line-height: 1.4;
+}
+.combat-achievements-page__task-plan {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 6px;
+  margin-top: 10px;
+}
+.combat-achievements-page__task textarea {
+  min-height: 46px;
+  resize: vertical;
+}
+.combat-achievements-page__message {
+  padding: 16px;
+}
+@media only screen and (max-width: 800px) {
+  .combat-achievements-page__calculator,
+  .combat-achievements-page__filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .combat-achievements-page__task-plan {
+    grid-template-columns: 1fr;
+  }
+}
+@media only screen and (max-width: 520px) {
+  .combat-achievements-page__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .combat-achievements-page__calculator,
+  .combat-achievements-page__filters {
+    grid-template-columns: 1fr;
+  }
+}

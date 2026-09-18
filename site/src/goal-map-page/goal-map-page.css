@@ -726,6 +726,12 @@ goal-map-page {
   color: var(--orange);
 }
 
+.goal-map-page__planner-link {
+  display: inline-block;
+  margin-top: 10px;
+  text-decoration: none;
+}
+
 .goal-map-page__manual-completion-control {
   display: grid;
   justify-items: start;

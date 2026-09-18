@@ -138,6 +138,22 @@ function openDatabase(filename) {
       completed_at TEXT NOT NULL,
       PRIMARY KEY (group_id, node_id, character)
     );
+    CREATE TABLE IF NOT EXISTS combat_achievement_plans (
+      group_id TEXT NOT NULL,
+      character TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('unplanned', 'planned', 'completed')),
+      notes TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (group_id, character, task_id)
+    );
+    CREATE TABLE IF NOT EXISTS combat_achievement_settings (
+      group_id TEXT NOT NULL,
+      character TEXT NOT NULL,
+      external_points INTEGER NOT NULL DEFAULT 0 CHECK (external_points >= 0),
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (group_id, character)
+    );
     CREATE TABLE IF NOT EXISTS goal_progress_events (
       event_id INTEGER PRIMARY KEY AUTOINCREMENT,
       node_id TEXT NOT NULL,

@@ -56,3 +56,4 @@ import "./donate-button/donate-button.js";
 import "./bank-tags-page/bank-tags-page.js";
 import "./inventory-setups-page/inventory-setups-page.js";
 import "./goal-map-page/goal-map-page.js";
+import "./combat-achievements-page/combat-achievements-page.js";

@@ -255,6 +255,39 @@ class Api {
     return response.json();
   }
 
+  async getMediumCombatAchievements(character) {
+    const query = new URLSearchParams();
+    if (character) query.set("character", character);
+    return this.combatAchievementRequest(`medium${query.size ? `?${query}` : ""}`);
+  }
+
+  async updateMediumCombatAchievement(character, taskId, status, notes) {
+    return this.combatAchievementRequest("medium/progress", {
+      method: "PUT",
+      body: JSON.stringify({ character, taskId, status, notes }),
+    });
+  }
+
+  async updateMediumCombatAchievementPoints(character, externalPoints) {
+    return this.combatAchievementRequest("medium/settings", {
+      method: "PUT",
+      body: JSON.stringify({ character, externalPoints }),
+    });
+  }
+
+  async combatAchievementRequest(path, options = {}) {
+    if (!this.groupName || !this.groupToken) throw new Error("Group credentials are not initialized");
+    const response = await fetch(`${this.baseUrl}/group/${this.groupName}/combat-achievements/${path}`, {
+      ...options,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        Authorization: this.groupToken,
+      },
+    });
+    if (!response.ok) throw new Error(`Combat Achievement request failed (${response.status})`);
+    return response.json();
+  }
+
   async getCaptchaEnabled() {
     const response = await fetch(this.captchaEnabledUrl);
     return response.json();

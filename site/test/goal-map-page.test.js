@@ -464,6 +464,31 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
+  it("links the Medium Combat Achievements goal to its planner page", async () => {
+    const combatMap = {
+      ...goalMap,
+      nodes: [
+        {
+          id: "medium-combat-achievements",
+          title: "Medium Combat Achievements",
+          type: "unlock",
+          scope: "character",
+          description: "Earn the Medium reward tier.",
+          evaluated: { complete: false, progress: { current: 0, target: 1 }, evidence: [] },
+        },
+      ],
+      edges: [],
+    };
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(combatMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__planner-link")).not.toBeNull());
+    expect(page.querySelector(".goal-map-page__planner-link").getAttribute("href")).toBe(
+      "/group/combat-achievements"
+    );
+    page.remove();
+  });
+
   it("renders item evidence with its name and image instead of only its id", async () => {
     vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
     const page = createPage();

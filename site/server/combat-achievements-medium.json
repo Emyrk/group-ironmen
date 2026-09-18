@@ -1,0 +1,650 @@
+{
+  "version": 1,
+  "tier": "Medium",
+  "rewardPoints": 169,
+  "pointsPerTask": 2,
+  "sourceUrl": "https://oldschool.runescape.wiki/w/Combat_Achievements/Medium",
+  "verifiedAt": "2026-09-18",
+  "tasks": [
+    {
+      "id": "temotli-triumph",
+      "monster": "Amoxliatl",
+      "name": "Temotli Triumph",
+      "description": "Kill Amoxliatl using only glacial temotli as a weapon.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 25.8,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Temotli_Triumph"
+    },
+    {
+      "id": "amoxliatl-champion",
+      "monster": "Amoxliatl",
+      "name": "Amoxliatl Champion",
+      "description": "Kill Amoxliatl once.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 40.8,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Amoxliatl_Champion"
+    },
+    {
+      "id": "barrows-champion",
+      "monster": "Barrows",
+      "name": "Barrows Champion",
+      "description": "Open the Barrows chest 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 59.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Barrows_Champion"
+    },
+    {
+      "id": "cant-touch-me",
+      "monster": "Barrows",
+      "name": "Can't Touch Me",
+      "description": "Kill Dharok, Verac, Torag and Guthan without letting them attack you with melee.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 29.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Can%27t_Touch_Me"
+    },
+    {
+      "id": "pray-for-success",
+      "monster": "Barrows",
+      "name": "Pray for Success",
+      "description": "Kill all six Barrows Brothers and loot the Barrows chest without taking any damage from any of the brothers.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 55.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Pray_for_Success"
+    },
+    {
+      "id": "brutal-big-black-and-firey",
+      "monster": "Brutal Black Dragon",
+      "name": "Brutal, Big, Black and Firey",
+      "description": "Kill a Brutal Black Dragon.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 41.0,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Brutal,_Big,_Black_and_Firey"
+    },
+    {
+      "id": "beef-vs-beef",
+      "monster": "Brutus",
+      "name": "Beef vs Beef",
+      "description": "Kill Brutus whilst neither equipping nor consuming anything.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 36.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Beef_vs_Beef"
+    },
+    {
+      "id": "brutus-champion",
+      "monster": "Brutus",
+      "name": "Brutus Champion",
+      "description": "Kill Brutus 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 51.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Brutus_Champion"
+    },
+    {
+      "id": "quick-cutter",
+      "monster": "Bryophyta",
+      "name": "Quick Cutter",
+      "description": "Kill all 3 of Bryophyta's growthlings within 3 seconds of the first one dying.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 38.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Quick_Cutter"
+    },
+    {
+      "id": "bryophyta-champion",
+      "monster": "Bryophyta",
+      "name": "Bryophyta Champion",
+      "description": "Open Bryophyta's chest 5 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 31.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Bryophyta_Champion"
+    },
+    {
+      "id": "sorry-what-was-that",
+      "monster": "Chaos Fanatic",
+      "name": "Sorry, What Was That?",
+      "description": "Kill the Chaos Fanatic without anyone being hit by his explosion attack.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 35.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Sorry,_What_Was_That%3F"
+    },
+    {
+      "id": "chaos-fanatic-champion",
+      "monster": "Chaos Fanatic",
+      "name": "Chaos Fanatic Champion",
+      "description": "Kill the Chaos Fanatic 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 29.8,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Chaos_Fanatic_Champion"
+    },
+    {
+      "id": "crazy-archaeologist-champion",
+      "monster": "Crazy Archaeologist",
+      "name": "Crazy Archaeologist Champion",
+      "description": "Kill the Crazy Archaeologist 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 42.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Crazy_Archaeologist_Champion"
+    },
+    {
+      "id": "mage-of-the-ruins",
+      "monster": "Crazy Archaeologist",
+      "name": "Mage of the Ruins",
+      "description": "Kill the Crazy Archaeologist with only magical attacks.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 50.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Mage_of_the_Ruins"
+    },
+    {
+      "id": "id-rather-not-learn",
+      "monster": "Crazy Archaeologist",
+      "name": "I'd Rather Not Learn",
+      "description": "Kill the Crazy Archaeologist without anyone being hit by his \"Rain of Knowledge\" attack.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 43.0,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/I%27d_Rather_Not_Learn"
+    },
+    {
+      "id": "dagannoth-prime-champion",
+      "monster": "Dagannoth Prime",
+      "name": "Dagannoth Prime Champion",
+      "description": "Kill Dagannoth Prime 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 36.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Dagannoth_Prime_Champion"
+    },
+    {
+      "id": "a-frozen-king",
+      "monster": "Dagannoth Rex",
+      "name": "A Frozen King",
+      "description": "Kill Dagannoth Rex whilst he is immobilized.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 24.7,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/A_Frozen_King"
+    },
+    {
+      "id": "dagannoth-rex-champion",
+      "monster": "Dagannoth Rex",
+      "name": "Dagannoth Rex Champion",
+      "description": "Kill Dagannoth Rex 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 51.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Dagannoth_Rex_Champion"
+    },
+    {
+      "id": "dagannoth-supreme-champion",
+      "monster": "Dagannoth Supreme",
+      "name": "Dagannoth Supreme Champion",
+      "description": "Kill Dagannoth Supreme 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 36.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Dagannoth_Supreme_Champion"
+    },
+    {
+      "id": "deranged-archaeologist-champion",
+      "monster": "Deranged Archaeologist",
+      "name": "Deranged Archaeologist Champion",
+      "description": "Kill the Deranged Archaeologist 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 35.2,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Deranged_Archaeologist_Champion"
+    },
+    {
+      "id": "mage-of-the-swamp",
+      "monster": "Deranged Archaeologist",
+      "name": "Mage of the Swamp",
+      "description": "Kill the Deranged Archaeologist with only magical attacks.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 41.7,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Mage_of_the_Swamp"
+    },
+    {
+      "id": "id-rather-be-illiterate",
+      "monster": "Deranged Archaeologist",
+      "name": "I'd Rather Be Illiterate",
+      "description": "Kill the Deranged Archaeologist without anyone being hit by his \"Learn to Read\" attack.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 41.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/I%27d_Rather_Be_Illiterate"
+    },
+    {
+      "id": "a-smashing-time",
+      "monster": "Gargoyle",
+      "name": "A Smashing Time",
+      "description": "Kill a Gargoyle.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 59.2,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/A_Smashing_Time"
+    },
+    {
+      "id": "giant-mole-champion",
+      "monster": "Giant Mole",
+      "name": "Giant Mole Champion",
+      "description": "Kill the Giant mole 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 40.4,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Giant_Mole_Champion"
+    },
+    {
+      "id": "avoiding-those-little-arms",
+      "monster": "Giant Mole",
+      "name": "Avoiding Those Little Arms",
+      "description": "Kill the Giant Mole without her damaging anyone.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 51.8,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Avoiding_Those_Little_Arms"
+    },
+    {
+      "id": "king-black-dragon-champion",
+      "monster": "King Black Dragon",
+      "name": "King Black Dragon Champion",
+      "description": "Kill the King Black Dragon 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 37.4,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/King_Black_Dragon_Champion"
+    },
+    {
+      "id": "antifire-protection",
+      "monster": "King Black Dragon",
+      "name": "Antifire Protection",
+      "description": "Kill the King Black Dragon with an antifire potion active and an antidragon shield equipped.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 46.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Antifire_Protection"
+    },
+    {
+      "id": "claw-clipper",
+      "monster": "King Black Dragon",
+      "name": "Claw Clipper",
+      "description": "Kill the King Black Dragon with the Protect from Melee prayer activated.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 41.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Claw_Clipper"
+    },
+    {
+      "id": "hide-penetration",
+      "monster": "King Black Dragon",
+      "name": "Hide Penetration",
+      "description": "Kill the King Black Dragon with a stab weapon.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 40.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Hide_Penetration"
+    },
+    {
+      "id": "master-of-broad-weaponry",
+      "monster": "Kurask",
+      "name": "Master of Broad Weaponry",
+      "description": "Kill a Kurask.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 59.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Master_of_Broad_Weaponry"
+    },
+    {
+      "id": "mad-angel-adept",
+      "monster": "Mad Angel",
+      "name": "Mad Angel Adept",
+      "description": "Kill the Mad Angel 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 5.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Mad_Angel_Adept"
+    },
+    {
+      "id": "dancing-queen",
+      "monster": "Mad Angel",
+      "name": "Dancing Queen",
+      "description": "Kill the Mad Angel after getting 6 consecutive enhanced attacks by dodging the sweep attack successfully during her enrage phase.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 2.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Dancing_Queen"
+    },
+    {
+      "id": "juggling-act",
+      "monster": "Mad Angel",
+      "name": "Juggling Act",
+      "description": "Kill the Mad Angel after attacking her between each bounce of the blast attack during her enrage phase. This does not need to be done immediately prior to the Mad Angel dying; it just needs to be done at any point in the fight after she becomes enraged.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 3.2,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Juggling_Act"
+    },
+    {
+      "id": "smite-fight",
+      "monster": "Mad Angel",
+      "name": "Smite Fight",
+      "description": "Kill the Mad Angel after getting 3 consecutive enhanced attacks by successfully praying against the smite attacks during her enrage phase.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 2.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Smite_Fight"
+    },
+    {
+      "id": "moons-of-peril-speed-trialist",
+      "monster": "Moons of Peril",
+      "name": "Moons of Peril Speed-Trialist",
+      "description": "Defeat all three Moons in one run in under 8 minutes.",
+      "type": "Speed",
+      "points": 2,
+      "completionPercent": 48.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Moons_of_Peril_Speed-Trialist"
+    },
+    {
+      "id": "back-to-our-roots",
+      "monster": "Moons of Peril",
+      "name": "Back to Our Roots",
+      "description": "Defeat all three Moons in one run by only attacking with a Dragon Scimitar.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 34.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Back_to_Our_Roots"
+    },
+    {
+      "id": "perilous-novice",
+      "monster": "Moons of Peril",
+      "name": "Perilous Novice",
+      "description": "Open the Reward Chest 5 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 50.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Perilous_Novice"
+    },
+    {
+      "id": "lunar-triplet",
+      "monster": "Moons of Peril",
+      "name": "Lunar Triplet",
+      "description": "Open the Reward Chest after defeating all three Moons.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 59.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Lunar_Triplet"
+    },
+    {
+      "id": "sit-back-and-relax",
+      "monster": "N/A",
+      "name": "Sit Back and Relax",
+      "description": "Deal 100 damage to creatures using undead thralls.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 55.4,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Sit_Back_and_Relax"
+    },
+    {
+      "id": "obor-champion",
+      "monster": "Obor",
+      "name": "Obor Champion",
+      "description": "Open Obor's chest 5 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 31.0,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Obor_Champion"
+    },
+    {
+      "id": "back-to-the-wall",
+      "monster": "Obor",
+      "name": "Back to the Wall",
+      "description": "Kill Obor without being pushed back more than one square by his knockback attack.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 42.2,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Back_to_the_Wall"
+    },
+    {
+      "id": "squashing-the-giant",
+      "monster": "Obor",
+      "name": "Squashing the Giant",
+      "description": "Kill Obor without taking any damage off prayer.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 33.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Squashing_the_Giant"
+    },
+    {
+      "id": "it-takes-too-long",
+      "monster": "Royal Titans",
+      "name": "It takes too long",
+      "description": "Kill both Royal Titans while they are charging up their area attack. Both titans must die during the same charging phase.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 38.2,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/It_takes_too_long"
+    },
+    {
+      "id": "royal-titan-champion",
+      "monster": "Royal Titans",
+      "name": "Royal Titan Champion",
+      "description": "Kill the Royal Titans 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 45.2,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Royal_Titan_Champion"
+    },
+    {
+      "id": "royal-titan-adept",
+      "monster": "Royal Titans",
+      "name": "Royal Titan Adept",
+      "description": "Kill the Royal Titans 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 41.4,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Royal_Titan_Adept"
+    },
+    {
+      "id": "sarachnis-champion",
+      "monster": "Sarachnis",
+      "name": "Sarachnis Champion",
+      "description": "Kill Sarachnis 25 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 36.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Sarachnis_Champion"
+    },
+    {
+      "id": "newspaper-enthusiast",
+      "monster": "Sarachnis",
+      "name": "Newspaper Enthusiast",
+      "description": "Kill Sarachnis with a crush weapon.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 44.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Newspaper_Enthusiast"
+    },
+    {
+      "id": "scurrius-champion",
+      "monster": "Scurrius",
+      "name": "Scurrius Champion",
+      "description": "Kill Scurrius 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 48.1,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Scurrius_Champion"
+    },
+    {
+      "id": "perfect-scurrius",
+      "monster": "Scurrius",
+      "name": "Perfect Scurrius",
+      "description": "Kill Scurrius in a private instance without taking damage from the following attacks: Tail Swipe and Falling Bricks. Pray correctly against the following attacks: Flying Fur and Bolts of Electricity.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 42.0,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Perfect_Scurrius"
+    },
+    {
+      "id": "efficient-pest-control",
+      "monster": "Scurrius",
+      "name": "Efficient Pest Control",
+      "description": "Kill 6 Giant Rats within Scurrius' lair in 3 seconds.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 34.4,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Efficient_Pest_Control"
+    },
+    {
+      "id": "shellbane-speedrunner",
+      "monster": "Shellbane gryphon",
+      "name": "Shellbane Speedrunner",
+      "description": "Kill the Shellbane Gryphon 10 times within 12:30 minutes of entering the cave.",
+      "type": "Speed",
+      "points": 2,
+      "completionPercent": 15.8,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Shellbane_Speedrunner"
+    },
+    {
+      "id": "perfect-shellbane",
+      "monster": "Shellbane gryphon",
+      "name": "Perfect Shellbane",
+      "description": "Kill the Shellbane Gryphon without taking damage.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 20.0,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Perfect_Shellbane"
+    },
+    {
+      "id": "shellbane-veteran",
+      "monster": "Shellbane gryphon",
+      "name": "Shellbane Veteran",
+      "description": "Kill the Shellbane Gryphon 50 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 19.7,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Shellbane_Veteran"
+    },
+    {
+      "id": "a-frozen-foe-from-the-past",
+      "monster": "Skeletal Wyvern",
+      "name": "A Frozen Foe from the Past",
+      "description": "Kill a Skeletal Wyvern",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 61.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/A_Frozen_Foe_from_the_Past"
+    },
+    {
+      "id": "demonbane-weaponry",
+      "monster": "Skotizo",
+      "name": "Demonbane Weaponry",
+      "description": "Kill Skotizo with a demonbane weapon equipped.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 52.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Demonbane_Weaponry"
+    },
+    {
+      "id": "skotizo-champion",
+      "monster": "Skotizo",
+      "name": "Skotizo Champion",
+      "description": "Kill Skotizo once.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 56.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Skotizo_Champion"
+    },
+    {
+      "id": "demonic-weakening",
+      "monster": "Skotizo",
+      "name": "Demonic Weakening",
+      "description": "Kill Skotizo with no altars active.",
+      "type": "Mechanical",
+      "points": 2,
+      "completionPercent": 45.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Demonic_Weakening"
+    },
+    {
+      "id": "tempoross-champion",
+      "monster": "Tempoross",
+      "name": "Tempoross Champion",
+      "description": "Subdue Tempoross 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 66.5,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Tempoross_Champion"
+    },
+    {
+      "id": "the-lone-angler",
+      "monster": "Tempoross",
+      "name": "The Lone Angler",
+      "description": "Subdue Tempoross alone without getting hit by any fires, torrents or waves.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 44.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/The_Lone_Angler"
+    },
+    {
+      "id": "youre-a-wizard",
+      "monster": "The Hueycoatl",
+      "name": "You're a wizard",
+      "description": "Kill the Hueycoatl using only earth spells.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 23.6,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/You%27re_a_wizard"
+    },
+    {
+      "id": "hueycoatl-champion",
+      "monster": "The Hueycoatl",
+      "name": "Hueycoatl Champion",
+      "description": "Kill the Hueycoatl once.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 41.3,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Hueycoatl_Champion"
+    },
+    {
+      "id": "can-we-fix-it",
+      "monster": "Wintertodt",
+      "name": "Can We Fix It?",
+      "description": "Subdue the Wintertodt without allowing all 4 braziers to be broken at the same time.",
+      "type": "Perfection",
+      "points": 2,
+      "completionPercent": 79.4,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Can_We_Fix_It%3F"
+    },
+    {
+      "id": "wintertodt-champion",
+      "monster": "Wintertodt",
+      "name": "Wintertodt Champion",
+      "description": "Subdue the Wintertodt 10 times.",
+      "type": "Kill Count",
+      "points": 2,
+      "completionPercent": 80.0,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Wintertodt_Champion"
+    },
+    {
+      "id": "leaving-no-one-behind",
+      "monster": "Wintertodt",
+      "name": "Leaving No One Behind",
+      "description": "Subdue the Wintertodt without any of the Pyromancers falling.",
+      "type": "Restriction",
+      "points": 2,
+      "completionPercent": 74.9,
+      "wikiUrl": "https://oldschool.runescape.wiki/w/Leaving_No_One_Behind"
+    }
+  ]
+}

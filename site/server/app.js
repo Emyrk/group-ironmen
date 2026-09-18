@@ -8,6 +8,7 @@ const { createBankTagFoldersRouter } = require("./bank-tag-folders");
 const { createBankTagsRouter } = require("./bank-tags");
 const { createInventorySetupsRouter } = require("./inventory-setups");
 const { createItemHistoryRouter } = require("./item-history");
+const { createCombatAchievementsRouter } = require("./combat-achievements");
 const { createGoalMapRouter } = require("./goal-map");
 
 function invalidJsonError(pathname) {
@@ -31,6 +32,7 @@ function createApp(config, options = {}) {
   app.use("/api/group/:groupName", createBankTagFoldersRouter(db, privateAuth(config)));
   app.use("/api/group/:groupName", createInventorySetupsRouter(db, privateAuth(config)));
   app.use("/api/group/:groupName", createItemHistoryRouter(db, privateAuth(config), config, request));
+  app.use("/api/group/:groupName", createCombatAchievementsRouter(db, privateAuth(config)));
   app.use("/api/group/:groupName", createGoalMapRouter(db, privateAuth(config), config, request));
 
   const proxy = async (req, res, upstreamPath) => {

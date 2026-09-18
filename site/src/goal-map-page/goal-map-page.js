@@ -689,6 +689,10 @@ export class GoalMapPage extends BaseElement {
       : "";
     const canSetManualCompletion = !evaluated.complete || evaluated.manualComplete;
     const manualCompletionOwner = node.scope === "group" ? "the group" : this.selectedCharacter;
+    const plannerLink =
+      node.id === "medium-combat-achievements"
+        ? '<a class="goal-map-page__planner-link men-button" href="/group/combat-achievements">Open Combat Achievement planner</a>'
+        : "";
     const manualCompletionControl = canSetManualCompletion
       ? `<section class="goal-map-page__manual-completion-control">
           <button class="goal-map-page__manual-completion men-button" type="button" data-node-id="${escapeHtml(
@@ -724,6 +728,7 @@ export class GoalMapPage extends BaseElement {
         )}" aria-pressed="${pinned ? "true" : "false"}">${pinned ? "Unpin objective" : "Pin objective"}</button>
       </div>
       <p>${escapeHtml(node.description || "No description provided.")}</p>
+      ${plannerLink}
       ${manualCompletionControl}
       ${
         skillRequirements.length > 0
