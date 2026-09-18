@@ -79,6 +79,7 @@ function createPage() {
 describe("goal-map-page", () => {
   beforeEach(() => {
     Item.itemDetails = {
+      2434: { id: 2434, name: "Prayer potion(4)", highalch: 48, stacks: null },
       4732: { id: 4732, name: "Karil's coif", highalch: 7800, stacks: null },
     };
   });
@@ -476,6 +477,36 @@ describe("goal-map-page", () => {
     expect(evidence.textContent).toContain("1 owned");
     expect(evidence.querySelector("img").getAttribute("src")).toBe("/icons/items/4732.webp");
     expect(page.querySelector(".goal-map-page__details").textContent).not.toContain("Item 4732");
+    page.remove();
+  });
+
+  it("renders prayer potion stock as weighted doses", async () => {
+    const potionMap = {
+      ...goalMap,
+      nodes: [
+        {
+          id: "prayer-potion-supply",
+          title: "Prayer potion supply",
+          type: "item",
+          scope: "group",
+          description: "Own 40 doses.",
+          evaluated: {
+            complete: false,
+            progress: { current: 32, target: 40, unit: "dose" },
+            evidence: [{ type: "item", itemId: 2434, quantity: 32, targetQuantity: 40, unit: "dose" }],
+          },
+        },
+      ],
+      edges: [],
+    };
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(potionMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__item-evidence")).not.toBeNull());
+    expect(page.querySelector(".goal-map-page__details").textContent).toContain("32/40 doses");
+    expect(page.querySelector(".goal-map-page__item-evidence").textContent).toContain("Prayer potion(4)");
+    expect(page.querySelector(".goal-map-page__item-evidence").textContent).toContain("32/40 doses");
     page.remove();
   });
 

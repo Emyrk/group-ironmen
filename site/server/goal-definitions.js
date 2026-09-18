@@ -25,6 +25,46 @@ const KARILS = [
 const RAIMENTS = [[26850, 26858, 26864, 26870], [26852, 26860, 26866, 26872], [26854, 26862, 26868, 26874], [26856]];
 const LANTERNS = [[26822, 26824, 26826, 26828, 26830, 26832, 26834, 26836, 26838, 26840, 26842, 26844, 26846, 26848]];
 
+const PRAYER_POTION_DOSES = [
+  [2434, 4],
+  [139, 3],
+  [141, 2],
+  [143, 1],
+  [20393, 4],
+  [20394, 3],
+  [20395, 2],
+  [20396, 1],
+];
+const PRAYER_POTION_SUPPLY_DOSES = 40;
+
+function prayerPotionSupply() {
+  return custom("prayer-potion-supply", {
+    evaluate(context) {
+      const doses = PRAYER_POTION_DOSES.reduce(
+        (total, [itemId, dosesPerPotion]) => total + (context.items.get(itemId) || 0) * dosesPerPotion,
+        0
+      );
+      return {
+        complete: doses >= PRAYER_POTION_SUPPLY_DOSES,
+        progress: {
+          current: Math.min(doses, PRAYER_POTION_SUPPLY_DOSES),
+          target: PRAYER_POTION_SUPPLY_DOSES,
+          unit: "dose",
+        },
+        evidence: [
+          {
+            type: "item",
+            itemId: 2434,
+            quantity: doses,
+            targetQuantity: PRAYER_POTION_SUPPLY_DOSES,
+            unit: "dose",
+          },
+        ],
+      };
+    },
+  });
+}
+
 function setValidator(groups) {
   return itemSet(groups.map(([itemId, ...alternatives]) => item(itemId, 1, alternatives)));
 }
@@ -183,6 +223,56 @@ const nodes = [
     metadata: { wikiUrl: `${WIKI}Teak_seed` },
   },
   {
+    id: "easy-farming-contracts",
+    title: "Easy farming contracts",
+    type: "activity",
+    description: "Reach 45 Farming to complete easy contracts for seed packs, including a repeatable source of herb seeds.",
+    scope: "character",
+    category: "Prayer Potions",
+    validator: skill("Farming", 45),
+    metadata: { wikiUrl: `${WIKI}Farming_contract` },
+  },
+  {
+    id: "medium-farming-contracts",
+    title: "Medium farming contracts",
+    type: "activity",
+    description: "Reach 65 Farming to complete medium contracts for improved seed packs.",
+    scope: "character",
+    category: "Prayer Potions",
+    validator: skill("Farming", 65),
+    metadata: { wikiUrl: `${WIKI}Farming_contract` },
+  },
+  {
+    id: "ranarr-herb-farming",
+    title: "Grow ranarr herbs",
+    type: "activity",
+    description: "Reach 32 Farming to grow ranarr weeds from ranarr seeds for prayer potions.",
+    scope: "character",
+    category: "Prayer Potions",
+    validator: skill("Farming", 32),
+    metadata: { wikiUrl: `${WIKI}Ranarr_seed` },
+  },
+  {
+    id: "prayer-potion-herblore",
+    title: "Make prayer potions",
+    type: "skill",
+    description: "Complete Druidic Ritual and reach 38 Herblore to combine ranarr potions (unf) with snape grass.",
+    scope: "character",
+    category: "Prayer Potions",
+    validator: every(quest(34, "Druidic Ritual"), skill("Herblore", 38)),
+    metadata: { wikiUrl: `${WIKI}Prayer_potion` },
+  },
+  {
+    id: "prayer-potion-supply",
+    title: "Prayer potion supply",
+    type: "item",
+    description: "The group owns at least 40 total doses of prayer potion across all storage.",
+    scope: "group",
+    category: "Prayer Potions",
+    validator: prayerPotionSupply(),
+    metadata: { wikiUrl: `${WIKI}Prayer_potion` },
+  },
+  {
     id: "blood-rune-source",
     title: "Blood rune source",
     description: "Reach 77 Runecraft for a renewable blood rune source.",
@@ -300,6 +390,36 @@ const edges = [
   { source: "abyssal-lantern", target: "blood-rune-source", type: "improves", label: "More runes" },
   { source: "lantern-firemaking", target: "abyssal-lantern", type: "improves", label: "+20% blood runes" },
   { source: "raiments-of-the-eye", target: "blood-rune-source", type: "improves", label: "+60% runes" },
+  {
+    source: "easy-farming-contracts",
+    target: "ranarr-herb-farming",
+    type: "supplies",
+    label: "Seed packs",
+  },
+  {
+    source: "medium-farming-contracts",
+    target: "ranarr-herb-farming",
+    type: "improves",
+    label: "Improved seed packs",
+  },
+  {
+    source: "ranarr-herb-farming",
+    target: "prayer-potion-supply",
+    type: "supplies",
+    label: "Ranarr weeds",
+  },
+  {
+    source: "prayer-potion-herblore",
+    target: "prayer-potion-supply",
+    type: "supplies",
+    label: "Craft prayer potions",
+  },
+  {
+    source: "prayer-potion-supply",
+    target: "fire-cape",
+    type: "recommended",
+    label: "Prayer restoration",
+  },
   { source: "blood-rune-source", target: "blood-rush-path", type: "supplies", label: "Blood runes" },
 ];
 

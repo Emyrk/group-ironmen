@@ -570,7 +570,7 @@ export class GoalMapPage extends BaseElement {
     if (progress.observable === false) return "Not automatically observable";
     const current = progress.current ?? 0;
     const target = progress.target ?? 1;
-    const unit = progress.unit === "level" ? " level" : "";
+    const unit = progress.unit === "level" ? " level" : progress.unit === "dose" ? " doses" : "";
     return `${current}/${target}${unit}`;
   }
 
@@ -647,10 +647,16 @@ export class GoalMapPage extends BaseElement {
       const details = Item.itemDetails?.[entry.itemId];
       if (details) {
         const quantity = Number(entry.quantity) || 0;
+        const amount =
+          entry.unit === "dose"
+            ? `${quantity.toLocaleString()}${
+                Number.isFinite(Number(entry.targetQuantity)) ? `/${Number(entry.targetQuantity).toLocaleString()}` : ""
+              } doses`
+            : `${quantity.toLocaleString()} owned`;
         return `
           <span class="goal-map-page__item-evidence">
             <img src="${escapeHtml(Item.imageUrl(entry.itemId, quantity))}" alt="" loading="lazy" />
-            <span><strong>${escapeHtml(details.name)}</strong><small>${quantity.toLocaleString()} owned</small></span>
+            <span><strong>${escapeHtml(details.name)}</strong><small>${escapeHtml(amount)}</small></span>
           </span>
         `;
       }

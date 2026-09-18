@@ -414,6 +414,75 @@ describe("private goal map service", () => {
     );
   });
 
+  it("tracks the farming-contract prayer potion supply chain and counts doses across the group", () => {
+    const alice = member("Alice", [2434, 5, 139, 4]);
+    alice.skills.Farming = 200000;
+    alice.skills.Herblore = 30408;
+    alice.quests[34] = 2;
+    const bob = member("Bob");
+    bob.inventory = [141, 4];
+    evaluateGroupData(db, "gim", [alice, bob], new Date("2026-09-18T12:00:00.000Z"));
+
+    const map = readGoalMap(db, "gim", "Alice");
+    expect(map.nodes.find((node) => node.id === "easy-farming-contracts")).toMatchObject({
+      complete: true,
+      scope: "character",
+      type: "activity",
+      evidence: [{ type: "skill", skill: "Farming", level: 56, requiredLevel: 45 }],
+    });
+    expect(map.nodes.find((node) => node.id === "medium-farming-contracts")).toMatchObject({
+      complete: false,
+      progress: { current: 56, target: 65, unit: "level" },
+    });
+    expect(map.nodes.find((node) => node.id === "ranarr-herb-farming")).toMatchObject({
+      complete: true,
+      progress: { current: 56, target: 32, unit: "level" },
+    });
+    expect(map.nodes.find((node) => node.id === "prayer-potion-herblore")).toMatchObject({
+      complete: true,
+      progress: { current: 2, target: 2 },
+      evidence: [
+        { type: "quest", questId: 34, name: "Druidic Ritual", state: 2 },
+        { type: "skill", skill: "Herblore", level: 38, requiredLevel: 38 },
+      ],
+    });
+    expect(map.nodes.find((node) => node.id === "prayer-potion-supply")).toMatchObject({
+      complete: true,
+      scope: "group",
+      type: "item",
+      progress: { current: 40, target: 40, unit: "dose" },
+      evidence: [{ type: "item", itemId: 2434, quantity: 40, targetQuantity: 40, unit: "dose" }],
+    });
+    expect(map.edges).toEqual(
+      expect.arrayContaining([
+        {
+          source: "easy-farming-contracts",
+          target: "ranarr-herb-farming",
+          type: "supplies",
+          label: "Seed packs",
+        },
+        {
+          source: "medium-farming-contracts",
+          target: "ranarr-herb-farming",
+          type: "improves",
+          label: "Improved seed packs",
+        },
+        {
+          source: "ranarr-herb-farming",
+          target: "prayer-potion-supply",
+          type: "supplies",
+          label: "Ranarr weeds",
+        },
+        {
+          source: "prayer-potion-herblore",
+          target: "prayer-potion-supply",
+          type: "supplies",
+          label: "Craft prayer potions",
+        },
+      ])
+    );
+  });
+
   it("supports source-controlled custom JavaScript validators", () => {
     const result = goalMapModule.evaluateValidator(
       {
@@ -454,7 +523,7 @@ describe("private goal map service", () => {
     expect(await refreshGoalMap(db, config, request, new Date("2026-09-17T12:01:00.000Z"))).toBe(true);
     expect(request).toHaveBeenCalledOnce();
     expect(db.prepare("SELECT definition_version FROM goal_map_state WHERE singleton=1").get().definition_version).toBe(
-      7
+      8
     );
   });
 
