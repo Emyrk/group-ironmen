@@ -3,7 +3,7 @@ const diaryData = require("../public/data/diary_data.json");
 const questData = require("../public/data/quest_data.json");
 const { edges, nodes } = require("./goal-definitions");
 
-const DEFINITION_VERSION = 9;
+const DEFINITION_VERSION = 10;
 const REFRESH_MINUTES = 15;
 const REFRESH_MS = REFRESH_MINUTES * 60 * 1000;
 const ITEM_FIELDS = ["inventory", "equipment", "bank", "rune_pouch", "seed_vault"];
@@ -436,7 +436,9 @@ function readGoalMap(db, groupId, requestedCharacter) {
     const evidence = row
       ? JSON.parse(row.evidence)
       : [{ type: "unobservable", message: "No group data has been evaluated." }];
-    const completedAt = automaticComplete ? row?.completed_at || null : manuallyCompletedAt || row?.completed_at || null;
+    const completedAt = automaticComplete
+      ? row?.completed_at || null
+      : manuallyCompletedAt || row?.completed_at || null;
     return {
       id: node.id,
       title: node.title,
@@ -447,6 +449,7 @@ function readGoalMap(db, groupId, requestedCharacter) {
       wikiUrl: node.wikiUrl || node.metadata?.wikiUrl || null,
       recommended: Boolean(node.recommended),
       optional: Boolean(node.optional),
+      repeatable: Boolean(node.repeatable),
       complete,
       automaticComplete,
       manualComplete,

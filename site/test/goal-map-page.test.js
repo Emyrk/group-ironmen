@@ -213,6 +213,43 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
+  it("renders unlocked recurring activities as repeatable instead of complete", async () => {
+    const repeatableMap = {
+      ...goalMap,
+      nodes: [
+        {
+          ...goalMap.nodes[1],
+          id: "birdhouse-runs",
+          title: "Birdhouse runs",
+          repeatable: true,
+          evaluated: {
+            complete: true,
+            progress: { current: 4, target: 4 },
+            evidence: [],
+            completedAt: "2026-09-18T12:00:00.000Z",
+          },
+        },
+      ],
+      edges: [],
+    };
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(repeatableMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__status")).not.toBeNull());
+    expect(page.getNodeStatus(repeatableMap.nodes[0])).toBe("repeatable");
+    expect(page.querySelector(".goal-map-page__summary").textContent).toContain("1 repeatable");
+    expect(page.querySelector(".goal-map-page__fallback-node").classList).toContain("repeatable");
+    expect(page.querySelector(".goal-map-page__status").textContent).toContain("repeatable");
+    expect(page.querySelector(".goal-map-page__details").textContent).toContain("Unlocked");
+    expect(page.querySelector(".goal-map-page__manual-completion")).toBeNull();
+    expect(page.graphStyles().find((entry) => entry.selector === "node.repeatable")?.style).toMatchObject({
+      "background-color": "#23536b",
+      "border-color": "#72d7f2",
+    });
+    page.remove();
+  });
+
   it("offers a persistent list layout that explains downstream benefits", async () => {
     const storageKey = `goalMapLayout:${api.groupName || "unknown"}`;
     localStorage.setItem(storageKey, "list");
@@ -482,7 +519,9 @@ describe("goal-map-page", () => {
     pubsub.publish("get-group-data");
 
     await vi.waitFor(() => expect(page.querySelector(".goal-map-page__manual-completion")).not.toBeNull());
-    expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain("Mark complete for the group");
+    expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain(
+      "Mark complete for the group"
+    );
     page.querySelector(".goal-map-page__manual-completion").click();
 
     await vi.waitFor(() => expect(setManualCompletion).toHaveBeenCalledWith("teak-seed", "Alice", true));
@@ -516,9 +555,7 @@ describe("goal-map-page", () => {
     const page = createPage();
     pubsub.publish("get-group-data");
     await vi.waitFor(() => expect(page.querySelector(".goal-map-page__planner-link")).not.toBeNull());
-    expect(page.querySelector(".goal-map-page__planner-link").getAttribute("href")).toBe(
-      "/group/combat-achievements"
-    );
+    expect(page.querySelector(".goal-map-page__planner-link").getAttribute("href")).toBe("/group/combat-achievements");
     page.remove();
   });
 

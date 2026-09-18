@@ -285,7 +285,15 @@ export class GoalMapPage extends BaseElement {
     const query = this.searchQuery.trim().toLocaleLowerCase();
     if (!query) return [];
     return (this.data?.nodes || []).filter((node) =>
-      [node.title, node.description, node.category, node.type, node.scope, node.id]
+      [
+        node.title,
+        node.description,
+        node.category,
+        node.type,
+        node.scope,
+        node.id,
+        node.repeatable ? "repeatable recurring" : "",
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLocaleLowerCase().includes(query))
     );
@@ -332,7 +340,7 @@ export class GoalMapPage extends BaseElement {
   }
 
   getNodeStatus(node) {
-    if (node.evaluated?.complete) return "complete";
+    if (node.evaluated?.complete) return node.repeatable ? "repeatable" : "complete";
     if (this.hasUnmetSkillRequirements(node)) return "blocked";
     const requiredSources = (this.data?.edges || [])
       .filter((edge) => edge.target === node.id && edge.type === "requires")
@@ -343,7 +351,7 @@ export class GoalMapPage extends BaseElement {
   }
 
   getSummary() {
-    const summary = { complete: 0, available: 0, blocked: 0 };
+    const summary = { complete: 0, repeatable: 0, available: 0, blocked: 0 };
     for (const node of this.data?.nodes || []) summary[this.getNodeStatus(node)] += 1;
     return summary;
   }
@@ -401,6 +409,7 @@ export class GoalMapPage extends BaseElement {
     return `
       <section class="goal-map-page__summary" aria-label="Goal map summary">
         <span class="complete"><strong>${summary.complete}</strong> complete</span>
+        <span class="repeatable"><strong>${summary.repeatable}</strong> repeatable</span>
         <span class="available"><strong>${summary.available}</strong> available</span>
         <span class="blocked"><strong>${summary.blocked}</strong> blocked</span>
         ${updated}
@@ -756,9 +765,11 @@ export class GoalMapPage extends BaseElement {
         ? ""
         : `<dt>Progress</dt><dd>${escapeHtml(progress)}</dd>`;
     const completedAt = evaluated.completedAt
-      ? `<dt>Completed</dt><dd>${escapeHtml(new Date(evaluated.completedAt).toLocaleString())}</dd>`
+      ? `<dt>${node.repeatable ? "Unlocked" : "Completed"}</dt><dd>${escapeHtml(
+          new Date(evaluated.completedAt).toLocaleString()
+        )}</dd>`
       : "";
-    const canSetManualCompletion = !evaluated.complete || evaluated.manualComplete;
+    const canSetManualCompletion = !node.repeatable && (!evaluated.complete || evaluated.manualComplete);
     const manualCompletionOwner = node.scope === "group" ? "the group" : this.selectedCharacter;
     const plannerLink =
       node.id === "medium-combat-achievements"
@@ -889,6 +900,7 @@ export class GoalMapPage extends BaseElement {
         },
       },
       { selector: "node.complete", style: { "background-color": "#286b35", "border-color": "#63d879" } },
+      { selector: "node.repeatable", style: { "background-color": "#23536b", "border-color": "#72d7f2" } },
       { selector: "node.available", style: { "background-color": "#775d16", "border-color": "#e6bd4b" } },
       { selector: "node.blocked", style: { "background-color": "#6b2828", "border-color": "#e26464" } },
       { selector: "node.goal", style: { shape: "round-rectangle" } },
