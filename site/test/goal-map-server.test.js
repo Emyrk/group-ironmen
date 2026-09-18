@@ -36,6 +36,35 @@ function call(server, url = "/api/group/gim/get-goal-map", authorization = "priv
   });
 }
 
+function put(server, url, body, authorization = "private-token") {
+  return new Promise((resolve, reject) => {
+    const address = server.address();
+    const payload = JSON.stringify(body);
+    const request = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: address.port,
+        method: "PUT",
+        path: url,
+        headers: {
+          Authorization: authorization,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (response) => {
+        let responseBody = "";
+        response.on("data", (chunk) => (responseBody += chunk));
+        response.on("end", () =>
+          resolve({ status: response.statusCode, body: responseBody ? JSON.parse(responseBody) : null })
+        );
+      }
+    );
+    request.on("error", reject);
+    request.end(payload);
+  });
+}
+
 function member(name, bank = [], diaryVars = []) {
   return {
     name,
@@ -151,6 +180,47 @@ describe("private goal map service", () => {
       status: 400,
       body: { error: "invalid_character" },
     });
+  });
+
+  it("persists manual goal completion per character until it is undone", async () => {
+    await call(server);
+    const url = "/api/group/gim/goal-map/manual-completion";
+
+    const completed = await put(server, url, {
+      nodeId: "fossil-island-teaks",
+      character: "Alice",
+      complete: true,
+    });
+    expect(completed.status).toBe(200);
+    expect(completed.body.nodes.find((node) => node.id === "fossil-island-teaks")).toMatchObject({
+      complete: true,
+      automaticComplete: false,
+      manualComplete: true,
+      manuallyCompletedAt: expect.any(String),
+      evaluated: { complete: true, automaticComplete: false, manualComplete: true },
+    });
+
+    evaluateGroupData(db, "gim", groupData, new Date("2026-09-18T13:00:00.000Z"));
+    const persisted = await call(server, "/api/group/gim/get-goal-map?character=Alice");
+    expect(persisted.body.nodes.find((node) => node.id === "fossil-island-teaks").manualComplete).toBe(true);
+    const bob = await call(server, "/api/group/gim/get-goal-map?character=Bob");
+    expect(bob.body.nodes.find((node) => node.id === "fossil-island-teaks").manualComplete).toBe(false);
+
+    const undone = await put(server, url, {
+      nodeId: "fossil-island-teaks",
+      character: "Alice",
+      complete: false,
+    });
+    expect(undone.status).toBe(200);
+    expect(undone.body.nodes.find((node) => node.id === "fossil-island-teaks")).toMatchObject({
+      complete: false,
+      manualComplete: false,
+      manuallyCompletedAt: null,
+    });
+
+    expect(
+      await put(server, url, { nodeId: "guthans-set", character: "Alice", complete: true })
+    ).toMatchObject({ status: 400, body: { error: "invalid_manual_completion" } });
   });
 
   it("keeps completed_at stable and records only completion transitions", () => {

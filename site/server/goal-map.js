@@ -377,6 +377,27 @@ function nodeType(node) {
   return "unlock";
 }
 
+function setManualCompletion(db, groupId, nodeId, character, complete, now = new Date()) {
+  const node = nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) throw new RangeError("node must name a current goal");
+  if (node.scope !== "character") throw new RangeError("only character goals can be manually completed");
+  const state = db.prepare("SELECT characters FROM goal_map_state WHERE singleton=1").get();
+  const characters = JSON.parse(state.characters);
+  if (!characters.includes(character)) throw new RangeError("character must name a current group member");
+  if (complete) {
+    db.prepare(
+      `INSERT OR IGNORE INTO goal_manual_completions (group_id,node_id,character,completed_at)
+       VALUES (?,?,?,?)`
+    ).run(groupId, nodeId, character, now.toISOString());
+  } else {
+    db.prepare("DELETE FROM goal_manual_completions WHERE group_id=? AND node_id=? AND character=?").run(
+      groupId,
+      nodeId,
+      character
+    );
+  }
+}
+
 function readGoalMap(db, groupId, requestedCharacter) {
   const state = db.prepare("SELECT characters,updated_at FROM goal_map_state WHERE singleton=1").get();
   const characters = JSON.parse(state.characters);
@@ -384,6 +405,16 @@ function readGoalMap(db, groupId, requestedCharacter) {
   if (characters.length > 0 && !characters.includes(selectedCharacter)) {
     throw new RangeError("character must name a current group member");
   }
+  const manualCompletions = new Map(
+    selectedCharacter
+      ? db
+          .prepare(
+            "SELECT node_id,completed_at FROM goal_manual_completions WHERE group_id=? AND character=?"
+          )
+          .all(groupId, selectedCharacter)
+          .map((row) => [row.node_id, row.completed_at])
+      : []
+  );
   const enrichedNodes = nodes.map((node) => {
     const subjectId = node.scope === "group" ? groupId : selectedCharacter;
     const row = subjectId
@@ -393,12 +424,15 @@ function readGoalMap(db, groupId, requestedCharacter) {
           )
           .get(node.id, node.scope, subjectId)
       : undefined;
-    const complete = Boolean(row?.complete);
+    const automaticComplete = Boolean(row?.complete);
+    const manuallyCompletedAt = node.scope === "character" ? manualCompletions.get(node.id) || null : null;
+    const manualComplete = Boolean(manuallyCompletedAt);
+    const complete = automaticComplete || manualComplete;
     const progress = row ? JSON.parse(row.progress) : { current: 0, target: 1, observable: false };
     const evidence = row
       ? JSON.parse(row.evidence)
       : [{ type: "unobservable", message: "No group data has been evaluated." }];
-    const completedAt = row?.completed_at || null;
+    const completedAt = automaticComplete ? row?.completed_at || null : manuallyCompletedAt || row?.completed_at || null;
     return {
       id: node.id,
       title: node.title,
@@ -410,10 +444,13 @@ function readGoalMap(db, groupId, requestedCharacter) {
       recommended: Boolean(node.recommended),
       optional: Boolean(node.optional),
       complete,
+      automaticComplete,
+      manualComplete,
+      manuallyCompletedAt,
       progress,
       evidence,
       completedAt,
-      evaluated: { complete, progress, evidence, completedAt },
+      evaluated: { complete, automaticComplete, manualComplete, manuallyCompletedAt, progress, evidence, completedAt },
     };
   });
   return { updatedAt: state.updated_at, characters, selectedCharacter, nodes: enrichedNodes, edges };
@@ -447,6 +484,26 @@ function createGoalMapRouter(db, auth, config, request) {
       return next(failure);
     }
   });
+  router.put("/goal-map/manual-completion", async (req, res, next) => {
+    try {
+      await refresh();
+      const { nodeId, character, complete } = req.body || {};
+      if (typeof nodeId !== "string" || typeof character !== "string" || typeof complete !== "boolean") {
+        return res.status(400).json({
+          error: "invalid_manual_completion",
+          message: "nodeId and character must be strings and complete must be a boolean",
+        });
+      }
+      setManualCompletion(db, req.params.groupName, nodeId, character, complete);
+      return res.json(readGoalMap(db, req.params.groupName, character));
+    } catch (failure) {
+      if (failure instanceof RangeError) {
+        return res.status(400).json({ error: "invalid_manual_completion", message: failure.message });
+      }
+      return next(failure);
+    }
+  });
+
   return router;
 }
 

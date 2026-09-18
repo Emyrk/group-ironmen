@@ -131,6 +131,13 @@ function openDatabase(filename) {
       evaluated_at TEXT NOT NULL,
       PRIMARY KEY (node_id, subject_type, subject_id)
     );
+    CREATE TABLE IF NOT EXISTS goal_manual_completions (
+      group_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      character TEXT NOT NULL,
+      completed_at TEXT NOT NULL,
+      PRIMARY KEY (group_id, node_id, character)
+    );
     CREATE TABLE IF NOT EXISTS goal_progress_events (
       event_id INTEGER PRIMARY KEY AUTOINCREMENT,
       node_id TEXT NOT NULL,

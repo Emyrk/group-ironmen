@@ -726,6 +726,25 @@ goal-map-page {
   color: var(--orange);
 }
 
+.goal-map-page__manual-completion-control {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 10px;
+  background: #302d28;
+  border: 1px solid #625d54;
+}
+
+.goal-map-page__manual-completion-control small {
+  color: #aaa;
+  line-height: 1.35;
+}
+
+.goal-map-page__manual-completion-control small.error {
+  color: #ff9b9b;
+}
+
 .goal-map-page__benefits {
   margin-top: 14px;
 }

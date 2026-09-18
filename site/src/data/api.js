@@ -237,6 +237,24 @@ class Api {
     return response.json();
   }
 
+  async setGoalManualCompletion(nodeId, character, complete) {
+    if (!this.groupName || !this.groupToken) {
+      throw new Error("Group credentials are not initialized");
+    }
+    const response = await fetch(`${this.baseUrl}/group/${this.groupName}/goal-map/manual-completion`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: this.groupToken,
+      },
+      body: JSON.stringify({ nodeId, character, complete }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update goal completion (${response.status})`);
+    }
+    return response.json();
+  }
+
   async getCaptchaEnabled() {
     const response = await fetch(this.captchaEnabledUrl);
     return response.json();

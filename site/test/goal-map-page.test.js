@@ -333,6 +333,77 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
+  it("manually completes a goal for the selected character and can undo it", async () => {
+    const incompleteMap = {
+      ...goalMap,
+      nodes: [
+        {
+          id: "fossil-island-teaks",
+          title: "Plant teak on Fossil Island",
+          type: "unlock",
+          scope: "character",
+          description: "Plant a teak sapling.",
+          evaluated: {
+            complete: false,
+            automaticComplete: false,
+            manualComplete: false,
+            manuallyCompletedAt: null,
+            progress: { current: 2, target: 3 },
+            evidence: [{ type: "unobservable", message: "Patch state is unavailable." }],
+          },
+        },
+      ],
+      edges: [],
+    };
+    const completedMap = {
+      ...incompleteMap,
+      nodes: [
+        {
+          ...incompleteMap.nodes[0],
+          complete: true,
+          manualComplete: true,
+          manuallyCompletedAt: "2026-09-18T12:00:00.000Z",
+          evaluated: {
+            ...incompleteMap.nodes[0].evaluated,
+            complete: true,
+            manualComplete: true,
+            manuallyCompletedAt: "2026-09-18T12:00:00.000Z",
+            completedAt: "2026-09-18T12:00:00.000Z",
+          },
+        },
+      ],
+    };
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(incompleteMap);
+    const setManualCompletion = vi
+      .spyOn(api, "setGoalManualCompletion")
+      .mockResolvedValueOnce(completedMap)
+      .mockResolvedValueOnce(incompleteMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__manual-completion")).not.toBeNull());
+    expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain("Mark complete for Alice");
+    page.querySelector(".goal-map-page__manual-completion").click();
+
+    await vi.waitFor(() => expect(setManualCompletion).toHaveBeenCalledWith("fossil-island-teaks", "Alice", true));
+    await vi.waitFor(() =>
+      expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain(
+        "Undo manual completion for Alice"
+      )
+    );
+    expect(page.getNodeStatus(page.data.nodes[0])).toBe("complete");
+    expect(page.querySelector(".goal-map-page__manual-completion-control").textContent).toContain(
+      "This remains saved until you undo it."
+    );
+
+    page.querySelector(".goal-map-page__manual-completion").click();
+    await vi.waitFor(() => expect(setManualCompletion).toHaveBeenLastCalledWith("fossil-island-teaks", "Alice", false));
+    await vi.waitFor(() =>
+      expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain("Mark complete for Alice")
+    );
+    page.remove();
+  });
+
   it("renders item evidence with its name and image instead of only its id", async () => {
     vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
     const page = createPage();

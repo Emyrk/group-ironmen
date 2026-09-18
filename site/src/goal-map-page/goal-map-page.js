@@ -40,6 +40,8 @@ export class GoalMapPage extends BaseElement {
     this.layout = this.savedLayout;
     this.selectedSkill = "";
     this.requestNumber = 0;
+    this.savingManualCompletion = false;
+    this.manualCompletionError = "";
     this.render();
     this.bindControls();
     this.subscribeOnce("get-group-data", () => this.loadGoalMap(this.savedCharacter));
@@ -147,6 +149,10 @@ export class GoalMapPage extends BaseElement {
     )) {
       this.eventListener(button, "click", this.handleObjectiveClick.bind(this));
     }
+    const manualCompletion = this.querySelector(".goal-map-page__manual-completion");
+    if (manualCompletion) {
+      this.eventListener(manualCompletion, "click", this.handleManualCompletionClick.bind(this));
+    }
     for (const button of this.querySelectorAll(".goal-map-page__objective-pin, .goal-map-page__detail-pin")) {
       this.eventListener(button, "click", this.handlePinClick.bind(this));
     }
@@ -190,6 +196,33 @@ export class GoalMapPage extends BaseElement {
     else this.pinnedNodeIds.add(nodeId);
     this.savePinnedObjectives();
     this.renderObjectiveSidebar();
+  }
+
+  async handleManualCompletionClick(event) {
+    const nodeId = event.currentTarget.dataset.nodeId;
+    const node = this.data?.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node || node.scope !== "character" || !this.selectedCharacter || this.savingManualCompletion) return;
+    this.savingManualCompletion = true;
+    this.manualCompletionError = "";
+    this.renderObjectiveSidebar();
+    try {
+      const data = await api.setGoalManualCompletion(nodeId, this.selectedCharacter, !node.evaluated?.manualComplete);
+      this.data = {
+        ...data,
+        characters: Array.isArray(data.characters) ? data.characters : [],
+        nodes: Array.isArray(data.nodes) ? data.nodes : [],
+        edges: Array.isArray(data.edges) ? data.edges : [],
+      };
+      this.selectedCharacter = data.selectedCharacter || this.selectedCharacter;
+    } catch (error) {
+      console.error(error);
+      this.manualCompletionError = error.message;
+    } finally {
+      this.savingManualCompletion = false;
+      this.render();
+      this.bindControls();
+      this.initializeGraph();
+    }
   }
 
   renderObjectiveSidebar() {
@@ -648,6 +681,28 @@ export class GoalMapPage extends BaseElement {
     const completedAt = evaluated.completedAt
       ? `<dt>Completed</dt><dd>${escapeHtml(new Date(evaluated.completedAt).toLocaleString())}</dd>`
       : "";
+    const canSetManualCompletion = node.scope === "character" && (!evaluated.complete || evaluated.manualComplete);
+    const manualCompletionControl = canSetManualCompletion
+      ? `<section class="goal-map-page__manual-completion-control">
+          <button class="goal-map-page__manual-completion men-button" type="button" data-node-id="${escapeHtml(
+            node.id
+          )}"${this.savingManualCompletion ? " disabled" : ""}>${
+          this.savingManualCompletion
+            ? "Saving..."
+            : evaluated.manualComplete
+            ? `Undo manual completion for ${escapeHtml(this.selectedCharacter)}`
+            : `Mark complete for ${escapeHtml(this.selectedCharacter)}`
+        }</button>
+          ${
+            evaluated.manualComplete
+              ? `<small>Manually completed for ${escapeHtml(
+                  this.selectedCharacter
+                )}. This remains saved until you undo it.</small>`
+              : "<small>Use this when completion cannot be detected automatically.</small>"
+          }
+          ${this.manualCompletionError ? `<small class="error">${escapeHtml(this.manualCompletionError)}</small>` : ""}
+        </section>`
+      : "";
     return `
       <div class="goal-map-page__detail-heading">
         <span class="goal-map-page__status ${status}"><span class="goal-map-page__status-dot ${status}"></span>${status}</span>
@@ -662,6 +717,7 @@ export class GoalMapPage extends BaseElement {
         )}" aria-pressed="${pinned ? "true" : "false"}">${pinned ? "Unpin objective" : "Pin objective"}</button>
       </div>
       <p>${escapeHtml(node.description || "No description provided.")}</p>
+      ${manualCompletionControl}
       ${
         skillRequirements.length > 0
           ? `<section class="goal-map-page__requirements"><h3>Skill requirements</h3>${this.renderSkillRequirements(
