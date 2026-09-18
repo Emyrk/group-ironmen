@@ -404,6 +404,65 @@ describe("goal-map-page", () => {
     page.remove();
   });
 
+  it("manually completes a group goal for every character", async () => {
+    const incompleteMap = {
+      ...goalMap,
+      nodes: [
+        {
+          id: "teak-seed",
+          title: "Obtain a teak seed",
+          type: "item",
+          scope: "group",
+          description: "The group owns a teak seed.",
+          evaluated: {
+            complete: false,
+            automaticComplete: false,
+            manualComplete: false,
+            manuallyCompletedAt: null,
+            progress: { current: 0, target: 1 },
+            evidence: [{ type: "item", itemId: 21486, quantity: 0 }],
+          },
+        },
+      ],
+      edges: [],
+    };
+    const completedMap = {
+      ...incompleteMap,
+      nodes: [
+        {
+          ...incompleteMap.nodes[0],
+          complete: true,
+          manualComplete: true,
+          evaluated: {
+            ...incompleteMap.nodes[0].evaluated,
+            complete: true,
+            manualComplete: true,
+            manuallyCompletedAt: "2026-09-18T12:00:00.000Z",
+          },
+        },
+      ],
+    };
+    vi.spyOn(api, "getGoalMap").mockResolvedValue(incompleteMap);
+    const setManualCompletion = vi.spyOn(api, "setGoalManualCompletion").mockResolvedValue(completedMap);
+    const page = createPage();
+    pubsub.publish("get-group-data");
+
+    await vi.waitFor(() => expect(page.querySelector(".goal-map-page__manual-completion")).not.toBeNull());
+    expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain("Mark complete for the group");
+    page.querySelector(".goal-map-page__manual-completion").click();
+
+    await vi.waitFor(() => expect(setManualCompletion).toHaveBeenCalledWith("teak-seed", "Alice", true));
+    await vi.waitFor(() =>
+      expect(page.querySelector(".goal-map-page__manual-completion").textContent).toContain(
+        "Undo manual completion for the group"
+      )
+    );
+    expect(page.querySelector(".goal-map-page__manual-completion-control").textContent).toContain(
+      "Manually completed for the group"
+    );
+    page.remove();
+  });
+
   it("renders item evidence with its name and image instead of only its id", async () => {
     vi.spyOn(api, "getGoalMap").mockResolvedValue(goalMap);
     const page = createPage();

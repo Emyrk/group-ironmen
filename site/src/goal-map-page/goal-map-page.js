@@ -201,7 +201,7 @@ export class GoalMapPage extends BaseElement {
   async handleManualCompletionClick(event) {
     const nodeId = event.currentTarget.dataset.nodeId;
     const node = this.data?.nodes.find((candidate) => candidate.id === nodeId);
-    if (!node || node.scope !== "character" || !this.selectedCharacter || this.savingManualCompletion) return;
+    if (!node || !this.selectedCharacter || this.savingManualCompletion) return;
     this.savingManualCompletion = true;
     this.manualCompletionError = "";
     this.renderObjectiveSidebar();
@@ -681,7 +681,8 @@ export class GoalMapPage extends BaseElement {
     const completedAt = evaluated.completedAt
       ? `<dt>Completed</dt><dd>${escapeHtml(new Date(evaluated.completedAt).toLocaleString())}</dd>`
       : "";
-    const canSetManualCompletion = node.scope === "character" && (!evaluated.complete || evaluated.manualComplete);
+    const canSetManualCompletion = !evaluated.complete || evaluated.manualComplete;
+    const manualCompletionOwner = node.scope === "group" ? "the group" : this.selectedCharacter;
     const manualCompletionControl = canSetManualCompletion
       ? `<section class="goal-map-page__manual-completion-control">
           <button class="goal-map-page__manual-completion men-button" type="button" data-node-id="${escapeHtml(
@@ -690,13 +691,13 @@ export class GoalMapPage extends BaseElement {
           this.savingManualCompletion
             ? "Saving..."
             : evaluated.manualComplete
-            ? `Undo manual completion for ${escapeHtml(this.selectedCharacter)}`
-            : `Mark complete for ${escapeHtml(this.selectedCharacter)}`
+            ? `Undo manual completion for ${escapeHtml(manualCompletionOwner)}`
+            : `Mark complete for ${escapeHtml(manualCompletionOwner)}`
         }</button>
           ${
             evaluated.manualComplete
               ? `<small>Manually completed for ${escapeHtml(
-                  this.selectedCharacter
+                  manualCompletionOwner
                 )}. This remains saved until you undo it.</small>`
               : "<small>Use this when completion cannot be detected automatically.</small>"
           }

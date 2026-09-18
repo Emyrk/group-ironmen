@@ -218,9 +218,26 @@ describe("private goal map service", () => {
       manuallyCompletedAt: null,
     });
 
-    expect(
-      await put(server, url, { nodeId: "guthans-set", character: "Alice", complete: true })
-    ).toMatchObject({ status: 400, body: { error: "invalid_manual_completion" } });
+    const groupCompleted = await put(server, url, {
+      nodeId: "teak-seed",
+      character: "Alice",
+      complete: true,
+    });
+    expect(groupCompleted.status).toBe(200);
+    expect(groupCompleted.body.nodes.find((node) => node.id === "teak-seed")).toMatchObject({
+      complete: true,
+      automaticComplete: false,
+      manualComplete: true,
+    });
+    const groupCompletionForBob = await call(server, "/api/group/gim/get-goal-map?character=Bob");
+    expect(groupCompletionForBob.body.nodes.find((node) => node.id === "teak-seed").manualComplete).toBe(true);
+
+    const groupUndone = await put(server, url, {
+      nodeId: "teak-seed",
+      character: "Bob",
+      complete: false,
+    });
+    expect(groupUndone.body.nodes.find((node) => node.id === "teak-seed").manualComplete).toBe(false);
   });
 
   it("keeps completed_at stable and records only completion transitions", () => {

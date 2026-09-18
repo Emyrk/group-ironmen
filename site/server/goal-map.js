@@ -377,23 +377,25 @@ function nodeType(node) {
   return "unlock";
 }
 
+const GROUP_MANUAL_COMPLETION_SUBJECT = "__group__";
+
 function setManualCompletion(db, groupId, nodeId, character, complete, now = new Date()) {
   const node = nodes.find((candidate) => candidate.id === nodeId);
   if (!node) throw new RangeError("node must name a current goal");
-  if (node.scope !== "character") throw new RangeError("only character goals can be manually completed");
   const state = db.prepare("SELECT characters FROM goal_map_state WHERE singleton=1").get();
   const characters = JSON.parse(state.characters);
   if (!characters.includes(character)) throw new RangeError("character must name a current group member");
+  const subject = node.scope === "group" ? GROUP_MANUAL_COMPLETION_SUBJECT : character;
   if (complete) {
     db.prepare(
       `INSERT OR IGNORE INTO goal_manual_completions (group_id,node_id,character,completed_at)
        VALUES (?,?,?,?)`
-    ).run(groupId, nodeId, character, now.toISOString());
+    ).run(groupId, nodeId, subject, now.toISOString());
   } else {
     db.prepare("DELETE FROM goal_manual_completions WHERE group_id=? AND node_id=? AND character=?").run(
       groupId,
       nodeId,
-      character
+      subject
     );
   }
 }
@@ -409,10 +411,11 @@ function readGoalMap(db, groupId, requestedCharacter) {
     selectedCharacter
       ? db
           .prepare(
-            "SELECT node_id,completed_at FROM goal_manual_completions WHERE group_id=? AND character=?"
+            `SELECT node_id,character,completed_at FROM goal_manual_completions
+             WHERE group_id=? AND character IN (?,?)`
           )
-          .all(groupId, selectedCharacter)
-          .map((row) => [row.node_id, row.completed_at])
+          .all(groupId, selectedCharacter, GROUP_MANUAL_COMPLETION_SUBJECT)
+          .map((row) => [`${row.character}:${row.node_id}`, row.completed_at])
       : []
   );
   const enrichedNodes = nodes.map((node) => {
@@ -425,7 +428,8 @@ function readGoalMap(db, groupId, requestedCharacter) {
           .get(node.id, node.scope, subjectId)
       : undefined;
     const automaticComplete = Boolean(row?.complete);
-    const manuallyCompletedAt = node.scope === "character" ? manualCompletions.get(node.id) || null : null;
+    const manualSubject = node.scope === "group" ? GROUP_MANUAL_COMPLETION_SUBJECT : selectedCharacter;
+    const manuallyCompletedAt = manualCompletions.get(`${manualSubject}:${node.id}`) || null;
     const manualComplete = Boolean(manuallyCompletedAt);
     const complete = automaticComplete || manualComplete;
     const progress = row ? JSON.parse(row.progress) : { current: 0, target: 1, observable: false };
