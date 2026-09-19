@@ -4,14 +4,25 @@ import { Item } from "../data/item";
 import { utility } from "../utility";
 
 const LIVE_REFRESH_MS = 15 * 60 * 1000;
+const ITEM_RANKINGS_KEY = "itemHistoryRankings";
+const ITEM_RANKS = ["ignore", "normal", "important"];
 
 export class ItemHistoryPage extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.data = null;
     this.error = null;
+    this.altMode = false;
+    this.itemRankings = new Map();
     this.render();
-    this.subscribeOnce("get-group-data", () => this.loadHistory());
+    this.eventListener(window, "keydown", this.handleKeyDown.bind(this));
+    this.eventListener(window, "keyup", this.handleKeyUp.bind(this));
+    this.eventListener(window, "blur", this.disableAltMode.bind(this));
+    this.eventListener(this, "click", this.handleRankingClick.bind(this), { passive: false });
+    this.subscribeOnce("get-group-data", () => {
+      this.loadItemRankings();
+      this.loadHistory();
+    });
   }
 
   disconnectedCallback() {
@@ -21,6 +32,65 @@ export class ItemHistoryPage extends BaseElement {
 
   html() {
     return `{{item-history-page.html}}`;
+  }
+
+  get rankingStorageKey() {
+    return `${ITEM_RANKINGS_KEY}:${api.groupName || "unknown"}`;
+  }
+
+  loadItemRankings() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.rankingStorageKey) || "{}");
+      this.itemRankings = new Map(
+        Object.entries(stored).filter(([, rank]) => rank === "important" || rank === "ignore")
+      );
+    } catch {
+      this.itemRankings = new Map();
+    }
+  }
+
+  saveItemRankings() {
+    localStorage.setItem(this.rankingStorageKey, JSON.stringify(Object.fromEntries(this.itemRankings)));
+  }
+
+  itemRank(itemId) {
+    return this.itemRankings.get(String(itemId)) || "normal";
+  }
+
+  setAltMode(enabled) {
+    this.altMode = enabled;
+    this.classList.toggle("item-history-page--ranking", enabled);
+  }
+
+  handleKeyDown(event) {
+    if (event.key === "Alt" || event.altKey) this.setAltMode(true);
+  }
+
+  handleKeyUp(event) {
+    if (event.key === "Alt") this.disableAltMode();
+  }
+
+  disableAltMode() {
+    this.setAltMode(false);
+  }
+
+  handleRankingClick(event) {
+    const button = event.target.closest("[data-rank-direction]");
+    if (!button || (!event.altKey && !this.altMode)) return;
+    event.preventDefault();
+    const item = button.closest("[data-item-id]");
+    if (!item) return;
+    this.changeItemRank(item.dataset.itemId, button.dataset.rankDirection === "up" ? 1 : -1);
+  }
+
+  changeItemRank(itemId, direction) {
+    const currentIndex = ITEM_RANKS.indexOf(this.itemRank(itemId));
+    const nextRank = ITEM_RANKS[Math.max(0, Math.min(ITEM_RANKS.length - 1, currentIndex + direction))];
+    if (nextRank === "normal") this.itemRankings.delete(String(itemId));
+    else this.itemRankings.set(String(itemId), nextRank);
+    this.saveItemRankings();
+    this.render();
+    this.bindControls();
   }
 
   async loadHistory(from, to) {
@@ -133,12 +203,14 @@ export class ItemHistoryPage extends BaseElement {
         <h2>${title}${liveLabel}</h2>
         ${updatedLabel}
         ${baselineLabel}
+        <span class="item-history-page__ranking-help">Hold Alt to rank items: + Important, − Ignore.</span>
         ${this.renderHighAlch(this.data.high_alch)}
         ${this.renderChargeChanges(this.data.charge_changes || [])}
         <div class="item-history-page__columns">
           ${this.renderChanges("Gained", this.data.gained, "gained")}
           ${this.renderChanges("Lost", this.data.lost, "lost")}
         </div>
+        ${this.renderIgnoredChanges()}
       </section>
     `;
   }
@@ -197,15 +269,37 @@ export class ItemHistoryPage extends BaseElement {
     `;
   }
 
-  renderChanges(title, changes, type) {
-    const sortedChanges = [...changes].sort((a, b) => b.quantity - a.quantity);
-    const items = sortedChanges.length
-      ? sortedChanges.map((change) => this.renderItem(change, type)).join("")
+  renderChanges(title, changes, type, ignored = false) {
+    const rankedChanges = changes
+      .filter((change) => (this.itemRank(change.item_id) === "ignore") === ignored)
+      .sort((a, b) => {
+        const rankDifference =
+          ITEM_RANKS.indexOf(this.itemRank(b.item_id)) - ITEM_RANKS.indexOf(this.itemRank(a.item_id));
+        return rankDifference || b.quantity - a.quantity;
+      });
+    const items = rankedChanges.length
+      ? rankedChanges.map((change) => this.renderItem(change, type)).join("")
       : '<div class="item-history-page__empty">No items</div>';
     return `
       <div class="item-history-page__change-group item-history-page__change-group--${type}">
-        <h3>${title} (${changes.length})</h3>
+        <h3>${title} (${rankedChanges.length})</h3>
         <div class="item-history-page__items">${items}</div>
+      </div>
+    `;
+  }
+
+  renderIgnoredChanges() {
+    const ignoredCount = [...this.data.gained, ...this.data.lost].filter(
+      (change) => this.itemRank(change.item_id) === "ignore"
+    ).length;
+    if (ignoredCount === 0) return "";
+    return `
+      <div class="item-history-page__ignored">
+        <h3>Ignored (${ignoredCount})</h3>
+        <div class="item-history-page__columns">
+          ${this.renderChanges("Gained", this.data.gained, "gained", true)}
+          ${this.renderChanges("Lost", this.data.lost, "lost", true)}
+        </div>
       </div>
     `;
   }
@@ -213,16 +307,28 @@ export class ItemHistoryPage extends BaseElement {
   renderItem(change, type) {
     const details = Item.itemDetails?.[change.item_id];
     const name = details?.name || `Item ${change.item_id}`;
+    const rank = this.itemRank(change.item_id);
     const image = details ? Item.imageUrl(change.item_id, change.quantity) : "";
     const imageHtml = image ? `<img src="${image}" width="36" height="32" loading="lazy" />` : "";
     return `
-      <a class="item-history-page__item item-history-page__item--${type}"
-         href="https://oldschool.runescape.wiki/w/Special:Lookup?type=item&id=${change.item_id}"
-         target="_blank">
-        ${imageHtml}
-        <span class="item-history-page__item-name">${name}</span>
-        <strong>${type === "gained" ? "+" : "-"}${change.quantity.toLocaleString()}</strong>
-      </a>
+      <div class="item-history-page__item item-history-page__item--${type} item-history-page__item--${rank}"
+           data-item-id="${change.item_id}">
+        <a class="item-history-page__item-link"
+           href="https://oldschool.runescape.wiki/w/Special:Lookup?type=item&id=${change.item_id}"
+           target="_blank">
+          ${imageHtml}
+          <span class="item-history-page__item-name">${name}</span>
+          <strong>${type === "gained" ? "+" : "-"}${change.quantity.toLocaleString()}</strong>
+        </a>
+        <span class="item-history-page__ranking-controls" aria-label="Item ranking controls">
+          <button type="button" data-rank-direction="down" title="Lower priority" ${
+            rank === "ignore" ? "disabled" : ""
+          }>−</button>
+          <button type="button" data-rank-direction="up" title="Raise priority" ${
+            rank === "important" ? "disabled" : ""
+          }>+</button>
+        </span>
+      </div>
     `;
   }
 }

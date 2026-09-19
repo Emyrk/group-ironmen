@@ -67,10 +67,19 @@ item-history-page {
   box-sizing: border-box;
 }
 
-.item-history-page__live-update {
+.item-history-page__live-update,
+.item-history-page__ranking-help {
   display: block;
   margin-top: 4px;
   color: #aaa;
+}
+
+.item-history-page__ranking-help {
+  font-size: 0.9em;
+}
+
+.item-history-page--ranking .item-history-page__ranking-help {
+  color: var(--orange);
 }
 
 .item-history-page__high-alch {
@@ -157,12 +166,8 @@ item-history-page {
 }
 
 .item-history-page__item {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 7px;
-  min-height: 42px;
-  padding: 4px 8px;
+  position: relative;
+  min-width: 0;
   color: var(--primary-text);
   background: var(--elevated);
   border: 1px solid var(--light-border);
@@ -171,6 +176,31 @@ item-history-page {
 
 .item-history-page__item:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+
+.item-history-page__item--important {
+  background: rgba(255, 186, 59, 0.12);
+  border-color: var(--orange);
+  box-shadow: inset 3px 0 var(--orange);
+}
+
+.item-history-page__item--ignore {
+  opacity: 0.72;
+}
+
+.item-history-page__item-link {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 4px 8px;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.item-history-page--ranking .item-history-page__item-link {
+  padding-right: 68px;
 }
 
 .item-history-page__item img {
@@ -183,12 +213,64 @@ item-history-page {
   white-space: nowrap;
 }
 
-.item-history-page__item--gained strong {
+.item-history-page__item--gained .item-history-page__item-link strong {
   color: #5ee35e;
 }
 
-.item-history-page__item--lost strong {
+.item-history-page__item--lost .item-history-page__item-link strong {
   color: #ff7373;
+}
+
+.item-history-page__ranking-controls {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: none;
+  gap: 3px;
+  transform: translateY(-50%);
+}
+
+.item-history-page--ranking .item-history-page__ranking-controls {
+  display: flex;
+}
+
+.item-history-page__ranking-controls button {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  color: var(--primary-text);
+  font: inherit;
+  font-weight: bold;
+  line-height: 25px;
+  background: #302a22;
+  border: 1px solid var(--light-border);
+  cursor: pointer;
+}
+
+.item-history-page__ranking-controls button:hover:not(:disabled) {
+  color: var(--orange);
+  border-color: var(--orange);
+}
+
+.item-history-page__ranking-controls button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.item-history-page__ignored {
+  margin-top: 16px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--light-border);
+}
+
+.item-history-page__ignored > h3 {
+  margin: 0;
+  color: #aaa;
+}
+
+.item-history-page__ignored .item-history-page__columns {
+  margin-top: 8px;
 }
 
 .item-history-page__empty {

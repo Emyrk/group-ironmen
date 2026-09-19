@@ -126,4 +126,53 @@ describe("item-history-page", () => {
     await vi.waitFor(() => expect(getItemHistory).toHaveBeenLastCalledWith("2026-09-14", "2026-09-16"));
     page.remove();
   });
+
+  it("ranks items with Alt controls and persists Important and Ignore choices", async () => {
+    const rankedHistory = {
+      ...history,
+      gained: [
+        { item_id: 995, quantity: 500 },
+        { item_id: 4151, quantity: 1 },
+      ],
+      lost: [],
+    };
+    vi.spyOn(api, "getItemHistory").mockResolvedValue(rankedHistory);
+    const page = document.createElement("item-history-page");
+    document.body.appendChild(page);
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector('[data-item-id="995"]')).not.toBeNull());
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true }));
+    expect(page.classList.contains("item-history-page--ranking")).toBe(true);
+
+    page
+      .querySelector('[data-item-id="995"] [data-rank-direction="down"]')
+      .dispatchEvent(new MouseEvent("click", { bubbles: true, altKey: true }));
+
+    expect(page.querySelector('.item-history-page__ignored [data-item-id="995"]')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem(page.rankingStorageKey))).toEqual({ 995: "ignore" });
+
+    page
+      .querySelector('[data-item-id="995"] [data-rank-direction="up"]')
+      .dispatchEvent(new MouseEvent("click", { bubbles: true, altKey: true }));
+    page
+      .querySelector('[data-item-id="995"] [data-rank-direction="up"]')
+      .dispatchEvent(new MouseEvent("click", { bubbles: true, altKey: true }));
+
+    const importantItem = page.querySelector('.item-history-page__items [data-item-id="995"]');
+    expect(importantItem.classList.contains("item-history-page__item--important")).toBe(true);
+    expect(importantItem.parentElement.firstElementChild).toBe(importantItem);
+    expect(JSON.parse(localStorage.getItem(page.rankingStorageKey))).toEqual({ 995: "important" });
+
+    page.itemRankings = new Map();
+    page.loadItemRankings();
+    page.render();
+    expect(page.querySelector('[data-item-id="995"]').classList.contains("item-history-page__item--important")).toBe(
+      true
+    );
+
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt" }));
+    expect(page.classList.contains("item-history-page--ranking")).toBe(false);
+    page.remove();
+  });
 });
