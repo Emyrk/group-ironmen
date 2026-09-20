@@ -162,6 +162,37 @@ describe("medium combat achievement planner service", () => {
     ).toMatchObject({ status: 400, body: { error: "invalid_combat_achievement_progress" } });
   });
 
+  it("maps schema v2 numeric completion IDs including Scurrius", async () => {
+    const snapshotUrl = "/api/group/gim/combat-achievements/snapshot";
+    const uploaded = await call(server, "PUT", snapshotUrl, {
+      schemaVersion: 2,
+      playerName: "Alice",
+      clientRevision: 240,
+      achievementPoints: 45,
+      completedTaskIds: [521, 522, 523, 524, 525],
+    });
+
+    expect(uploaded).toMatchObject({
+      status: 200,
+      body: {
+        schemaVersion: 2,
+        playerName: "Alice",
+        completedTaskIds: [521, 522, 523, 524, 525],
+      },
+    });
+
+    const planner = await call(server, "GET", "/api/group/gim/combat-achievements/all?character=Alice");
+    for (const taskId of [
+      "scurrius-novice",
+      "scurrius-champion",
+      "sit-rat",
+      "perfect-scurrius",
+      "efficient-pest-control",
+    ]) {
+      expect(planner.body.tasks.find((task) => task.id === taskId).syncedComplete).toBe(true);
+    }
+  });
+
   it("stores latest exact snapshots for normalized current members and preserves planner data", async () => {
     const progressUrl = "/api/group/gim/combat-achievements/medium/progress";
     await call(server, "PUT", progressUrl, {

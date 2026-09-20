@@ -1,6 +1,7 @@
 const express = require("express");
 const catalog = require("./combat-achievements.json");
 const syncedTaskIdsByCatalogId = require("./combat-achievement-sync-ids.json");
+const numericTaskIdsByCatalogId = require("./combat-achievement-numeric-ids.json");
 
 const STATUSES = new Set(["unplanned", "planned", "completed"]);
 const taskIds = new Set(catalog.tasks.map((task) => task.id));
@@ -36,7 +37,7 @@ function validateSnapshot(db, body) {
   const member = matchingCharacter(db, body.playerName);
   if (!member) throw new RangeError("playerName must name a current group member");
   if (
-    body.schemaVersion !== 1 ||
+    ![1, 2].includes(body.schemaVersion) ||
     !Number.isSafeInteger(body.clientRevision) ||
     body.clientRevision < 0 ||
     !Number.isSafeInteger(body.achievementPoints) ||
@@ -46,25 +47,25 @@ function validateSnapshot(db, body) {
     return null;
   if (!Array.isArray(body.completedTaskIds) || body.completedTaskIds.length > 1000) return null;
   const ids = new Set(body.completedTaskIds);
-  if (
-    ids.size !== body.completedTaskIds.length ||
-    body.completedTaskIds.some((taskId) => typeof taskId !== "string" || !/^CA_TASK_[A-Z0-9_]+_COMPLETED$/.test(taskId))
-  )
-    return null;
+  const invalidTaskId =
+    body.schemaVersion === 1
+      ? (taskId) => typeof taskId !== "string" || !/^CA_TASK_[A-Z0-9_]+_COMPLETED$/.test(taskId)
+      : (taskId) => !Number.isSafeInteger(taskId) || taskId < 0 || taskId >= 21 * 32;
+  if (ids.size !== body.completedTaskIds.length || body.completedTaskIds.some(invalidTaskId)) return null;
   return { ...body, playerName: member, normalizedPlayerName: normalizePlayerName(member) };
 }
 
 function readSnapshots(db, groupId) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     snapshots: db
       .prepare(
-        `SELECT player_name,client_revision,achievement_points,completed_task_ids,updated_at
+        `SELECT player_name,schema_version,client_revision,achievement_points,completed_task_ids,updated_at
          FROM combat_achievement_snapshots WHERE group_id=? ORDER BY normalized_player_name`
       )
       .all(groupId)
       .map((row) => ({
-        schemaVersion: 1,
+        schemaVersion: row.schema_version,
         playerName: row.player_name,
         clientRevision: row.client_revision,
         achievementPoints: row.achievement_points,
@@ -120,7 +121,8 @@ function readCombatAchievementPlan(db, groupId, requestedCharacter) {
       status: progressByTask.get(task.id)?.status || "unplanned",
       notes: progressByTask.get(task.id)?.notes || "",
       updatedAt: progressByTask.get(task.id)?.updated_at || null,
-      syncedComplete: syncedTaskIds.has(syncedTaskIdsByCatalogId[task.id]),
+      syncedComplete:
+        syncedTaskIds.has(syncedTaskIdsByCatalogId[task.id]) || syncedTaskIds.has(numericTaskIdsByCatalogId[task.id]),
     })),
   };
 }
@@ -143,7 +145,7 @@ function createCombatAchievementsRouter(db, auth) {
   router.get("/combat-achievements/snapshots", (req, res) => res.json(readSnapshots(db, req.params.groupName)));
   router.put("/combat-achievements/snapshot", (req, res, next) => {
     try {
-      if (req.body && Object.hasOwn(req.body, "schemaVersion") && req.body.schemaVersion !== 1) {
+      if (req.body && Object.hasOwn(req.body, "schemaVersion") && ![1, 2].includes(req.body.schemaVersion)) {
         return res.status(400).json({ error: "unsupported_schema_version" });
       }
       const snapshot = validateSnapshot(db, req.body);
@@ -152,10 +154,11 @@ function createCombatAchievementsRouter(db, auth) {
       const result = db
         .prepare(
           `INSERT INTO combat_achievement_snapshots
-             (group_id,normalized_player_name,player_name,client_revision,achievement_points,completed_task_ids,updated_at)
-           VALUES (?,?,?,?,?,?,?)
+             (group_id,normalized_player_name,player_name,schema_version,client_revision,achievement_points,completed_task_ids,updated_at)
+           VALUES (?,?,?,?,?,?,?,?)
            ON CONFLICT(group_id,normalized_player_name) DO UPDATE SET
              player_name=excluded.player_name,
+             schema_version=excluded.schema_version,
              client_revision=excluded.client_revision,
              achievement_points=excluded.achievement_points,
              completed_task_ids=excluded.completed_task_ids,
@@ -166,6 +169,7 @@ function createCombatAchievementsRouter(db, auth) {
           req.params.groupName,
           snapshot.normalizedPlayerName,
           snapshot.playerName,
+          snapshot.schemaVersion,
           snapshot.clientRevision,
           snapshot.achievementPoints,
           JSON.stringify(snapshot.completedTaskIds),

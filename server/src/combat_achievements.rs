@@ -6,9 +6,18 @@ use deadpool_postgres::Pool;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
+const LEGACY_SCHEMA_VERSION: u32 = 1;
 const MAX_TASKS: usize = 1_000;
+const MAX_TASK_ID_EXCLUSIVE: u32 = 21 * 32;
 const MAX_ACHIEVEMENT_POINTS: i32 = 10_000;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(untagged)]
+pub enum CombatAchievementTaskId {
+    Legacy(String),
+    Numeric(u32),
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -17,7 +26,7 @@ pub struct CombatAchievementSnapshotInput {
     pub player_name: String,
     pub client_revision: i64,
     pub achievement_points: i32,
-    pub completed_task_ids: Vec<String>,
+    pub completed_task_ids: Vec<CombatAchievementTaskId>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -27,7 +36,7 @@ pub struct CombatAchievementSnapshot {
     pub player_name: String,
     pub client_revision: i64,
     pub achievement_points: i32,
-    pub completed_task_ids: Vec<String>,
+    pub completed_task_ids: Vec<CombatAchievementTaskId>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -49,7 +58,7 @@ pub fn normalize_player_name(name: &str) -> String {
         .to_lowercase()
 }
 
-fn valid_task_id(task_id: &str) -> bool {
+fn valid_legacy_task_id(task_id: &str) -> bool {
     task_id.starts_with("CA_TASK_")
         && task_id.ends_with("_COMPLETED")
         && task_id.len() > "CA_TASK__COMPLETED".len()
@@ -58,8 +67,47 @@ fn valid_task_id(task_id: &str) -> bool {
         })
 }
 
+fn valid_task_id(schema_version: u32, task_id: &CombatAchievementTaskId) -> bool {
+    match (schema_version, task_id) {
+        (LEGACY_SCHEMA_VERSION, CombatAchievementTaskId::Legacy(task_id)) => {
+            valid_legacy_task_id(task_id)
+        }
+        (SCHEMA_VERSION, CombatAchievementTaskId::Numeric(task_id)) => {
+            *task_id < MAX_TASK_ID_EXCLUSIVE
+        }
+        _ => false,
+    }
+}
+
+fn stored_task_ids(task_ids: &[CombatAchievementTaskId]) -> Vec<String> {
+    task_ids
+        .iter()
+        .map(|task_id| match task_id {
+            CombatAchievementTaskId::Legacy(task_id) => task_id.clone(),
+            CombatAchievementTaskId::Numeric(task_id) => task_id.to_string(),
+        })
+        .collect()
+}
+
+fn response_task_ids(schema_version: u32, task_ids: Vec<String>) -> Vec<CombatAchievementTaskId> {
+    task_ids
+        .into_iter()
+        .map(|task_id| {
+            if schema_version == SCHEMA_VERSION {
+                CombatAchievementTaskId::Numeric(
+                    task_id
+                        .parse()
+                        .expect("validated numeric Combat Achievement task ID"),
+                )
+            } else {
+                CombatAchievementTaskId::Legacy(task_id)
+            }
+        })
+        .collect()
+}
+
 fn validate_snapshot(snapshot: &CombatAchievementSnapshotInput) -> Result<String, HttpResponse> {
-    if snapshot.schema_version != SCHEMA_VERSION {
+    if ![LEGACY_SCHEMA_VERSION, SCHEMA_VERSION].contains(&snapshot.schema_version) {
         return Err(HttpResponse::BadRequest()
             .json(serde_json::json!({"error": "unsupported_schema_version"})));
     }
@@ -76,7 +124,7 @@ fn validate_snapshot(snapshot: &CombatAchievementSnapshotInput) -> Result<String
         || snapshot
             .completed_task_ids
             .iter()
-            .any(|task_id| !valid_task_id(task_id))
+            .any(|task_id| !valid_task_id(snapshot.schema_version, task_id))
         || snapshot
             .completed_task_ids
             .iter()
@@ -117,28 +165,31 @@ pub async fn put_snapshot(
         );
     };
 
+    let stored_task_ids = stored_task_ids(&snapshot.completed_task_ids);
     let row = client
         .query_opt(
             r#"
 INSERT INTO groupironman.combat_achievement_snapshots
-  (group_id, normalized_player_name, player_name, client_revision, achievement_points, completed_task_ids, updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,NOW())
+  (group_id, normalized_player_name, player_name, schema_version, client_revision, achievement_points, completed_task_ids, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
 ON CONFLICT (group_id, normalized_player_name) DO UPDATE SET
   player_name=EXCLUDED.player_name,
+  schema_version=EXCLUDED.schema_version,
   client_revision=EXCLUDED.client_revision,
   achievement_points=EXCLUDED.achievement_points,
   completed_task_ids=EXCLUDED.completed_task_ids,
   updated_at=NOW()
 WHERE groupironman.combat_achievement_snapshots.client_revision <= EXCLUDED.client_revision
-RETURNING player_name,client_revision,achievement_points,completed_task_ids,updated_at
+RETURNING player_name,schema_version,client_revision,achievement_points,completed_task_ids,updated_at
 "#,
             &[
                 &auth.group_id,
                 &normalized_name,
                 &member_name,
+                &(snapshot.schema_version as i32),
                 &snapshot.client_revision,
                 &snapshot.achievement_points,
-                &snapshot.completed_task_ids,
+                &stored_task_ids,
             ],
         )
         .await?;
@@ -147,12 +198,14 @@ RETURNING player_name,client_revision,achievement_points,completed_task_ids,upda
             HttpResponse::Conflict().json(serde_json::json!({"error": "stale_client_revision"}))
         );
     };
+    let schema_version = row.try_get::<_, i32>("schema_version")? as u32;
+    let completed_task_ids = response_task_ids(schema_version, row.try_get("completed_task_ids")?);
     Ok(HttpResponse::Ok().json(CombatAchievementSnapshot {
-        schema_version: SCHEMA_VERSION,
+        schema_version,
         player_name: row.try_get("player_name")?,
         client_revision: row.try_get("client_revision")?,
         achievement_points: row.try_get("achievement_points")?,
-        completed_task_ids: row.try_get("completed_task_ids")?,
+        completed_task_ids,
         updated_at: row.try_get("updated_at")?,
     }))
 }
@@ -166,7 +219,7 @@ pub async fn get_snapshots(
     let rows = client
         .query(
             r#"
-SELECT player_name,client_revision,achievement_points,completed_task_ids,updated_at
+SELECT player_name,schema_version,client_revision,achievement_points,completed_task_ids,updated_at
 FROM groupironman.combat_achievement_snapshots
 WHERE group_id=$1
 ORDER BY normalized_player_name
@@ -177,12 +230,15 @@ ORDER BY normalized_player_name
     let snapshots = rows
         .into_iter()
         .map(|row| {
+            let schema_version = row.try_get::<_, i32>("schema_version")? as u32;
+            let completed_task_ids =
+                response_task_ids(schema_version, row.try_get("completed_task_ids")?);
             Ok(CombatAchievementSnapshot {
-                schema_version: SCHEMA_VERSION,
+                schema_version,
                 player_name: row.try_get("player_name")?,
                 client_revision: row.try_get("client_revision")?,
                 achievement_points: row.try_get("achievement_points")?,
-                completed_task_ids: row.try_get("completed_task_ids")?,
+                completed_task_ids,
                 updated_at: row.try_get("updated_at")?,
             })
         })
@@ -209,7 +265,24 @@ mod tests {
             player_name: "Alice".to_owned(),
             client_revision: 123,
             achievement_points: 321,
-            completed_task_ids: vec!["CA_TASK_BARROWS_CHAMPION_COMPLETED".to_owned()],
+            completed_task_ids: vec![CombatAchievementTaskId::Legacy(
+                "CA_TASK_BARROWS_CHAMPION_COMPLETED".to_owned(),
+            )],
+        };
+        assert!(validate_snapshot(&valid).is_ok());
+    }
+
+    #[test]
+    fn validates_numeric_v2_snapshot_contract() {
+        let valid = CombatAchievementSnapshotInput {
+            schema_version: 2,
+            player_name: "Alice".to_owned(),
+            client_revision: 240,
+            achievement_points: 45,
+            completed_task_ids: vec![
+                CombatAchievementTaskId::Numeric(521),
+                CombatAchievementTaskId::Numeric(525),
+            ],
         };
         assert!(validate_snapshot(&valid).is_ok());
     }

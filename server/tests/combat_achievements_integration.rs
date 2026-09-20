@@ -73,20 +73,21 @@ async fn snapshots_require_membership_and_replace_exactly() {
         .service(combat_achievements::put_snapshot);
     let app = test::init_service(App::new().app_data(web::Data::new(pool)).service(scope)).await;
 
-    let upload = |revision, player_name: &str, achievement_points, completed: Vec<&str>| {
-        authenticated(
-            test::TestRequest::put()
-                .uri(&format!("/api/group/{GROUP}/combat-achievements/snapshot")),
-        )
-        .set_json(json!({
-            "schemaVersion": 1,
-            "playerName": player_name,
-            "clientRevision": revision,
-            "achievementPoints": achievement_points,
-            "completedTaskIds": completed,
-        }))
-        .to_request()
-    };
+    let upload =
+        |revision, player_name: &str, achievement_points, completed: Vec<Value>, schema_version| {
+            authenticated(
+                test::TestRequest::put()
+                    .uri(&format!("/api/group/{GROUP}/combat-achievements/snapshot")),
+            )
+            .set_json(json!({
+                "schemaVersion": schema_version,
+                "playerName": player_name,
+                "clientRevision": revision,
+                "achievementPoints": achievement_points,
+                "completedTaskIds": completed,
+            }))
+            .to_request()
+        };
 
     let response = test::call_service(
         &app,
@@ -94,7 +95,8 @@ async fn snapshots_require_membership_and_replace_exactly() {
             123,
             " display_name ",
             321,
-            vec!["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
+            vec![json!("CA_TASK_BARROWS_CHAMPION_COMPLETED")],
+            1,
         ),
     )
     .await;
@@ -103,7 +105,11 @@ async fn snapshots_require_membership_and_replace_exactly() {
     assert_eq!(stored["playerName"], "Display Name");
     assert_eq!(stored["achievementPoints"], 321);
 
-    let response = test::call_service(&app, upload(124, "Display Name", 400, vec![])).await;
+    let response = test::call_service(
+        &app,
+        upload(124, "Display Name", 400, vec![json!(521), json!(525)], 2),
+    )
+    .await;
     assert_eq!(response.status(), 200);
     let response = test::call_service(
         &app,
@@ -117,22 +123,26 @@ async fn snapshots_require_membership_and_replace_exactly() {
     let snapshots: Value = test::read_body_json(response).await;
     assert_eq!(snapshots["snapshots"].as_array().unwrap().len(), 1);
     assert_eq!(snapshots["snapshots"][0]["achievementPoints"], 400);
-    assert_eq!(snapshots["snapshots"][0]["completedTaskIds"], json!([]));
+    assert_eq!(snapshots["snapshots"][0]["schemaVersion"], 2);
+    assert_eq!(
+        snapshots["snapshots"][0]["completedTaskIds"],
+        json!([521, 525])
+    );
 
     assert_eq!(
-        test::call_service(&app, upload(122, "Display Name", 399, vec![]))
+        test::call_service(&app, upload(122, "Display Name", 399, vec![], 2))
             .await
             .status(),
         409
     );
     assert_eq!(
-        test::call_service(&app, upload(1, "Mallory", 1, vec![]))
+        test::call_service(&app, upload(1, "Mallory", 1, vec![], 2))
             .await
             .status(),
         400
     );
     assert_eq!(
-        test::call_service(&app, upload(125, "Display Name", 10_001, vec![]))
+        test::call_service(&app, upload(125, "Display Name", 10_001, vec![], 2))
             .await
             .status(),
         400
