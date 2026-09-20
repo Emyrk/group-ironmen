@@ -10,20 +10,23 @@ CombatAchievementsPage.prototype.html = function () {
 };
 
 const data = {
-  tier: "Medium",
-  rewardPoints: 169,
-  pointsPerTask: 2,
+  rewardPoints: 2697,
+  tiers: [
+    { name: "Easy", pointsPerTask: 1, rewardPoints: 41 },
+    { name: "Medium", pointsPerTask: 2, rewardPoints: 169 },
+    { name: "Grandmaster", pointsPerTask: 6, rewardPoints: 2697 },
+  ],
   characters: ["Alice", "Bob"],
   selectedCharacter: "Alice",
-  externalPoints: 41,
   tasks: [
     {
       id: "barrows-champion",
+      tier: "Easy",
       monster: "Barrows",
       name: "Barrows Champion",
       description: "Open the Barrows chest 25 times.",
       type: "Kill Count",
-      points: 2,
+      points: 1,
       completionPercent: 59.6,
       wikiUrl: "https://oldschool.runescape.wiki/w/Barrows_Champion",
       status: "completed",
@@ -31,6 +34,7 @@ const data = {
     },
     {
       id: "pray-for-success",
+      tier: "Medium",
       monster: "Barrows",
       name: "Pray for Success",
       description: "Take no damage from the brothers.",
@@ -43,11 +47,12 @@ const data = {
     },
     {
       id: "giant-mole-champion",
+      tier: "Grandmaster",
       monster: "Giant Mole",
       name: "Giant Mole Champion",
       description: "Kill the Giant Mole 25 times.",
       type: "Kill Count",
-      points: 2,
+      points: 6,
       completionPercent: 40.4,
       wikiUrl: "https://oldschool.runescape.wiki/w/Giant_Mole_Champion",
       status: "unplanned",
@@ -78,14 +83,14 @@ describe("combat-achievements-page", () => {
   });
 
   it("calculates earned and planned points and suggests common tasks first", async () => {
-    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue(data);
+    vi.spyOn(api, "getCombatAchievements").mockResolvedValue(data);
     const page = createPage();
     pubsub.publish("get-group-data");
     await vi.waitFor(() => expect(page.querySelectorAll(".combat-achievements-page__task")).toHaveLength(3));
 
-    expect(page.textContent).toContain("43/ 169 points earned");
-    expect(page.textContent).toContain("45points with planned tasks");
-    expect(page.textContent).toContain("63more Medium tasks needed");
+    expect(page.textContent).toContain("1/ 2697 points earned");
+    expect(page.textContent).toContain("3points with planned tasks");
+    expect(page.textContent).toContain("2696points remaining");
     expect([...page.querySelectorAll(".combat-achievements-page__task h2")].map((node) => node.textContent)).toEqual([
       "Pray for Success",
       "Giant Mole Champion",
@@ -94,14 +99,21 @@ describe("combat-achievements-page", () => {
     page.remove();
   });
 
-  it("filters tasks and persists status, notes, external points, and character selection", async () => {
-    const get = vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue(data);
-    const updateTask = vi.spyOn(api, "updateMediumCombatAchievement").mockResolvedValue(data);
-    const updatePoints = vi.spyOn(api, "updateMediumCombatAchievementPoints").mockResolvedValue(data);
+  it("filters by tier and persists status, notes, and character selection", async () => {
+    const get = vi.spyOn(api, "getCombatAchievements").mockResolvedValue(data);
+    const updateTask = vi.spyOn(api, "updateCombatAchievement").mockResolvedValue(data);
     const page = createPage();
     pubsub.publish("get-group-data");
     await vi.waitFor(() => expect(page.querySelectorAll(".combat-achievements-page__task")).toHaveLength(3));
 
+    const tier = page.querySelector('[data-filter="tier"]');
+    tier.value = "Grandmaster";
+    tier.dispatchEvent(new Event("input"));
+    expect(page.querySelectorAll(".combat-achievements-page__task")).toHaveLength(1);
+    expect(page.querySelector(".combat-achievements-page__task h2").textContent).toBe("Giant Mole Champion");
+
+    tier.value = "";
+    tier.dispatchEvent(new Event("input"));
     const monster = page.querySelector('[data-filter="monster"]');
     monster.value = "Giant Mole";
     monster.dispatchEvent(new Event("input"));
@@ -116,11 +128,6 @@ describe("combat-achievements-page", () => {
     await vi.waitFor(() =>
       expect(updateTask).toHaveBeenCalledWith("Alice", "giant-mole-champion", "planned", "Bring stamina")
     );
-
-    const points = page.querySelector(".combat-achievements-page__external-points");
-    points.value = "50";
-    points.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(updatePoints).toHaveBeenCalledWith("Alice", 50));
 
     const character = page.querySelector(".combat-achievements-page__character");
     character.value = "Bob";
@@ -137,7 +144,7 @@ describe("combat-achievements-page", () => {
         task.id === "pray-for-success" ? { ...task, syncedComplete: true } : { ...task, syncedComplete: false }
       ),
     };
-    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue(syncedData);
+    vi.spyOn(api, "getCombatAchievements").mockResolvedValue(syncedData);
     const page = createPage();
     pubsub.publish("get-group-data");
     await vi.waitFor(() => expect(page.querySelector(".combat-achievements-page__synced")).not.toBeNull());
@@ -151,7 +158,7 @@ describe("combat-achievements-page", () => {
   });
 
   it("shows synchronized points and opens the selected player's planner with a styled button", async () => {
-    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue({
+    vi.spyOn(api, "getCombatAchievements").mockResolvedValue({
       ...data,
       syncedSnapshot: { clientRevision: 123, achievementPoints: 321, updatedAt: "2026-09-18T12:00:00Z" },
     });
@@ -172,7 +179,7 @@ describe("combat-achievements-page", () => {
   });
 
   it("shows a clear fallback before Combat Achievement points are synchronized", async () => {
-    vi.spyOn(api, "getMediumCombatAchievements").mockResolvedValue({ ...data, syncedSnapshot: null });
+    vi.spyOn(api, "getCombatAchievements").mockResolvedValue({ ...data, syncedSnapshot: null });
     const summary = document.createElement("player-combat-achievements");
     summary.setAttribute("player-name", "Bob");
     document.body.appendChild(summary);

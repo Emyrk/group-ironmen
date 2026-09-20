@@ -17,7 +17,7 @@ export class CombatAchievementsPage extends BaseElement {
     super.connectedCallback();
     this.data = null;
     this.error = null;
-    this.filters = { search: "", monster: "", type: "", status: "" };
+    this.filters = { search: "", tier: "", monster: "", type: "", status: "" };
     this.render();
     this.subscribeOnce("get-group-data", () => this.load(localStorage.getItem(CHARACTER_KEY) || undefined));
   }
@@ -28,10 +28,10 @@ export class CombatAchievementsPage extends BaseElement {
 
   async load(character) {
     try {
-      this.data = await api.getMediumCombatAchievements(character);
+      this.data = await api.getCombatAchievements(character);
       if (!this.data.selectedCharacter) {
         await api.getGoalMap(character);
-        this.data = await api.getMediumCombatAchievements(character);
+        this.data = await api.getCombatAchievements(character);
       }
       this.error = null;
       if (this.data.selectedCharacter) localStorage.setItem(CHARACTER_KEY, this.data.selectedCharacter);
@@ -45,9 +45,7 @@ export class CombatAchievementsPage extends BaseElement {
 
   bindControls() {
     const character = this.querySelector(".combat-achievements-page__character");
-    const externalPoints = this.querySelector(".combat-achievements-page__external-points");
     if (character) this.eventListener(character, "change", (event) => this.load(event.target.value));
-    if (externalPoints) this.eventListener(externalPoints, "change", this.handleExternalPoints.bind(this));
     for (const control of this.querySelectorAll(".combat-achievements-page__filter")) {
       this.eventListener(control, "input", this.handleFilter.bind(this));
     }
@@ -57,13 +55,6 @@ export class CombatAchievementsPage extends BaseElement {
     for (const button of this.querySelectorAll(".combat-achievements-page__save-notes")) {
       this.eventListener(button, "click", this.handleTaskSave.bind(this));
     }
-  }
-
-  async handleExternalPoints(event) {
-    const points = Math.max(0, Number.parseInt(event.target.value, 10) || 0);
-    this.data = await api.updateMediumCombatAchievementPoints(this.data.selectedCharacter, points);
-    this.render();
-    this.bindControls();
   }
 
   handleFilter(event) {
@@ -78,7 +69,7 @@ export class CombatAchievementsPage extends BaseElement {
     const taskId = row.dataset.taskId;
     const status = row.querySelector(".combat-achievements-page__task-status").value;
     const notes = row.querySelector(".combat-achievements-page__notes").value;
-    this.data = await api.updateMediumCombatAchievement(this.data.selectedCharacter, taskId, status, notes);
+    this.data = await api.updateCombatAchievement(this.data.selectedCharacter, taskId, status, notes);
     this.render();
     this.bindControls();
   }
@@ -88,24 +79,27 @@ export class CombatAchievementsPage extends BaseElement {
   }
 
   summary() {
-    const completed = this.data.tasks.filter((task) => this.effectiveStatus(task) === "completed").length;
-    const planned = this.data.tasks.filter((task) => this.effectiveStatus(task) === "planned").length;
-    const earned = this.data.externalPoints + completed * this.data.pointsPerTask;
-    const projected = earned + planned * this.data.pointsPerTask;
-    const remaining = Math.max(0, this.data.rewardPoints - earned);
+    const completedTasks = this.data.tasks.filter((task) => this.effectiveStatus(task) === "completed");
+    const plannedTasks = this.data.tasks.filter((task) => this.effectiveStatus(task) === "planned");
+    const completed = completedTasks.length;
+    const planned = plannedTasks.length;
+    const earned = Number.isInteger(this.data.syncedSnapshot?.achievementPoints)
+      ? this.data.syncedSnapshot.achievementPoints
+      : completedTasks.reduce((points, task) => points + task.points, 0);
+    const projected = earned + plannedTasks.reduce((points, task) => points + task.points, 0);
     return {
       completed,
       planned,
       earned,
       projected,
-      remaining,
-      tasksNeeded: Math.ceil(remaining / this.data.pointsPerTask),
+      remaining: Math.max(0, this.data.rewardPoints - earned),
     };
   }
 
   filteredTasks() {
     const search = this.filters.search.toLowerCase();
     return this.data.tasks
+      .filter((task) => !this.filters.tier || task.tier === this.filters.tier)
       .filter((task) => !this.filters.monster || task.monster === this.filters.monster)
       .filter((task) => !this.filters.type || task.type === this.filters.type)
       .filter((task) => !this.filters.status || this.effectiveStatus(task) === this.filters.status)
@@ -137,8 +131,8 @@ export class CombatAchievementsPage extends BaseElement {
       <section class="combat-achievements-page__calculator rsborder-tiny rsbackground">
         <div><strong>${summary.earned}</strong><span>/ ${this.data.rewardPoints} points earned</span></div>
         <div><strong>${summary.projected}</strong><span>points with planned tasks</span></div>
-        <div><strong>${summary.tasksNeeded}</strong><span>more Medium tasks needed</span></div>
-        <label>Points from Easy/Hard+ tasks<input class="combat-achievements-page__external-points" type="number" min="0" max="2697" value="${this.data.externalPoints}" /></label>
+        <div><strong>${summary.remaining}</strong><span>points remaining</span></div>
+        <div><strong>${summary.completed}</strong><span>tasks completed</span></div>
       </section>
     `;
   }
@@ -153,6 +147,10 @@ export class CombatAchievementsPage extends BaseElement {
         <input class="combat-achievements-page__filter" data-filter="search" placeholder="Search tasks" value="${escapeHtml(
           this.filters.search
         )}" />
+        <select class="combat-achievements-page__filter" data-filter="tier"><option value="">All tiers</option>${options(
+          this.data.tiers.map((tier) => tier.name),
+          this.filters.tier
+        )}</select>
         <select class="combat-achievements-page__filter" data-filter="monster"><option value="">All bosses</option>${options(
           monsters,
           this.filters.monster
@@ -178,9 +176,9 @@ export class CombatAchievementsPage extends BaseElement {
         <article class="combat-achievements-page__task ${this.effectiveStatus(task)}" data-task-id="${escapeHtml(
           task.id
         )}">
-          <header><div><small>${escapeHtml(task.monster)} · ${escapeHtml(task.type)}</small><h2>${escapeHtml(
-          task.name
-        )}</h2>${
+          <header><div><small>${escapeHtml(task.tier)} · ${escapeHtml(task.monster)} · ${escapeHtml(
+          task.type
+        )}</small><h2>${escapeHtml(task.name)}</h2>${
           task.syncedComplete ? '<span class="combat-achievements-page__synced">Completed in game</span>' : ""
         }</div><strong>${task.points} pts</strong></header>
           <p>${escapeHtml(task.description)}</p>

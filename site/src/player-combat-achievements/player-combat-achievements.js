@@ -52,7 +52,7 @@ export class PlayerCombatAchievements extends BaseElement {
 
   async load() {
     try {
-      this.data = await api.getMediumCombatAchievements(this.playerName);
+      this.data = await api.getCombatAchievements(this.playerName);
       this.error = null;
     } catch (error) {
       console.error(error);

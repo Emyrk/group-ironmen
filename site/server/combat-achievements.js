@@ -1,5 +1,5 @@
 const express = require("express");
-const catalog = require("./combat-achievements-medium.json");
+const catalog = require("./combat-achievements.json");
 
 const STATUSES = new Set(["unplanned", "planned", "completed"]);
 const taskIds = new Set(catalog.tasks.map((task) => task.id));
@@ -77,7 +77,7 @@ function readSnapshots(db, groupId) {
   };
 }
 
-function readMediumPlan(db, groupId, requestedCharacter) {
+function readCombatAchievementPlan(db, groupId, requestedCharacter) {
   const members = characters(db);
   const selectedCharacter = requestedCharacter || members[0] || null;
   if (selectedCharacter) assertCharacter(db, selectedCharacter);
@@ -106,9 +106,8 @@ function readMediumPlan(db, groupId, requestedCharacter) {
     catalogVersion: catalog.version,
     verifiedAt: catalog.verifiedAt,
     sourceUrl: catalog.sourceUrl,
-    tier: catalog.tier,
     rewardPoints: catalog.rewardPoints,
-    pointsPerTask: catalog.pointsPerTask,
+    tiers: catalog.tiers,
     characters: members,
     selectedCharacter,
     externalPoints: settings?.external_points || 0,
@@ -126,6 +125,18 @@ function readMediumPlan(db, groupId, requestedCharacter) {
       updatedAt: progressByTask.get(task.id)?.updated_at || null,
       syncedComplete: syncedTaskIds.has(syncedTaskId(task.id)),
     })),
+  };
+}
+
+function readMediumPlan(db, groupId, requestedCharacter) {
+  const plan = readCombatAchievementPlan(db, groupId, requestedCharacter);
+  const medium = catalog.tiers.find((tier) => tier.name === "Medium");
+  return {
+    ...plan,
+    tier: medium.name,
+    rewardPoints: medium.rewardPoints,
+    pointsPerTask: medium.pointsPerTask,
+    tasks: plan.tasks.filter((task) => task.tier === medium.name),
   };
 }
 
@@ -174,6 +185,14 @@ function createCombatAchievementsRouter(db, auth) {
       return next(failure);
     }
   });
+  router.get("/combat-achievements/all", (req, res, next) => {
+    try {
+      return res.json(readCombatAchievementPlan(db, req.params.groupName, req.query.character));
+    } catch (failure) {
+      if (failure instanceof RangeError) return res.status(400).json({ error: "invalid_character" });
+      return next(failure);
+    }
+  });
   router.get("/combat-achievements/medium", (req, res, next) => {
     try {
       return res.json(readMediumPlan(db, req.params.groupName, req.query.character));
@@ -182,7 +201,7 @@ function createCombatAchievementsRouter(db, auth) {
       return next(failure);
     }
   });
-  router.put("/combat-achievements/medium/progress", (req, res, next) => {
+  router.put(["/combat-achievements/all/progress", "/combat-achievements/medium/progress"], (req, res, next) => {
     try {
       const { character, taskId, status, notes = "" } = req.body || {};
       assertCharacter(db, character);
@@ -204,7 +223,8 @@ function createCombatAchievementsRouter(db, auth) {
              status=excluded.status,notes=excluded.notes,updated_at=excluded.updated_at`
         ).run(req.params.groupName, character, taskId, status, notes, now);
       }
-      return res.json(readMediumPlan(db, req.params.groupName, character));
+      const readPlan = req.path.includes("/all/") ? readCombatAchievementPlan : readMediumPlan;
+      return res.json(readPlan(db, req.params.groupName, character));
     } catch (failure) {
       if (failure instanceof RangeError) return res.status(400).json({ error: "invalid_character" });
       return next(failure);
@@ -232,4 +252,4 @@ function createCombatAchievementsRouter(db, auth) {
   return router;
 }
 
-module.exports = { createCombatAchievementsRouter, readMediumPlan };
+module.exports = { createCombatAchievementsRouter, readCombatAchievementPlan, readMediumPlan };

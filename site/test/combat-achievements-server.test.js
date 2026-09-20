@@ -74,7 +74,7 @@ describe("medium combat achievement planner service", () => {
       pointsPerTask: 2,
       selectedCharacter: "Alice",
       externalPoints: 0,
-      verifiedAt: "2026-09-18",
+      verifiedAt: "2026-09-20",
     });
     expect(response.body.tasks).toHaveLength(64);
     expect(response.body.tasks.find((task) => task.name === "Barrows Champion")).toMatchObject({
@@ -83,6 +83,49 @@ describe("medium combat achievement planner service", () => {
       type: "Kill Count",
       completionPercent: 59.6,
       status: "unplanned",
+    });
+  });
+
+  it("serves every tier from Easy through Grandmaster", async () => {
+    const response = await call(server, "GET", "/api/group/gim/combat-achievements/all?character=Alice");
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      rewardPoints: 2697,
+      selectedCharacter: "Alice",
+      verifiedAt: "2026-09-20",
+    });
+    expect(response.body.tasks).toHaveLength(655);
+    expect(response.body.tiers.map((tier) => tier.name)).toEqual([
+      "Easy",
+      "Medium",
+      "Hard",
+      "Elite",
+      "Master",
+      "Grandmaster",
+    ]);
+    expect(new Set(response.body.tasks.map((task) => task.tier))).toEqual(
+      new Set(["Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"])
+    );
+    expect(response.body.tasks.find((task) => task.id === "alchemical-speed-runner")).toMatchObject({
+      tier: "Grandmaster",
+      points: 6,
+      status: "unplanned",
+    });
+  });
+
+  it("persists plans for tasks outside the Medium tier", async () => {
+    const response = await call(server, "PUT", "/api/group/gim/combat-achievements/all/progress", {
+      character: "Alice",
+      taskId: "alchemical-speed-runner",
+      status: "planned",
+      notes: "Practice the route",
+    });
+    expect(response.status).toBe(200);
+    expect(response.body.tasks).toHaveLength(655);
+    expect(response.body.tasks.find((task) => task.id === "alchemical-speed-runner")).toMatchObject({
+      tier: "Grandmaster",
+      status: "planned",
+      notes: "Practice the route",
     });
   });
 

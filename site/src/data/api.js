@@ -255,6 +255,19 @@ class Api {
     return response.json();
   }
 
+  async getCombatAchievements(character) {
+    const query = new URLSearchParams();
+    if (character) query.set("character", character);
+    return this.combatAchievementRequest(`all${query.size ? `?${query}` : ""}`);
+  }
+
+  async updateCombatAchievement(character, taskId, status, notes) {
+    return this.combatAchievementRequest("all/progress", {
+      method: "PUT",
+      body: JSON.stringify({ character, taskId, status, notes }),
+    });
+  }
+
   async getMediumCombatAchievements(character) {
     const query = new URLSearchParams();
     if (character) query.set("character", character);

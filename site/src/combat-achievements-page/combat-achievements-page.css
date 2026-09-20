@@ -53,7 +53,7 @@ combat-achievements-page {
 }
 .combat-achievements-page__filters {
   display: grid;
-  grid-template-columns: 2fr repeat(3, 1fr);
+  grid-template-columns: 2fr repeat(4, 1fr);
   gap: 8px;
   margin-top: 12px;
   padding: 10px;
