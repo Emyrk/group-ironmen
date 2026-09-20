@@ -1,5 +1,6 @@
 const express = require("express");
 const catalog = require("./combat-achievements.json");
+const syncedTaskIdsByCatalogId = require("./combat-achievement-sync-ids.json");
 
 const STATUSES = new Set(["unplanned", "planned", "completed"]);
 const taskIds = new Set(catalog.tasks.map((task) => task.id));
@@ -11,10 +12,6 @@ function normalizePlayerName(name) {
     .replaceAll("_", " ")
     .replace(/\s+/g, " ")
     .toLowerCase();
-}
-
-function syncedTaskId(taskId) {
-  return `CA_TASK_${taskId.replaceAll("-", "_").toUpperCase()}_COMPLETED`;
 }
 
 function characters(db) {
@@ -123,7 +120,7 @@ function readCombatAchievementPlan(db, groupId, requestedCharacter) {
       status: progressByTask.get(task.id)?.status || "unplanned",
       notes: progressByTask.get(task.id)?.notes || "",
       updatedAt: progressByTask.get(task.id)?.updated_at || null,
-      syncedComplete: syncedTaskIds.has(syncedTaskId(task.id)),
+      syncedComplete: syncedTaskIds.has(syncedTaskIdsByCatalogId[task.id]),
     })),
   };
 }

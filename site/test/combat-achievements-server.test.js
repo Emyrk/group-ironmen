@@ -177,7 +177,11 @@ describe("medium combat achievement planner service", () => {
       playerName: " alice ",
       clientRevision: 123,
       achievementPoints: 321,
-      completedTaskIds: ["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
+      completedTaskIds: [
+        "CA_TASK_BARROWS_KILLCOUNT_2_COMPLETED",
+        "CA_TASK_BARROWS_PERFECTION_1_COMPLETED",
+        "CA_TASK_WINTERTODT_PERFECTION_2_COMPLETED",
+      ],
     });
     expect(uploaded).toMatchObject({
       status: 200,
@@ -186,7 +190,11 @@ describe("medium combat achievement planner service", () => {
         playerName: "Alice",
         clientRevision: 123,
         achievementPoints: 321,
-        completedTaskIds: ["CA_TASK_BARROWS_CHAMPION_COMPLETED"],
+        completedTaskIds: [
+          "CA_TASK_BARROWS_KILLCOUNT_2_COMPLETED",
+          "CA_TASK_BARROWS_PERFECTION_1_COMPLETED",
+          "CA_TASK_WINTERTODT_PERFECTION_2_COMPLETED",
+        ],
       },
     });
 
@@ -200,6 +208,8 @@ describe("medium combat achievement planner service", () => {
       notes: "Keep this plan",
       syncedComplete: true,
     });
+    expect(planner.body.tasks.find((task) => task.id === "pray-for-success").syncedComplete).toBe(true);
+    expect(planner.body.tasks.find((task) => task.id === "leaving-no-one-behind").syncedComplete).toBe(true);
 
     expect(
       await call(server, "PUT", snapshotUrl, {
