@@ -87,12 +87,14 @@ export class CombatAchievementsPage extends BaseElement {
       ? this.data.syncedSnapshot.achievementPoints
       : completedTasks.reduce((points, task) => points + task.points, 0);
     const projected = earned + plannedTasks.reduce((points, task) => points + task.points, 0);
+    const nextTier = this.data.tiers.find((tier) => earned < tier.rewardPoints);
     return {
       completed,
       planned,
       earned,
       projected,
-      remaining: Math.max(0, this.data.rewardPoints - earned),
+      nextTier,
+      pointsToNextTier: nextTier ? nextTier.rewardPoints - earned : 0,
     };
   }
 
@@ -131,7 +133,9 @@ export class CombatAchievementsPage extends BaseElement {
       <section class="combat-achievements-page__calculator rsborder-tiny rsbackground">
         <div><strong>${summary.earned}</strong><span>/ ${this.data.rewardPoints} points earned</span></div>
         <div><strong>${summary.projected}</strong><span>points with planned tasks</span></div>
-        <div><strong>${summary.remaining}</strong><span>points remaining</span></div>
+        <div><strong>${summary.pointsToNextTier}</strong><span>${
+      summary.nextTier ? `points to ${escapeHtml(summary.nextTier.name)} tier` : "all tiers unlocked"
+    }</span></div>
         <div><strong>${summary.completed}</strong><span>tasks completed</span></div>
       </section>
     `;

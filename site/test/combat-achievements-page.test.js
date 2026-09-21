@@ -14,6 +14,9 @@ const data = {
   tiers: [
     { name: "Easy", pointsPerTask: 1, rewardPoints: 41 },
     { name: "Medium", pointsPerTask: 2, rewardPoints: 169 },
+    { name: "Hard", pointsPerTask: 3, rewardPoints: 436 },
+    { name: "Elite", pointsPerTask: 4, rewardPoints: 1100 },
+    { name: "Master", pointsPerTask: 5, rewardPoints: 1965 },
     { name: "Grandmaster", pointsPerTask: 6, rewardPoints: 2697 },
   ],
   characters: ["Alice", "Bob"],
@@ -90,7 +93,7 @@ describe("combat-achievements-page", () => {
 
     expect(page.textContent).toContain("1/ 2697 points earned");
     expect(page.textContent).toContain("3points with planned tasks");
-    expect(page.textContent).toContain("2696points remaining");
+    expect(page.textContent).toContain("40points to Easy tier");
     expect([...page.querySelectorAll(".combat-achievements-page__task h2")].map((node) => node.textContent)).toEqual([
       "Pray for Success",
       "Giant Mole Champion",
@@ -149,11 +152,24 @@ describe("combat-achievements-page", () => {
     pubsub.publish("get-group-data");
     await vi.waitFor(() => expect(page.querySelector(".combat-achievements-page__synced")).not.toBeNull());
 
+    expect(page.textContent).toContain("115points to Hard tier");
+
     const row = page.querySelector('[data-task-id="pray-for-success"]');
     expect(row.classList.contains("completed")).toBe(true);
     expect(row.querySelector(".combat-achievements-page__task-status").value).toBe("planned");
     expect(row.querySelector(".combat-achievements-page__notes").value).toBe("Use freezes");
     expect(page.summary()).toMatchObject({ completed: 2, planned: 0 });
+    page.remove();
+  });
+
+  it("shows when every Combat Achievement tier is unlocked", async () => {
+    vi.spyOn(api, "getCombatAchievements").mockResolvedValue({
+      ...data,
+      syncedSnapshot: { clientRevision: 124, achievementPoints: 2697, updatedAt: "2026-09-20T12:00:00Z" },
+    });
+    const page = createPage();
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.textContent).toContain("0all tiers unlocked"));
     page.remove();
   });
 
