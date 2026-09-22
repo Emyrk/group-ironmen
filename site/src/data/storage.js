@@ -11,6 +11,11 @@ class Storage {
     };
   }
 
+  isGuest() {
+    const { groupName, groupToken } = this.getGroup();
+    return Boolean(groupName && !groupToken);
+  }
+
   clearGroup() {
     localStorage.removeItem("groupName");
     localStorage.removeItem("groupToken");

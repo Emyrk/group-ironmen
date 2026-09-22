@@ -9,6 +9,7 @@ export class AppNavigation extends BaseElement {
   /* eslint-disable no-unused-vars */
   html() {
     const group = storage.getGroup();
+    const isGuest = storage.isGuest();
     return `{{app-navigation.html}}`;
   }
   /* eslint-enable no-unused-vars */

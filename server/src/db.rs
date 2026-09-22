@@ -206,6 +206,17 @@ where
     }
 }
 
+pub async fn get_group_by_name(client: &Client, group_name: &str) -> Result<i64, ApiError> {
+    let stmt = client
+        .prepare_cached("SELECT group_id FROM groupironman.groups WHERE group_name=$1")
+        .await?;
+    let group: Row = client
+        .query_one(&stmt, &[&group_name])
+        .await
+        .map_err(ApiError::GetGroupError)?;
+    Ok(group.try_get(0)?)
+}
+
 pub async fn get_group(client: &Client, group_name: &str, token: &str) -> Result<i64, ApiError> {
     let stmt = client
         .prepare_cached(

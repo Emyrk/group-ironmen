@@ -29,6 +29,7 @@ export class AppInitializer extends BaseElement {
 
   cleanup() {
     api.disable();
+    document.body.classList.remove("guest-mode");
     // Unpublish everything to prevent any data leaking over into another session
     pubsub.unpublishAll();
     exampleData.disable();
@@ -41,6 +42,7 @@ export class AppInitializer extends BaseElement {
     loadingScreenManager.showLoadingScreen();
     await Promise.all([Item.loadItems(), Item.loadGePrices(), Quest.loadQuests(), AchievementDiary.loadDiaries()]);
     const group = storage.getGroup();
+    document.body.classList.toggle("guest-mode", Boolean(group.groupName && !group.groupToken));
 
     // Make sure this component is still connected after loading the above. We don't want to start
     // making requests for group data if the user navigated away before the preload completed.

@@ -11,7 +11,13 @@ function privateAuth(config) {
     if (!config.privateGroupName || req.params.groupName !== config.privateGroupName) {
       return res.status(404).end();
     }
-    if (!config.privateSyncToken || !safeEqual(req.get("Authorization"), config.privateSyncToken)) {
+
+    const authorization = req.get("Authorization");
+    if (req.method === "GET" && authorization === undefined) {
+      res.locals.guestMode = true;
+      return next();
+    }
+    if (!config.privateSyncToken || !safeEqual(authorization, config.privateSyncToken)) {
       return res.status(401).end();
     }
     next();

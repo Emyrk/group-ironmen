@@ -21,7 +21,7 @@ export class MenHomepage extends BaseElement {
 
   get hasLogin() {
     const group = storage.getGroup();
-    return group && group.groupName && group.groupToken && group.groupName !== "@EXAMPLE";
+    return group && group.groupName && group.groupName !== "@EXAMPLE";
   }
 }
 

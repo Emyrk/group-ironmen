@@ -70,6 +70,24 @@ describe("api", () => {
     expect(groupData.filters).toEqual([""]);
   });
 
+  it("omits the Authorization header for guest reads", async () => {
+    api.setCredentials("gim", "");
+    api.nextCheck = "2026-03-30T00:00:00.000Z";
+    globalThis.fetch.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) });
+    vi.spyOn(groupData, "update").mockReturnValue(new Date("2026-03-30T00:00:05.000Z"));
+
+    await api.getGroupData();
+    await api.amILoggedIn();
+
+    expect(api.isGuest).toBe(true);
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/group/gim/get-group-data?from_time=2026-03-30T00:00:00.000Z",
+      { headers: {} }
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(2, "/api/group/gim/am-i-logged-in", { headers: {} });
+  });
+
   it("getGroupData publishes updated group data after successful fetch", async () => {
     api.setCredentials("gim", "token");
     api.nextCheck = "2026-03-30T00:00:00.000Z";
@@ -182,8 +200,8 @@ describe("api", () => {
     expect(globalThis.fetch).toHaveBeenNthCalledWith(7, "/api/captcha-enabled");
   });
 
-  it("does not request item history before credentials are initialized", async () => {
-    await expect(api.getItemHistory()).rejects.toThrow("Group credentials are not initialized");
+  it("does not request item history before a group is initialized", async () => {
+    await expect(api.getItemHistory()).rejects.toThrow("Group is not initialized");
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
@@ -222,8 +240,8 @@ describe("api", () => {
     });
   });
 
-  it("rejects goal map requests without credentials or after failed responses", async () => {
-    await expect(api.getGoalMap("Alice")).rejects.toThrow("Group credentials are not initialized");
+  it("rejects goal map requests without a group or after failed responses", async () => {
+    await expect(api.getGoalMap("Alice")).rejects.toThrow("Group is not initialized");
     expect(globalThis.fetch).not.toHaveBeenCalled();
 
     api.setCredentials("gim", "token");

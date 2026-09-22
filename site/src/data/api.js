@@ -56,6 +56,14 @@ class Api {
     this.groupToken = groupToken;
   }
 
+  authHeaders(headers = {}) {
+    return this.groupToken ? { Authorization: this.groupToken, ...headers } : headers;
+  }
+
+  get isGuest() {
+    return Boolean(this.groupName && !this.groupToken);
+  }
+
   async restart() {
     const groupName = this.groupName;
     const groupToken = this.groupToken;
@@ -101,9 +109,7 @@ class Api {
       pubsub.publish("get-group-data", groupData);
     } else {
       const response = await fetch(`${this.getGroupDataUrl}?from_time=${nextCheck}`, {
-        headers: {
-          Authorization: this.groupToken,
-        },
+        headers: this.authHeaders(),
       });
       if (!response.ok) {
         if (response.status === 401) {
@@ -173,7 +179,7 @@ class Api {
 
   async amILoggedIn() {
     const response = await fetch(this.amILoggedInUrl, {
-      headers: { Authorization: this.groupToken },
+      headers: this.authHeaders(),
     });
 
     return response;
@@ -190,17 +196,15 @@ class Api {
       return skillData;
     } else {
       const response = await fetch(`${this.skillDataUrl}?period=${period}`, {
-        headers: {
-          Authorization: this.groupToken,
-        },
+        headers: this.authHeaders(),
       });
       return response.json();
     }
   }
 
   async getItemHistory(from, to) {
-    if (!this.groupName || !this.groupToken) {
-      throw new Error("Group credentials are not initialized");
+    if (!this.groupName) {
+      throw new Error("Group is not initialized");
     }
     const query = new URLSearchParams();
     if (from) query.set("from", from);
@@ -208,9 +212,7 @@ class Api {
     const queryString = query.toString();
     const url = queryString ? `${this.itemHistoryUrl}?${queryString}` : this.itemHistoryUrl;
     const response = await fetch(url, {
-      headers: {
-        Authorization: this.groupToken,
-      },
+      headers: this.authHeaders(),
     });
     if (!response.ok) {
       throw new Error(`Failed to load item history (${response.status})`);
@@ -219,17 +221,15 @@ class Api {
   }
 
   async getGoalMap(character) {
-    if (!this.groupName || !this.groupToken) {
-      throw new Error("Group credentials are not initialized");
+    if (!this.groupName) {
+      throw new Error("Group is not initialized");
     }
     const query = new URLSearchParams();
     if (character) query.set("character", character);
     const queryString = query.toString();
     const url = queryString ? `${this.goalMapUrl}?${queryString}` : this.goalMapUrl;
     const response = await fetch(url, {
-      headers: {
-        Authorization: this.groupToken,
-      },
+      headers: this.authHeaders(),
     });
     if (!response.ok) {
       throw new Error(`Failed to load goal map (${response.status})`);
@@ -289,13 +289,11 @@ class Api {
   }
 
   async combatAchievementRequest(path, options = {}) {
-    if (!this.groupName || !this.groupToken) throw new Error("Group credentials are not initialized");
+    if (!this.groupName) throw new Error("Group is not initialized");
+    if (this.isGuest && options.method && options.method !== "GET") throw new Error("Guest Mode is view-only");
     const response = await fetch(`${this.baseUrl}/group/${this.groupName}/combat-achievements/${path}`, {
       ...options,
-      headers: {
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        Authorization: this.groupToken,
-      },
+      headers: this.authHeaders(options.body ? { "Content-Type": "application/json" } : {}),
     });
     if (!response.ok) throw new Error(`Combat Achievement request failed (${response.status})`);
     return response.json();

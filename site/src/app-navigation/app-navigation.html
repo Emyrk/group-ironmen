@@ -1,4 +1,4 @@
-<h4 class="app-navigation__group-name">${group.groupName}</h4>
+<h4 class="app-navigation__group-name">${group.groupName}${isGuest ? " · Guest Mode" : ""}</h4>
 <nav class="app-navigation__nav">
   <men-link link-href="/group/items">
     <button class="men-button" type="button" route-component="items-page">
@@ -36,6 +36,7 @@
       <span class="mobile"><img loading="lazy" src="/ui/1707-0.png" /></span>
     </button>
   </men-link>
+  ${ isGuest ? "" : `
   <men-link link-href="/group/bank-tags">
     <button class="men-button" type="button" route-component="bank-tags-page">
       <span class="desktop">Bank Tags</span>
@@ -54,6 +55,7 @@
       <span class="mobile"><img loading="lazy" src="/ui/785-0.png" /></span>
     </button>
   </men-link>
+  ` }
 
   <div class="app-navigation__separator desktop"></div>
   <men-link link-href="/setup-instructions">

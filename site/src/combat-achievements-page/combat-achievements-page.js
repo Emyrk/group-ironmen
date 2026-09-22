@@ -191,7 +191,12 @@ export class CombatAchievementsPage extends BaseElement {
           }% community completion</span><a href="${escapeHtml(
           task.wikiUrl
         )}" target="_blank" rel="noopener noreferrer">Wiki</a></div>
-          <div class="combat-achievements-page__task-plan">
+          ${
+            api.isGuest
+              ? task.notes
+                ? `<p class="combat-achievements-page__notes-readonly">${escapeHtml(task.notes)}</p>`
+                : ""
+              : `<div class="combat-achievements-page__task-plan">
             <select class="combat-achievements-page__task-status">
               ${["unplanned", "planned", "completed"]
                 .map(
@@ -207,7 +212,8 @@ export class CombatAchievementsPage extends BaseElement {
               task.notes
             )}</textarea>
             <button class="combat-achievements-page__save-notes men-button" type="button">Save notes</button>
-          </div>
+          </div>`
+          }
         </article>`
       )
       .join("");

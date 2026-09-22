@@ -1,5 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { appearance } from "../appearance";
+import { storage } from "../data/storage";
 
 export class GroupSettings extends BaseElement {
   constructor() {
@@ -10,6 +11,7 @@ export class GroupSettings extends BaseElement {
   html() {
     const selectedPanelDockSide = appearance.getLayout();
     const style = appearance.getTheme();
+    const isGuest = storage.isGuest();
     return `{{group-settings.html}}`;
   }
   /* eslint-enable no-unused-vars */
@@ -45,6 +47,7 @@ export class GroupSettings extends BaseElement {
   }
 
   handleUpdatedMembers(members) {
+    if (!this.memberSection) return;
     members = members.filter((member) => member.name !== "@SHARED");
     let memberEdits = document.createDocumentFragment();
     for (let i = 0; i < members.length; ++i) {

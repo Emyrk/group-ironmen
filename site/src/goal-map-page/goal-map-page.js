@@ -769,7 +769,8 @@ export class GoalMapPage extends BaseElement {
           new Date(evaluated.completedAt).toLocaleString()
         )}</dd>`
       : "";
-    const canSetManualCompletion = !node.repeatable && (!evaluated.complete || evaluated.manualComplete);
+    const canSetManualCompletion =
+      !api.isGuest && !node.repeatable && (!evaluated.complete || evaluated.manualComplete);
     const manualCompletionOwner = node.scope === "group" ? "the group" : this.selectedCharacter;
     const plannerLink =
       node.id === "medium-combat-achievements"

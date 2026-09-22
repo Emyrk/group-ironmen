@@ -50,7 +50,7 @@ export class BankTagsPage extends BaseElement {
     const { groupToken, base } = this.credentials();
     const response = await fetch(`${base}${path}`, {
       ...options,
-      headers: { Authorization: groupToken, ...options.headers },
+      headers: { ...(groupToken ? { Authorization: groupToken } : {}), ...options.headers },
     });
     if (!response.ok) {
       let body;

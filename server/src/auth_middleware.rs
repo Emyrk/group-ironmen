@@ -176,6 +176,23 @@ async fn authenticate_via_db(
     Ok(group_id)
 }
 
+async fn authenticate_guest_via_db(
+    req: &ServiceRequest,
+    group_name: &str,
+) -> Result<i64, actix_web::Error> {
+    let db_pool = req
+        .app_data::<web::Data<Pool>>()
+        .ok_or_else(|| actix_web::error::ErrorInternalServerError(""))?;
+    let client = db_pool
+        .get()
+        .await
+        .map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
+
+    db::get_group_by_name(&client, group_name)
+        .await
+        .map_err(|_| actix_web::error::ErrorNotFound(""))
+}
+
 impl<S, B> Service<ServiceRequest> for AuthenticateMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
@@ -206,32 +223,36 @@ where
             };
 
             if group_name != "_" {
-                let auth_header = match req.headers().get("Authorization") {
-                    Some(auth_header) => auth_header,
-                    None => {
-                        return Ok(req.error_response(actix_web::error::ErrorBadRequest(
-                            "Authorization header missing from request",
-                        )));
+                let group_id = if let Some(auth_header) = req.headers().get("Authorization") {
+                    let token = match auth_header.to_str() {
+                        Ok(token) => token,
+                        Err(_) => {
+                            return Ok(req.error_response(actix_web::error::ErrorBadRequest(
+                                "Unable to parse Authorization header",
+                            )));
+                        }
+                    };
+                    let token_hash = crate::crypto::token_hash(token, group_name);
+                    match cache.get(group_name, &token_hash) {
+                        Some(group_id) => group_id,
+                        None => {
+                            match authenticate_via_db(&req, group_name, token, &token_hash, &cache)
+                                .await
+                            {
+                                Ok(group_id) => group_id,
+                                Err(e) => return Ok(req.error_response(e)),
+                            }
+                        }
                     }
-                };
-                let token = match auth_header.to_str() {
-                    Ok(token) => token,
-                    Err(_) => {
-                        return Ok(req.error_response(actix_web::error::ErrorBadRequest(
-                            "Unable to parse Authorization header",
-                        )));
-                    }
-                };
-
-                let token_hash = crate::crypto::token_hash(token, group_name);
-                let group_id = match cache.get(group_name, &token_hash) {
-                    Some(group_id) => group_id,
-                    None => match authenticate_via_db(&req, group_name, token, &token_hash, &cache)
-                        .await
-                    {
+                } else if req.method() == actix_web::http::Method::GET {
+                    match authenticate_guest_via_db(&req, group_name).await {
                         Ok(group_id) => group_id,
                         Err(e) => return Ok(req.error_response(e)),
-                    },
+                    }
+                } else {
+                    return Ok(req.error_response(actix_web::error::ErrorUnauthorized(
+                        "Authorization header missing from request",
+                    )));
                 };
 
                 let authentication_result = AuthenticationResult { group_id };

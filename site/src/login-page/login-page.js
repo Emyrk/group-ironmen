@@ -13,6 +13,7 @@ export class LoginPage extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.guestMode = new URLSearchParams(window.location.search).has("guest");
     this.render();
 
     const fieldRequiredValidator = (value) => {
@@ -23,7 +24,7 @@ export class LoginPage extends BaseElement {
     this.name = this.querySelector(".login__name");
     this.name.validators = [fieldRequiredValidator];
     this.token = this.querySelector(".login__token");
-    this.token.validators = [fieldRequiredValidator];
+    if (this.token) this.token.validators = [fieldRequiredValidator];
     this.loginButton = this.querySelector(".login__button");
     this.error = this.querySelector(".login__error");
     this.eventListener(this.loginButton, "click", this.login.bind(this));
@@ -34,20 +35,20 @@ export class LoginPage extends BaseElement {
   }
 
   async login() {
-    if (!this.name.valid || !this.token.valid) return;
+    if (!this.name.valid || (!this.guestMode && !this.token.valid)) return;
     try {
       this.error.innerHTML = "";
       this.loginButton.disabled = true;
       const name = this.name.value;
-      const token = this.token.value;
+      const token = this.guestMode ? "" : this.token.value;
       api.setCredentials(name, token);
       const response = await api.amILoggedIn();
       if (response.ok) {
         storage.storeGroup(name, token);
         window.history.pushState("", "", "/group");
       } else {
-        if (response.status === 401) {
-          this.error.innerHTML = "Group name or token is incorrect";
+        if (response.status === 401 || response.status === 404) {
+          this.error.innerHTML = this.guestMode ? "Group name is incorrect" : "Group name or token is incorrect";
         } else {
           const body = await response.text();
           this.error.innerHTML = `Unable to login ${body}`;
