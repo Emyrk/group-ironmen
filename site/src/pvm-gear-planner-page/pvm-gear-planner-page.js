@@ -18,7 +18,7 @@ const PAPERDOLL_SLOTS = [
 ];
 const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
 const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
-const ATTACK_STYLES = ["Accurate", "Aggressive", "Controlled", "Rapid", "Longrange"];
+const COMBAT_MODES = ["Best", "Melee", "Ranged", "Magic"];
 const MAX_CANDIDATES = 12;
 const DEFAULT_TARGET = ["Giant Mole", ""];
 
@@ -87,7 +87,7 @@ export class PvmGearPlannerPage extends BaseElement {
     this.entities = null;
     this.selectedMember = "";
     this.selectedTargetKey = "";
-    this.attackStyle = "Accurate";
+    this.combatMode = "Best";
     this.activeSlot = "body";
     this.selectedItems = Object.fromEntries(SLOT_KEYS.map((slot) => [slot, null]));
     this.currentResult = null;
@@ -226,10 +226,10 @@ export class PvmGearPlannerPage extends BaseElement {
   bindControls() {
     const member = this.querySelector("[data-control='member']");
     const target = this.querySelector("[data-control='target']");
-    const style = this.querySelector("[data-control='style']");
+    const mode = this.querySelector("[data-control='mode']");
     if (member) this.eventListener(member, "change", this.handleMemberChange.bind(this));
     if (target) this.eventListener(target, "change", this.handleTargetChange.bind(this));
-    if (style) this.eventListener(style, "change", this.handleStyleChange.bind(this));
+    if (mode) this.eventListener(mode, "change", this.handleCombatModeChange.bind(this));
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
@@ -260,8 +260,8 @@ export class PvmGearPlannerPage extends BaseElement {
     this.refreshCalculations();
   }
 
-  handleStyleChange(event) {
-    this.attackStyle = event.target.value;
+  handleCombatModeChange(event) {
+    this.combatMode = event.target.value;
     this.currentResult = null;
     this.candidateResults = new Map();
     this.renderAndBind();
@@ -304,7 +304,7 @@ export class PvmGearPlannerPage extends BaseElement {
       member: this.selectedMemberData,
       equipmentIds: this.equipmentIds(overrides),
       monster: this.selectedTarget,
-      options: { style: this.attackStyle },
+      options: { mode: this.combatMode },
     };
   }
 
@@ -389,8 +389,11 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   renderStyleOptions() {
-    return ATTACK_STYLES.map(
-      (style) => `<option value="${style}" ${style === this.attackStyle ? "selected" : ""}>${style}</option>`
+    return COMBAT_MODES.map(
+      (mode) =>
+        `<option value="${mode}" ${mode === this.combatMode ? "selected" : ""}>${
+          mode === "Best" ? "Best DPS" : mode
+        }</option>`
     ).join("");
   }
 
@@ -471,7 +474,9 @@ export class PvmGearPlannerPage extends BaseElement {
     const result = this.currentResult;
     const summary = this.loadoutSummary();
     return `
-      <div><span>DPS</span><strong>${result ? formatNumber(result.dps, 2) : "…"}</strong></div>
+      <div><span>DPS${result?.style ? ` (${escapeHtml(result.style.type)})` : ""}</span><strong>${
+      result ? formatNumber(result.dps, 2) : "…"
+    }</strong></div>
       <div><span>Accuracy</span><strong>${result ? `${formatNumber(result.accuracy * 100)}%` : "…"}</strong></div>
       <div><span>Max hit</span><strong>${result ? formatNumber(result.maxHit, 0) : "…"}</strong></div>
       <div><span>Attack speed</span><strong>${result ? `${result.attackSpeed} ticks` : "…"}</strong></div>

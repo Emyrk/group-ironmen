@@ -80,8 +80,8 @@ vi.mock("../src/pvm/calculator-client", async () => {
       requests.push(request);
       const bodyId = request.player.equipment.body;
       const targetModifier = request.monster.id === 8059 ? -1 : 0;
-      const styleModifier = request.options.style === "Aggressive" ? 0.5 : 0;
-      const dps = 5 + (bodyId === 11832 ? 3 : bodyId === 10551 ? 2 : 1) + targetModifier + styleModifier;
+      const modeModifier = request.options.mode === "Melee" ? 0.5 : 0;
+      const dps = 5 + (bodyId === 11832 ? 3 : bodyId === 10551 ? 2 : 1) + targetModifier + modeModifier;
       return {
         version: 1,
         requestId: request.requestId,
@@ -105,7 +105,7 @@ PvmGearPlannerPage.prototype.html = function () {
       <select data-control="member">${this.renderMemberOptions()}</select>
       <input data-control="target" value="${this.renderSelectedTargetLabel()}" />
       <datalist>${this.renderTargetOptions()}</datalist>
-      <select data-control="style">${this.renderStyleOptions()}</select>
+      <select data-control="mode">${this.renderStyleOptions()}</select>
     </header>
     ${this.renderStatus()}
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
@@ -216,23 +216,20 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
-  it("sends synchronized skills, target version, equipment IDs, and attack style", async () => {
+  it("sends synchronized skills, target version, equipment IDs, and combat mode", async () => {
     const page = await createPage();
     const target = page.querySelector("[data-control='target']");
     target.value = "Vorkath (Post-quest) [8059]";
     target.dispatchEvent(new Event("change"));
-    const style = page.querySelector("[data-control='style']");
-    style.value = "Aggressive";
-    style.dispatchEvent(new Event("change"));
+    const mode = page.querySelector("[data-control='mode']");
+    expect([...mode.options].map((option) => option.textContent)).toEqual(["Best DPS", "Melee", "Ranged", "Magic"]);
+    mode.value = "Melee";
+    mode.dispatchEvent(new Event("change"));
 
     await vi.waitFor(() =>
-      expect(requests.some((request) => request.monster.id === 8059 && request.options.style === "Aggressive")).toBe(
-        true
-      )
+      expect(requests.some((request) => request.monster.id === 8059 && request.options.mode === "Melee")).toBe(true)
     );
-    const request = requests.find(
-      (candidate) => candidate.monster.id === 8059 && candidate.options.style === "Aggressive"
-    );
+    const request = requests.find((candidate) => candidate.monster.id === 8059 && candidate.options.mode === "Melee");
     expect(request.monster.version).toBe("Post-quest");
     expect(request.player.skills.atk).toBe(99);
     expect(request.player.equipment.body).toBe(11832);

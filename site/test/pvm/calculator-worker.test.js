@@ -44,6 +44,47 @@ describe("vendored OSRS Wiki calculator worker", () => {
     expect(response.result.expectedTtk).toBeCloseTo(120.5687734583, 9);
   });
 
+  it("filters concrete styles by combat mode and makes Best DPS select the strongest viable style", () => {
+    const meleeRequest = {
+      version: 1,
+      action: "calculate",
+      requestId: 43,
+      player: { name: "Mode test", skills: maxSkills, equipment: { weapon: 4151 } },
+      monster: { id: 5779 },
+    };
+    const accurate = handleCalculatorRequest({ ...meleeRequest, options: { style: "Accurate" } });
+    const controlled = handleCalculatorRequest({ ...meleeRequest, options: { style: "Controlled" } });
+    const best = handleCalculatorRequest({ ...meleeRequest, options: { mode: "Best" } });
+
+    expect(accurate.error).toBeUndefined();
+    expect(controlled.error).toBeUndefined();
+    expect(best).toMatchObject({ result: { style: { type: "slash" } } });
+    expect(best.result.dps).toBeCloseTo(Math.max(accurate.result.dps, controlled.result.dps), 9);
+
+    const ranged = handleCalculatorRequest({
+      ...meleeRequest,
+      requestId: 44,
+      player: { ...meleeRequest.player, equipment: { weapon: 21012, ammo: 21944 } },
+      options: { mode: "Ranged" },
+    });
+    expect(ranged).toMatchObject({ result: { style: { type: "ranged" } } });
+
+    const magic = handleCalculatorRequest({
+      ...meleeRequest,
+      requestId: 45,
+      player: { ...meleeRequest.player, equipment: { weapon: 27665 } },
+      options: { mode: "Magic" },
+    });
+    expect(magic).toMatchObject({ result: { style: { type: "magic", stance: "Accurate" } } });
+
+    const incompatible = handleCalculatorRequest({ ...meleeRequest, requestId: 45, options: { mode: "Ranged" } });
+    expect(incompatible).toEqual({
+      version: 1,
+      requestId: 45,
+      error: { message: "No viable Ranged style for the equipped weapon" },
+    });
+  });
+
   it("returns protocol errors instead of throwing across the worker boundary", () => {
     expect(
       handleCalculatorRequest({
