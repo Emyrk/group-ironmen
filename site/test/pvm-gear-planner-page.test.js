@@ -136,6 +136,9 @@ function member(name, ownedItemIds, equippedBodyId) {
     totalItemQuantity(itemId) {
       return owned.has(itemId) ? 1 : 0;
     },
+    *allItems() {
+      for (const itemId of owned) yield { id: itemId, quantity: 1 };
+    },
   };
 }
 
@@ -144,13 +147,10 @@ function groupData() {
     members: new Map([
       [
         "Alice",
-        member(
-          "Alice",
-          [10828, 24271, 6570, 6585, 9244, 4151, 11832, 10551, 9674, 8850, 11834, 7462, 11840, 6737],
-          11832
-        ),
+        member("Alice", [10828, 24271, 6570, 6585, 9244, 4151, 11832, 10551, 8850, 11834, 7462, 11840, 6737], 11832),
       ],
       ["Bob", member("Bob", [10828, 6570, 6585, 4151, 10551, 11834, 7462, 11840, 6737], 10551)],
+      ["@SHARED", member("@SHARED", [9674], 0)],
     ]),
   };
 }
@@ -188,6 +188,10 @@ describe("pvm-gear-planner-page", () => {
     const page = await createPage();
 
     expect(page.querySelector("[data-control='member']").value).toBe("Alice");
+    expect([...page.querySelectorAll("[data-control='member'] option")].map((option) => option.value)).toEqual([
+      "Alice",
+      "Bob",
+    ]);
     expect(page.querySelectorAll(".pvm-gear-planner-page__paperdoll-slot")).toHaveLength(11);
     expect(page.querySelector("[data-slot='body']").title).toContain("Bandos chestplate");
     expect(page.querySelector("[data-slot='head']").title).toContain("Neitiznot faceguard");
@@ -204,6 +208,7 @@ describe("pvm-gear-planner-page", () => {
       (node) => node.textContent
     );
     expect(alternatives[0]).toBe("Bandos chestplate");
+    expect(page.querySelector("[data-equip-item='9674']").closest("article").textContent).toContain("Shared storage");
 
     page.querySelector("[data-equip-item='9674']").click();
     await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")?.textContent).toBe("Equipped"));

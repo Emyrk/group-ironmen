@@ -66,10 +66,14 @@ function memberDataSignature(member) {
     .sort();
   const equipment = (member.equipment || []).map((item) => item?.id || 0);
   const quantities = new Map();
-  for (const inventoryQuantities of Object.values(member.itemQuantities || {})) {
-    if (!(inventoryQuantities instanceof Map)) continue;
-    for (const [itemId, quantity] of inventoryQuantities) {
-      quantities.set(itemId, (quantities.get(itemId) || 0) + quantity);
+  if (typeof member.allItems === "function") {
+    for (const item of member.allItems()) quantities.set(item.id, item.quantity || 1);
+  } else {
+    for (const inventoryQuantities of Object.values(member.itemQuantities || {})) {
+      if (!(inventoryQuantities instanceof Map)) continue;
+      for (const [itemId, quantity] of inventoryQuantities) {
+        quantities.set(itemId, (quantities.get(itemId) || 0) + quantity);
+      }
     }
   }
   const owned = [...quantities].sort(([left], [right]) => left - right);
@@ -132,7 +136,9 @@ export class PvmGearPlannerPage extends BaseElement {
       : this.members[0]?.name || "";
     const memberChanged = nextMember !== this.selectedMember;
     this.selectedMember = nextMember;
-    const nextSignature = memberDataSignature(this.selectedMemberData);
+    const nextSignature = `${memberDataSignature(this.selectedMemberData)}|${memberDataSignature(
+      this.sharedStorageData
+    )}`;
     const dataChanged = nextSignature !== this.memberSignature;
     if (!memberChanged && this.loadoutInitialized && !dataChanged) return;
 
@@ -142,19 +148,36 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   get members() {
-    return this.groupData ? [...this.groupData.members.values()] : [];
+    return this.groupData ? [...this.groupData.members.values()].filter((member) => member.name !== "@SHARED") : [];
   }
 
   get selectedMemberData() {
     return this.groupData?.members.get(this.selectedMember);
   }
 
+  get sharedStorageData() {
+    return this.groupData?.members.get("@SHARED");
+  }
+
   get selectedTarget() {
     return this.entities?.targetsByKey.get(this.selectedTargetKey) || null;
   }
 
+  itemAvailability(item) {
+    const personal = Boolean(item && this.selectedMemberData?.totalItemQuantity(item.id) > 0);
+    const shared = Boolean(item && this.sharedStorageData?.totalItemQuantity(item.id) > 0);
+    return { personal, shared, available: personal || shared };
+  }
+
   isOwned(item) {
-    return Boolean(item && this.selectedMemberData?.totalItemQuantity(item.id) > 0);
+    return this.itemAvailability(item).available;
+  }
+
+  availabilityLabel(item) {
+    const { personal, shared } = this.itemAvailability(item);
+    if (personal && shared) return `${this.selectedMember} + shared storage`;
+    if (shared) return "Shared storage";
+    return `Owned by ${this.selectedMember}`;
   }
 
   ownedEquipment(slot) {
@@ -178,7 +201,9 @@ export class PvmGearPlannerPage extends BaseElement {
     }
     this.selectedItems = nextItems;
     this.normalizeTwoHandedEquipment();
-    this.memberSignature = memberDataSignature(this.selectedMemberData);
+    this.memberSignature = `${memberDataSignature(this.selectedMemberData)}|${memberDataSignature(
+      this.sharedStorageData
+    )}`;
     this.loadoutInitialized = true;
     this.currentResult = null;
     this.candidateResults = new Map();
@@ -421,7 +446,9 @@ export class PvmGearPlannerPage extends BaseElement {
             <img src="${this.itemImage(item)}" alt="" />
             <div class="pvm-gear-planner-page__alternative-name">
               <strong>${escapeHtml(item.name)}</strong>
-              <span>${item.version ? escapeHtml(item.version) : "Owned by selected member"}</span>
+              <span>${escapeHtml(
+                item.version ? `${item.version} · ${this.availabilityLabel(item)}` : this.availabilityLabel(item)
+              )}</span>
             </div>
             <dl>
               <div><dt>DPS</dt><dd>${result ? formatNumber(result.dps, 2) : "…"}</dd></div>

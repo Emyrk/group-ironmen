@@ -747,6 +747,19 @@ async fn test_shared_bank_and_member_update_same_batch() {
     let shared = get_member_from_db(&client, group_id, SHARED_MEMBER).await;
     assert_eq!(shared.bank, Some(vec![100, 200, 300]));
 
+    // The group-data API contract exposes shared storage as the synthetic
+    // @SHARED member's bank, rather than through each member's shared_bank field.
+    let epoch = chrono::DateTime::from_timestamp(0, 0).unwrap();
+    let group_data = db::get_group_data(&client, group_id, &epoch)
+        .await
+        .expect("group data should include shared storage");
+    let shared_response = group_data
+        .iter()
+        .find(|member| member.name == SHARED_MEMBER)
+        .expect("shared member should be returned");
+    assert_eq!(shared_response.bank, Some(vec![100, 200, 300]));
+    assert_eq!(shared_response.shared_bank, None);
+
     drop(tx);
 }
 
