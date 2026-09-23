@@ -10,7 +10,6 @@
       <input data-control="target" list="pvm-gear-planner-targets" value="${this.renderSelectedTargetLabel()}" placeholder="Search NPCs" />
       <datalist id="pvm-gear-planner-targets">${this.renderTargetOptions()}</datalist>
     </label>
-    <label>Combat mode<select data-control="mode">${this.renderStyleOptions()}</select></label>
   </div>
 </header>
 ${this.renderStatus()}
@@ -23,6 +22,10 @@ ${this.renderStatus()}
       <span>${this.slotName(this.activeSlot)}</span>
       <strong>${this.selectedItems[this.activeSlot]?.name || "Empty"}</strong>
     </div>
+    <label class="pvm-gear-planner-page__combat-mode">
+      Combat mode
+      <select data-control="mode">${this.renderStyleOptions()}</select>
+    </label>
   </section>
   <section class="pvm-gear-planner-page__choices rsbackground rsborder-tiny">
     <header>

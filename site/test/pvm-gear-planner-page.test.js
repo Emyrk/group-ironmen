@@ -175,11 +175,16 @@ describe("pvm-gear-planner-page", () => {
   it("registers the authenticated page and navigation entry", () => {
     const index = readFileSync("src/index.html", "utf8");
     const navigation = readFileSync("src/app-navigation/app-navigation.html", "utf8");
+    const plannerTemplate = readFileSync("src/pvm-gear-planner-page/pvm-gear-planner-page.html", "utf8");
     const components = JSON.parse(readFileSync("components.json", "utf8"));
 
     expect(index).toContain('route-path="/pvm-gear"');
     expect(index).toContain('route-component="pvm-gear-planner-page"');
     expect(navigation).toContain('link-href="/group/pvm-gear"');
+    expect(plannerTemplate).toContain('class="pvm-gear-planner-page__combat-mode"');
+    expect(plannerTemplate.indexOf('class="pvm-gear-planner-page__combat-mode"')).toBeGreaterThan(
+      plannerTemplate.indexOf('class="pvm-gear-planner-page__loadout')
+    );
     expect(components).toContain("pvm-gear-planner-page");
     expect(customElements.get("pvm-gear-planner-page")).toBe(PvmGearPlannerPage);
   });
