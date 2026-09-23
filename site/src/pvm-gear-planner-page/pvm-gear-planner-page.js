@@ -1,64 +1,26 @@
 import { BaseElement } from "../base-element/base-element";
+import { CalculatorClient, createWorkerCalculatorTransport } from "../pvm/calculator-client";
+import { equipmentIdsFromMember } from "../pvm/calculator-protocol";
+import { loadPvmEntities } from "../pvm/entity-loader";
 
-const TARGETS = {
-  "giant-mole": { name: "Giant Mole", hitpoints: 200, defence: 0.94 },
-  vorkath: { name: "Vorkath", hitpoints: 750, defence: 0.78 },
-  "dagannoth-rex": { name: "Dagannoth Rex", hitpoints: 255, defence: 0.88 },
-};
-
-const GEAR = {
-  head: [
-    { id: 26382, name: "Torva full helm", offense: 8, prayer: 1, defence: 74, weight: 3.6, risk: 65000000 },
-    { id: 24271, name: "Neitiznot faceguard", offense: 6, prayer: 3, defence: 63, weight: 2.7, risk: 22000000 },
-    { id: 10828, name: "Helm of neitiznot", offense: 3, prayer: 3, defence: 45, weight: 2.7, risk: 50000 },
-  ],
-  body: [
-    { id: 26384, name: "Torva platebody", offense: 6, prayer: 1, defence: 132, weight: 9.1, risk: 280000000 },
-    { id: 11832, name: "Bandos chestplate", offense: 4, prayer: 1, defence: 117, weight: 12, risk: 30000000 },
-    { id: 10551, name: "Fighter torso", offense: 4, prayer: 0, defence: 62, weight: 8, risk: 0 },
-    { id: 9674, name: "Proselyte hauberk", offense: 0, prayer: 8, defence: 50, weight: 7.7, risk: 25000 },
-  ],
-  legs: [
-    { id: 26386, name: "Torva platelegs", offense: 4, prayer: 1, defence: 112, weight: 9.1, risk: 190000000 },
-    { id: 11834, name: "Bandos tassets", offense: 2, prayer: 1, defence: 71, weight: 8, risk: 20000000 },
-    { id: 9676, name: "Proselyte cuisse", offense: 0, prayer: 6, defence: 38, weight: 5.4, risk: 15000 },
-  ],
-};
-
-const SLOT_NAMES = { head: "Head", body: "Body", legs: "Legs" };
 const PAPERDOLL_SLOTS = [
-  { slot: "head", position: "head", emptyIcon: "156-0.png" },
-  { position: "cape", emptyIcon: "157-0.png" },
-  { position: "neck", emptyIcon: "158-0.png" },
-  { position: "ammo", emptyIcon: "166-0.png" },
-  { position: "weapon", emptyIcon: "159-0.png" },
-  { slot: "body", position: "torso", emptyIcon: "161-0.png" },
-  { position: "shield", emptyIcon: "162-0.png" },
-  { slot: "legs", position: "legs", emptyIcon: "163-0.png" },
-  { position: "gloves", emptyIcon: "164-0.png" },
-  { position: "boots", emptyIcon: "165-0.png" },
-  { position: "ring", emptyIcon: "160-0.png" },
+  { slot: "head", position: "head", label: "Head", emptyIcon: "156-0.png" },
+  { slot: "cape", position: "cape", label: "Cape", emptyIcon: "157-0.png" },
+  { slot: "neck", position: "neck", label: "Neck", emptyIcon: "158-0.png" },
+  { slot: "ammo", position: "ammo", label: "Ammo", emptyIcon: "166-0.png" },
+  { slot: "weapon", position: "weapon", label: "Weapon", emptyIcon: "159-0.png" },
+  { slot: "body", position: "torso", label: "Body", emptyIcon: "161-0.png" },
+  { slot: "shield", position: "shield", label: "Shield", emptyIcon: "162-0.png" },
+  { slot: "legs", position: "legs", label: "Legs", emptyIcon: "163-0.png" },
+  { slot: "hands", position: "gloves", label: "Hands", emptyIcon: "164-0.png" },
+  { slot: "feet", position: "boots", label: "Feet", emptyIcon: "165-0.png" },
+  { slot: "ring", position: "ring", label: "Ring", emptyIcon: "160-0.png" },
 ];
-
-function total(items, field) {
-  return items.reduce((sum, item) => sum + item[field], 0);
-}
-
-export function calculatePreview(loadout, targetId) {
-  const items = Object.values(loadout);
-  const target = TARGETS[targetId] || TARGETS["giant-mole"];
-  const offense = total(items, "offense");
-  const dps = (6.4 + offense * 0.085) * target.defence;
-  return {
-    dps,
-    accuracy: Math.min(99, 68 + offense * 0.9) * target.defence,
-    ttk: target.hitpoints / dps,
-    prayer: total(items, "prayer"),
-    defence: total(items, "defence"),
-    weight: total(items, "weight"),
-    risk: total(items, "risk"),
-  };
-}
+const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
+const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
+const ATTACK_STYLES = ["Accurate", "Aggressive", "Controlled", "Rapid", "Longrange"];
+const MAX_CANDIDATES = 12;
+const DEFAULT_TARGET = ["Giant Mole", ""];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -70,13 +32,8 @@ function escapeHtml(value) {
 }
 
 function formatNumber(value, digits = 1) {
+  if (!Number.isFinite(value)) return "N/A";
   return Number(value).toFixed(digits);
-}
-
-function formatRisk(value) {
-  if (value >= 1000000) return `${formatNumber(value / 1000000)}m`;
-  if (value >= 1000) return `${Math.round(value / 1000)}k`;
-  return `${value}`;
 }
 
 function tierFor(dps, bestDps) {
@@ -87,30 +44,101 @@ function tierFor(dps, bestDps) {
   return "C";
 }
 
+function equipmentScore(item) {
+  const offensive = Object.values(item.offensive || {}).reduce((sum, value) => sum + Math.max(0, value || 0), 0);
+  const bonuses = item.bonuses || {};
+  return offensive + (bonuses.str || 0) * 3 + (bonuses.ranged_str || 0) * 3 + (bonuses.magic_str || 0) * 3;
+}
+
+function uniqueById(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function memberDataSignature(member) {
+  if (!member) return "";
+  const skills = Object.entries(member.skills || {})
+    .map(([name, skill]) => `${name}:${skill?.level || 1}`)
+    .sort();
+  const equipment = (member.equipment || []).map((item) => item?.id || 0);
+  const quantities = new Map();
+  for (const inventoryQuantities of Object.values(member.itemQuantities || {})) {
+    if (!(inventoryQuantities instanceof Map)) continue;
+    for (const [itemId, quantity] of inventoryQuantities) {
+      quantities.set(itemId, (quantities.get(itemId) || 0) + quantity);
+    }
+  }
+  const owned = [...quantities].sort(([left], [right]) => left - right);
+  return JSON.stringify({ skills, equipment, owned });
+}
+
 export class PvmGearPlannerPage extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.groupData = null;
+    this.entities = null;
     this.selectedMember = "";
-    this.targetId = "giant-mole";
+    this.selectedTargetKey = "";
+    this.attackStyle = "Accurate";
     this.activeSlot = "body";
-    this.selectedItems = Object.fromEntries(Object.entries(GEAR).map(([slot, options]) => [slot, options[0]]));
+    this.selectedItems = Object.fromEntries(SLOT_KEYS.map((slot) => [slot, null]));
+    this.currentResult = null;
+    this.candidateResults = new Map();
+    this.loadingEntities = true;
+    this.calculating = false;
+    this.error = "";
+    this.calculationGeneration = 0;
+    this.memberSignature = "";
+    this.loadoutInitialized = false;
+    const transport = createWorkerCalculatorTransport();
+    this.resultCalculator = new CalculatorClient(transport);
+    this.candidateCalculator = new CalculatorClient(transport);
     this.renderAndBind();
     this.subscribe("get-group-data", this.handleGroupData.bind(this));
+    this.loadEntities();
   }
 
   html() {
     return `{{pvm-gear-planner-page.html}}`;
   }
 
+  async loadEntities() {
+    try {
+      this.entities = await loadPvmEntities();
+      this.loadingEntities = false;
+      const [defaultName, defaultVersion] = DEFAULT_TARGET;
+      const defaultTarget = this.entities.targets.find(
+        (monster) => monster.name === defaultName && monster.version === defaultVersion
+      );
+      this.selectedTargetKey = defaultTarget?.key || this.entities.targets[0]?.key || "";
+      this.initializeLoadout();
+      this.renderAndBind();
+      this.refreshCalculations();
+    } catch (error) {
+      this.loadingEntities = false;
+      this.error = error instanceof Error ? error.message : String(error);
+      this.renderAndBind();
+    }
+  }
+
   handleGroupData(groupData) {
     this.groupData = groupData;
-    const members = this.members;
-    if (!members.some((member) => member.name === this.selectedMember)) {
-      this.selectedMember = members[0]?.name || "";
-    }
-    this.chooseOwnedDefaults();
+    const nextMember = this.members.some((member) => member.name === this.selectedMember)
+      ? this.selectedMember
+      : this.members[0]?.name || "";
+    const memberChanged = nextMember !== this.selectedMember;
+    this.selectedMember = nextMember;
+    const nextSignature = memberDataSignature(this.selectedMemberData);
+    const dataChanged = nextSignature !== this.memberSignature;
+    if (!memberChanged && this.loadoutInitialized && !dataChanged) return;
+
+    this.initializeLoadout({ preserveSelections: !memberChanged });
     this.renderAndBind();
+    this.refreshCalculations();
   }
 
   get members() {
@@ -121,17 +149,47 @@ export class PvmGearPlannerPage extends BaseElement {
     return this.groupData?.members.get(this.selectedMember);
   }
 
-  isOwned(item) {
-    if (!this.selectedMemberData) return true;
-    return this.selectedMemberData.totalItemQuantity(item.id) > 0;
+  get selectedTarget() {
+    return this.entities?.targetsByKey.get(this.selectedTargetKey) || null;
   }
 
-  chooseOwnedDefaults() {
-    if (!this.selectedMemberData) return;
-    for (const [slot, options] of Object.entries(GEAR)) {
-      if (!this.isOwned(this.selectedItems[slot])) {
-        this.selectedItems[slot] = options.find((item) => this.isOwned(item)) || options[0];
+  isOwned(item) {
+    return Boolean(item && this.selectedMemberData?.totalItemQuantity(item.id) > 0);
+  }
+
+  ownedEquipment(slot) {
+    if (!this.entities || !this.selectedMemberData) return [];
+    return uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter((item) => this.isOwned(item));
+  }
+
+  initializeLoadout({ preserveSelections = false } = {}) {
+    if (!this.entities || !this.selectedMemberData) return;
+    const equippedIds = equipmentIdsFromMember(this.selectedMemberData);
+    const nextItems = {};
+    for (const slot of SLOT_KEYS) {
+      const selected = this.selectedItems[slot];
+      const equipped = this.entities.equipmentById.get(equippedIds[slot]);
+      const owned = this.ownedEquipment(slot).sort((left, right) => equipmentScore(right) - equipmentScore(left));
+      if (preserveSelections && selected?.slot === slot && this.isOwned(selected)) {
+        nextItems[slot] = selected;
+      } else {
+        nextItems[slot] = equipped?.slot === slot ? equipped : owned[0] || null;
       }
+    }
+    this.selectedItems = nextItems;
+    this.normalizeTwoHandedEquipment();
+    this.memberSignature = memberDataSignature(this.selectedMemberData);
+    this.loadoutInitialized = true;
+    this.currentResult = null;
+    this.candidateResults = new Map();
+  }
+
+  normalizeTwoHandedEquipment(changedSlot) {
+    const weapon = this.selectedItems.weapon;
+    if (changedSlot === "shield" && this.selectedItems.shield && weapon?.isTwoHanded) {
+      this.selectedItems.weapon = null;
+    } else if (weapon?.isTwoHanded) {
+      this.selectedItems.shield = null;
     }
   }
 
@@ -143,8 +201,10 @@ export class PvmGearPlannerPage extends BaseElement {
   bindControls() {
     const member = this.querySelector("[data-control='member']");
     const target = this.querySelector("[data-control='target']");
+    const style = this.querySelector("[data-control='style']");
     if (member) this.eventListener(member, "change", this.handleMemberChange.bind(this));
     if (target) this.eventListener(target, "change", this.handleTargetChange.bind(this));
+    if (style) this.eventListener(style, "change", this.handleStyleChange.bind(this));
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
@@ -155,33 +215,137 @@ export class PvmGearPlannerPage extends BaseElement {
 
   handleMemberChange(event) {
     this.selectedMember = event.target.value;
-    this.chooseOwnedDefaults();
+    this.loadoutInitialized = false;
+    this.initializeLoadout();
     this.renderAndBind();
+    this.refreshCalculations();
   }
 
   handleTargetChange(event) {
-    this.targetId = event.target.value;
+    const target =
+      this.entities?.targetsByLabel.get(event.target.value) || this.entities?.targetsByKey.get(event.target.value);
+    if (!target) {
+      event.target.value = this.selectedTarget?.label || "";
+      return;
+    }
+    this.selectedTargetKey = target.key;
+    this.currentResult = null;
+    this.candidateResults = new Map();
     this.renderAndBind();
+    this.refreshCalculations();
+  }
+
+  handleStyleChange(event) {
+    this.attackStyle = event.target.value;
+    this.currentResult = null;
+    this.candidateResults = new Map();
+    this.renderAndBind();
+    this.refreshCalculations();
   }
 
   handleSlotClick(event) {
     this.activeSlot = event.currentTarget.dataset.slot;
+    this.candidateResults = new Map();
     this.renderAndBind();
+    this.refreshCalculations();
   }
 
   handleEquipClick(event) {
-    const item = GEAR[this.activeSlot].find((option) => option.id === Number(event.currentTarget.dataset.equipItem));
-    if (!item || !this.isOwned(item)) return;
+    const item = this.entities?.equipmentById.get(Number(event.currentTarget.dataset.equipItem));
+    if (!item || item.slot !== this.activeSlot || !this.isOwned(item)) return;
     this.selectedItems[this.activeSlot] = item;
+    this.normalizeTwoHandedEquipment(this.activeSlot);
+    this.currentResult = null;
+    this.candidateResults = new Map();
     this.renderAndBind();
+    this.refreshCalculations();
   }
 
   itemImage(item) {
     return `/icons/items/${item.id}.webp`;
   }
 
+  equipmentIds(overrides = {}) {
+    const items = Object.fromEntries(
+      SLOT_KEYS.map((slot) => [slot, Object.hasOwn(overrides, slot) ? overrides[slot] : this.selectedItems[slot]])
+    );
+    if (Object.hasOwn(overrides, "shield") && items.shield && items.weapon?.isTwoHanded) items.weapon = null;
+    if (items.weapon?.isTwoHanded) items.shield = null;
+    return Object.fromEntries(SLOT_KEYS.map((slot) => [slot, items[slot]?.id || null]));
+  }
+
+  calculatorInput(overrides = {}) {
+    return {
+      member: this.selectedMemberData,
+      equipmentIds: this.equipmentIds(overrides),
+      monster: this.selectedTarget,
+      options: { style: this.attackStyle },
+    };
+  }
+
+  activeCandidates() {
+    const selected = this.selectedItems[this.activeSlot];
+    const candidates = this.ownedEquipment(this.activeSlot).sort(
+      (left, right) => equipmentScore(right) - equipmentScore(left)
+    );
+    const bounded = candidates.slice(0, MAX_CANDIDATES);
+    if (selected && !bounded.some((item) => item.id === selected.id)) bounded.push(selected);
+    return bounded;
+  }
+
+  async refreshCalculations() {
+    const generation = ++this.calculationGeneration;
+    if (!this.entities || !this.selectedMemberData || !this.selectedTarget) return;
+    this.calculating = true;
+    this.error = "";
+    this.renderAndBind();
+
+    try {
+      const currentResult = await this.resultCalculator.calculate(this.calculatorInput());
+      if (generation !== this.calculationGeneration || !currentResult) return;
+      this.currentResult = currentResult;
+      this.renderAndBind();
+
+      const results = new Map();
+      for (const item of this.activeCandidates()) {
+        if (generation !== this.calculationGeneration) return;
+        if (item.id === this.selectedItems[this.activeSlot]?.id) {
+          results.set(item.id, currentResult);
+          continue;
+        }
+        const result = await this.candidateCalculator.calculate(this.calculatorInput({ [this.activeSlot]: item }));
+        if (generation !== this.calculationGeneration || !result) return;
+        results.set(item.id, result);
+      }
+      this.candidateResults = results;
+      this.calculating = false;
+      this.renderAndBind();
+    } catch (error) {
+      if (generation !== this.calculationGeneration) return;
+      this.calculating = false;
+      this.error = error instanceof Error ? error.message : String(error);
+      this.renderAndBind();
+    }
+  }
+
+  loadoutSummary(items = this.selectedItems) {
+    const equipped = Object.values(items).filter(Boolean);
+    return {
+      prayer: equipped.reduce((sum, item) => sum + (item.bonuses?.prayer || 0), 0),
+      defence: equipped.reduce(
+        (sum, item) => sum + Object.values(item.defensive || {}).reduce((itemSum, value) => itemSum + (value || 0), 0),
+        0
+      ),
+      weight: equipped.reduce((sum, item) => sum + (item.weight || 0), 0),
+    };
+  }
+
+  slotName(slot) {
+    return SLOT_NAMES[slot];
+  }
+
   renderMemberOptions() {
-    if (this.members.length === 0) return '<option value="">Preview loadout</option>';
+    if (this.members.length === 0) return '<option value="">Waiting for group data</option>';
     return this.members
       .map((member) => {
         const name = escapeHtml(member.name);
@@ -190,71 +354,86 @@ export class PvmGearPlannerPage extends BaseElement {
       .join("");
   }
 
+  renderSelectedTargetLabel() {
+    return escapeHtml(this.selectedTarget?.label || "");
+  }
+
   renderTargetOptions() {
-    return Object.entries(TARGETS)
-      .map(([id, target]) => `<option value="${id}" ${id === this.targetId ? "selected" : ""}>${target.name}</option>`)
-      .join("");
+    if (!this.entities) return "";
+    return this.entities.targets.map((target) => `<option value="${escapeHtml(target.label)}"></option>`).join("");
+  }
+
+  renderStyleOptions() {
+    return ATTACK_STYLES.map(
+      (style) => `<option value="${style}" ${style === this.attackStyle ? "selected" : ""}>${style}</option>`
+    ).join("");
+  }
+
+  renderStatus() {
+    if (this.loadingEntities) return '<div class="pvm-gear-planner-page__status">Loading authoritative PvM data…</div>';
+    if (this.error)
+      return `<div class="pvm-gear-planner-page__status error"><strong>Calculator error:</strong> ${escapeHtml(
+        this.error
+      )}</div>`;
+    if (!this.selectedMemberData) return '<div class="pvm-gear-planner-page__status">Waiting for member data…</div>';
+    if (this.calculating)
+      return '<div class="pvm-gear-planner-page__status">Calculating real DPS in the browser…</div>';
+    return "";
   }
 
   renderPaperdoll() {
-    return PAPERDOLL_SLOTS.map(({ slot, position, emptyIcon }) => {
-      if (!slot) {
-        return `
-          <div class="pvm-gear-planner-page__paperdoll-slot position-${position} empty" title="${position} options coming soon">
-            <img src="/ui/${emptyIcon}" alt="" />
-          </div>`;
-      }
-
+    return PAPERDOLL_SLOTS.map(({ slot, position, label, emptyIcon }) => {
       const item = this.selectedItems[slot];
       return `
         <button
-          class="pvm-gear-planner-page__paperdoll-slot position-${position} ${slot === this.activeSlot ? "active" : ""}"
+          class="pvm-gear-planner-page__paperdoll-slot position-${position} ${
+        slot === this.activeSlot ? "active" : ""
+      } ${item ? "" : "empty"}"
           data-slot="${slot}"
-          title="${SLOT_NAMES[slot]}: ${item.name}"
-          aria-label="Choose ${SLOT_NAMES[slot].toLowerCase()} equipment. Currently ${item.name}."
+          title="${label}: ${escapeHtml(item?.name || "Empty")}"
+          aria-label="Choose ${label.toLowerCase()} equipment. Currently ${escapeHtml(item?.name || "empty")}."
         >
-          <img src="${this.itemImage(item)}" alt="" />
+          <img src="${item ? this.itemImage(item) : `/ui/${emptyIcon}`}" alt="" />
         </button>`;
     }).join("");
   }
 
-  resultFor(item) {
-    return calculatePreview({ ...this.selectedItems, [this.activeSlot]: item }, this.targetId);
-  }
-
   renderAlternatives() {
-    const current = calculatePreview(this.selectedItems, this.targetId);
-    const ranked = GEAR[this.activeSlot]
-      .map((item) => ({ item, result: this.resultFor(item) }))
-      .sort((a, b) => b.result.dps - a.result.dps || b.result.prayer - a.result.prayer);
-    const bestDps = ranked[0]?.result.dps || 0;
+    const ranked = this.activeCandidates()
+      .map((item) => ({ item, result: this.candidateResults.get(item.id) }))
+      .sort((left, right) => (right.result?.dps || -1) - (left.result?.dps || -1));
+    if (ranked.length === 0)
+      return '<p class="pvm-gear-planner-page__empty">No owned equipment found for this slot.</p>';
+    const bestDps = Math.max(0, ...ranked.map(({ result }) => result?.dps || 0));
     return ranked
       .map(({ item, result }) => {
-        const selected = this.selectedItems[this.activeSlot].id === item.id;
-        const owned = this.isOwned(item);
-        const dpsChange = ((result.dps - current.dps) / current.dps) * 100;
+        const selected = this.selectedItems[this.activeSlot]?.id === item.id;
+        const dpsChange =
+          result && this.currentResult?.dps
+            ? ((result.dps - this.currentResult.dps) / this.currentResult.dps) * 100
+            : null;
+        const summary = this.loadoutSummary({ ...this.selectedItems, [this.activeSlot]: item });
         return `
-          <article class="pvm-gear-planner-page__alternative ${selected ? "selected" : ""} ${owned ? "" : "unowned"}">
-            <div class="pvm-gear-planner-page__tier tier-${tierFor(result.dps, bestDps).toLowerCase()}">${tierFor(
-          result.dps,
-          bestDps
-        )}</div>
+          <article class="pvm-gear-planner-page__alternative ${selected ? "selected" : ""}">
+            <div class="pvm-gear-planner-page__tier tier-${
+              result ? tierFor(result.dps, bestDps).toLowerCase() : "pending"
+            }">${result ? tierFor(result.dps, bestDps) : "…"}</div>
             <img src="${this.itemImage(item)}" alt="" />
             <div class="pvm-gear-planner-page__alternative-name">
-              <strong>${item.name}</strong>
-              <span>${owned ? "Owned by selected member" : "Not found on selected member"}</span>
+              <strong>${escapeHtml(item.name)}</strong>
+              <span>${item.version ? escapeHtml(item.version) : "Owned by selected member"}</span>
             </div>
             <dl>
-              <div><dt>DPS</dt><dd>${formatNumber(result.dps, 2)}</dd></div>
-              <div><dt>Change</dt><dd class="${dpsChange >= 0 ? "positive" : "negative"}">${
-          dpsChange >= 0 ? "+" : ""
-        }${formatNumber(dpsChange)}%</dd></div>
-              <div><dt>Prayer</dt><dd>+${result.prayer}</dd></div>
-              <div><dt>Defense</dt><dd>${result.defence}</dd></div>
-              <div><dt>Risk</dt><dd>${formatRisk(result.risk)}</dd></div>
+              <div><dt>DPS</dt><dd>${result ? formatNumber(result.dps, 2) : "…"}</dd></div>
+              <div><dt>Change</dt><dd class="${dpsChange === null || dpsChange >= 0 ? "positive" : "negative"}">${
+          dpsChange === null ? "…" : `${dpsChange >= 0 ? "+" : ""}${formatNumber(dpsChange)}%`
+        }</dd></div>
+              <div><dt>Prayer</dt><dd>+${summary.prayer}</dd></div>
+              <div><dt>Defence</dt><dd>${summary.defence}</dd></div>
+              <div><dt>Weight</dt><dd>${formatNumber(summary.weight)} kg</dd></div>
             </dl>
-            <button class="men-button" data-equip-item="${item.id}" ${!owned || selected ? "disabled" : ""}>${
-          selected ? "Equipped" : owned ? "Choose" : "Unavailable"
+            <button class="men-button" data-equip-item="${item.id}" ${selected ? "disabled" : ""}>${
+          selected ? "Equipped" : "Choose"
         }</button>
           </article>`;
       })
@@ -262,15 +441,17 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   renderResults() {
-    const result = calculatePreview(this.selectedItems, this.targetId);
+    const result = this.currentResult;
+    const summary = this.loadoutSummary();
     return `
-      <div><span>DPS estimate</span><strong>${formatNumber(result.dps, 2)}</strong></div>
-      <div><span>Accuracy</span><strong>${formatNumber(result.accuracy)}%</strong></div>
-      <div><span>Time to kill</span><strong>${formatNumber(result.ttk)}s</strong></div>
-      <div><span>Prayer</span><strong>+${result.prayer}</strong></div>
-      <div><span>Defense</span><strong>${result.defence}</strong></div>
-      <div><span>Weight</span><strong>${formatNumber(result.weight)} kg</strong></div>
-      <div><span>Risk value</span><strong>${formatRisk(result.risk)}</strong></div>`;
+      <div><span>DPS</span><strong>${result ? formatNumber(result.dps, 2) : "…"}</strong></div>
+      <div><span>Accuracy</span><strong>${result ? `${formatNumber(result.accuracy * 100)}%` : "…"}</strong></div>
+      <div><span>Max hit</span><strong>${result ? formatNumber(result.maxHit, 0) : "…"}</strong></div>
+      <div><span>Attack speed</span><strong>${result ? `${result.attackSpeed} ticks` : "…"}</strong></div>
+      <div><span>Expected TTK</span><strong>${result ? `${formatNumber(result.expectedTtk)}s` : "…"}</strong></div>
+      <div><span>Prayer</span><strong>+${summary.prayer}</strong></div>
+      <div><span>Defence</span><strong>${summary.defence}</strong></div>
+      <div><span>Weight</span><strong>${formatNumber(summary.weight)} kg</strong></div>`;
   }
 }
 

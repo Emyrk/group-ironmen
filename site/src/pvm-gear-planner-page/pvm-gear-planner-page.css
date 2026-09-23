@@ -28,27 +28,28 @@ pvm-gear-planner-page {
   gap: 4px;
   color: var(--orange);
 }
-.pvm-gear-planner-page__controls select {
+.pvm-gear-planner-page__controls select,
+.pvm-gear-planner-page__controls input {
   min-width: 160px;
   padding: 7px;
   color: var(--primary-text);
   background: #302a22;
   border: 1px solid var(--light-border);
 }
-.pvm-gear-planner-page__notice {
-  display: flex;
-  gap: 10px;
+.pvm-gear-planner-page__status {
   margin-top: 12px;
   padding: 10px 12px;
-  border-color: #9a7c35;
-}
-.pvm-gear-planner-page__notice strong {
   color: var(--orange);
-  white-space: nowrap;
+  background: #302a22;
+  border: 1px solid #9a7c35;
+}
+.pvm-gear-planner-page__status.error {
+  color: #d99a91;
+  border-color: #a65348;
 }
 .pvm-gear-planner-page__results {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
   padding: 12px;
@@ -267,6 +268,22 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   cursor: default;
   opacity: 0.6;
 }
+.pvm-gear-planner-page__tier.tier-pending {
+  color: #ddd;
+  background: #555;
+}
+.pvm-gear-planner-page__empty {
+  color: #bbb;
+}
+.pvm-gear-planner-page__attribution {
+  margin-top: 10px;
+  color: #999;
+  font-size: 0.8rem;
+  text-align: right;
+}
+.pvm-gear-planner-page__attribution a {
+  color: var(--orange);
+}
 @media only screen and (max-width: 1100px) {
   .pvm-gear-planner-page__results {
     grid-template-columns: repeat(4, 1fr);
@@ -277,8 +294,7 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
 }
 @media only screen and (max-width: 760px) {
   .pvm-gear-planner-page__header,
-  .pvm-gear-planner-page__controls,
-  .pvm-gear-planner-page__notice {
+  .pvm-gear-planner-page__controls {
     align-items: stretch;
     flex-direction: column;
   }

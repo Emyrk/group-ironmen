@@ -44,6 +44,8 @@
   },
   "author": "Christopher Brown",
   "dependencies": {
-    "cytoscape": "^3.34.3"
+    "cytoscape": "^3.34.3",
+    "d3-array": "^3.2.4",
+    "lodash.mergewith": "^4.6.2"
   }
 }

@@ -1,32 +1,37 @@
 <header class="pvm-gear-planner-page__header">
   <div>
     <h1>PvM Gear Planner</h1>
-    <p>Compare the gear you own, inspect tradeoffs, and choose each slot yourself.</p>
+    <p>Compare equipment your group member owns with the OSRS Wiki damage calculator.</p>
   </div>
   <div class="pvm-gear-planner-page__controls rsbackground rsborder-tiny">
     <label>Member<select data-control="member">${this.renderMemberOptions()}</select></label>
-    <label>Target<select data-control="target">${this.renderTargetOptions()}</select></label>
+    <label>
+      Target
+      <input data-control="target" list="pvm-gear-planner-targets" value="${this.renderSelectedTargetLabel()}" placeholder="Search NPCs" />
+      <datalist id="pvm-gear-planner-targets">${this.renderTargetOptions()}</datalist>
+    </label>
+    <label>Attack style<select data-control="style">${this.renderStyleOptions()}</select></label>
   </div>
 </header>
-<div class="pvm-gear-planner-page__notice rsbackground rsborder-tiny">
-  <strong>UI prototype</strong>
-  <span>Results update live, but currently use fixture combat values. The production calculator engine and complete equipment data are not connected yet.</span>
-</div>
+${this.renderStatus()}
 <section class="pvm-gear-planner-page__results rsbackground rsborder-tiny">${this.renderResults()}</section>
 <div class="pvm-gear-planner-page__workspace">
   <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
     <header><h2>Current loadout</h2><span>Choose a slot to compare</span></header>
     <div class="pvm-gear-planner-page__paperdoll" aria-label="Current equipment">${this.renderPaperdoll()}</div>
     <div class="pvm-gear-planner-page__selected-slot">
-      <span>${SLOT_NAMES[this.activeSlot]}</span>
-      <strong>${this.selectedItems[this.activeSlot].name}</strong>
+      <span>${this.slotName(this.activeSlot)}</span>
+      <strong>${this.selectedItems[this.activeSlot]?.name || "Empty"}</strong>
     </div>
   </section>
   <section class="pvm-gear-planner-page__choices rsbackground rsborder-tiny">
     <header>
-      <div><h2>${SLOT_NAMES[this.activeSlot]} options</h2><span>Ranked for the current target and loadout</span></div>
-      <button class="men-button" type="button" disabled>Save preset</button>
+      <div><h2>${this.slotName(this.activeSlot)} options</h2><span>Top owned candidates ranked by real DPS</span></div>
     </header>
     <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
   </section>
 </div>
+<footer class="pvm-gear-planner-page__attribution">
+  Calculator and entity data derived from the
+  <a href="https://github.com/weirdgloop/osrs-dps-calc" target="_blank" rel="noreferrer">OSRS Wiki DPS Calculator</a>.
+</footer>

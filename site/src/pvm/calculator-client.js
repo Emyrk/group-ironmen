@@ -28,3 +28,27 @@ export function createHttpCalculatorTransport(url, fetchImplementation = fetch) 
     return response.json();
   };
 }
+
+export function createWorkerCalculatorTransport(url = "/pvm-calculator-worker.js", WorkerImplementation = Worker) {
+  const worker = new WorkerImplementation(url);
+  const pending = new Map();
+
+  worker.onmessage = ({ data }) => {
+    const request = pending.get(data?.requestId);
+    if (!request) return;
+    pending.delete(data.requestId);
+    request.resolve(data);
+  };
+
+  worker.onerror = (event) => {
+    const error = new Error(event?.message || "Calculator worker failed");
+    for (const request of pending.values()) request.reject(error);
+    pending.clear();
+  };
+
+  return (request) =>
+    new Promise((resolve, reject) => {
+      pending.set(request.requestId, { resolve, reject });
+      worker.postMessage(request);
+    });
+}
