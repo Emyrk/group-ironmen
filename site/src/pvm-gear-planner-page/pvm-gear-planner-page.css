@@ -84,33 +84,106 @@ pvm-gear-planner-page {
   gap: 12px;
   margin-bottom: 10px;
 }
-.pvm-gear-planner-page__slots {
-  display: grid;
-  gap: 7px;
+.pvm-gear-planner-page__paperdoll {
+  position: relative;
+  width: 245px;
+  height: 280px;
+  margin: 18px auto 10px;
 }
-.pvm-gear-planner-page__slot {
+.pvm-gear-planner-page__paperdoll-slot {
+  position: absolute;
   display: grid;
-  grid-template-columns: 52px 42px 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 7px;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  padding: 0;
   color: var(--primary-text);
-  text-align: left;
-  background: #302a22;
-  border: 1px solid #666;
+  background-color: #302a22;
+  background-image: url(/ui/170-0.png);
+  background-position: center;
+  background-size: cover;
+  border: 1px solid transparent;
+}
+.dark-mode .pvm-gear-planner-page__paperdoll-slot {
+  background-image: url(/ui/170-0-dark.png);
+}
+button.pvm-gear-planner-page__paperdoll-slot {
   cursor: pointer;
 }
-.pvm-gear-planner-page__slot:hover,
-.pvm-gear-planner-page__slot.active {
+button.pvm-gear-planner-page__paperdoll-slot:hover,
+button.pvm-gear-planner-page__paperdoll-slot.active {
   border-color: var(--orange);
-  background: #443929;
+  box-shadow: 0 0 0 2px #513f22, 0 0 12px rgb(230 189 75 / 45%);
 }
-.pvm-gear-planner-page__slot span {
+.pvm-gear-planner-page__paperdoll-slot.empty {
+  opacity: 0.55;
+}
+.pvm-gear-planner-page__paperdoll-slot img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-head {
+  top: 0;
+  left: 98px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-cape {
+  top: 55px;
+  left: 42px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-neck {
+  top: 55px;
+  left: 98px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-ammo {
+  top: 55px;
+  left: 154px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-weapon {
+  top: 110px;
+  left: 20px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-torso {
+  top: 110px;
+  left: 98px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-shield {
+  top: 110px;
+  left: 176px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-legs {
+  top: 165px;
+  left: 98px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-gloves {
+  top: 220px;
+  left: 20px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-boots {
+  top: 220px;
+  left: 98px;
+}
+.pvm-gear-planner-page__paperdoll-slot.position-ring {
+  top: 220px;
+  left: 176px;
+}
+.pvm-gear-planner-page__selected-slot {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  text-align: center;
+  background: #302a22;
+  border: 1px solid #666;
+}
+.pvm-gear-planner-page__selected-slot span {
   color: #aaa;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
 }
-.pvm-gear-planner-page__slot img,
+.pvm-gear-planner-page__selected-slot strong {
+  color: var(--orange);
+}
 .pvm-gear-planner-page__alternative img {
   width: 36px;
   height: 36px;

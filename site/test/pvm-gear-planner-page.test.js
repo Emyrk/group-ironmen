@@ -10,7 +10,7 @@ PvmGearPlannerPage.prototype.html = function () {
       <select data-control="target">${this.renderTargetOptions()}</select>
     </header>
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
-    <section class="pvm-gear-planner-page__slots">${this.renderSlots()}</section>
+    <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</section>
     <section>
       <h2>${this.activeSlot === "body" ? "Body" : this.activeSlot} options</h2>
       <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
@@ -67,6 +67,12 @@ describe("pvm-gear-planner-page", () => {
     expect(page.textContent).toContain("Body options");
     expect(page.textContent).toContain("Bandos chestplate");
     expect(page.textContent).toContain("Not found on selected member");
+    expect(page.querySelectorAll(".pvm-gear-planner-page__paperdoll-slot")).toHaveLength(11);
+    expect(page.querySelector("[data-slot='body']").classList.contains("active")).toBe(true);
+
+    page.querySelector("[data-slot='head']").click();
+    expect(page.querySelector("[data-slot='head']").classList.contains("active")).toBe(true);
+    page.querySelector("[data-slot='body']").click();
 
     const initialDps = page.querySelector(".pvm-gear-planner-page__results strong").textContent;
     page.querySelector("[data-equip-item='9674']").click();

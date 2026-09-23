@@ -26,6 +26,19 @@ const GEAR = {
 };
 
 const SLOT_NAMES = { head: "Head", body: "Body", legs: "Legs" };
+const PAPERDOLL_SLOTS = [
+  { slot: "head", position: "head", emptyIcon: "156-0.png" },
+  { position: "cape", emptyIcon: "157-0.png" },
+  { position: "neck", emptyIcon: "158-0.png" },
+  { position: "ammo", emptyIcon: "166-0.png" },
+  { position: "weapon", emptyIcon: "159-0.png" },
+  { slot: "body", position: "torso", emptyIcon: "161-0.png" },
+  { position: "shield", emptyIcon: "162-0.png" },
+  { slot: "legs", position: "legs", emptyIcon: "163-0.png" },
+  { position: "gloves", emptyIcon: "164-0.png" },
+  { position: "boots", emptyIcon: "165-0.png" },
+  { position: "ring", emptyIcon: "160-0.png" },
+];
 
 function total(items, field) {
   return items.reduce((sum, item) => sum + item[field], 0);
@@ -183,17 +196,26 @@ export class PvmGearPlannerPage extends BaseElement {
       .join("");
   }
 
-  renderSlots() {
-    return Object.entries(this.selectedItems)
-      .map(
-        ([slot, item]) => `
-          <button class="pvm-gear-planner-page__slot ${slot === this.activeSlot ? "active" : ""}" data-slot="${slot}">
-            <span>${SLOT_NAMES[slot]}</span>
-            <img src="${this.itemImage(item)}" alt="" />
-            <strong>${item.name}</strong>
-          </button>`
-      )
-      .join("");
+  renderPaperdoll() {
+    return PAPERDOLL_SLOTS.map(({ slot, position, emptyIcon }) => {
+      if (!slot) {
+        return `
+          <div class="pvm-gear-planner-page__paperdoll-slot position-${position} empty" title="${position} options coming soon">
+            <img src="/ui/${emptyIcon}" alt="" />
+          </div>`;
+      }
+
+      const item = this.selectedItems[slot];
+      return `
+        <button
+          class="pvm-gear-planner-page__paperdoll-slot position-${position} ${slot === this.activeSlot ? "active" : ""}"
+          data-slot="${slot}"
+          title="${SLOT_NAMES[slot]}: ${item.name}"
+          aria-label="Choose ${SLOT_NAMES[slot].toLowerCase()} equipment. Currently ${item.name}."
+        >
+          <img src="${this.itemImage(item)}" alt="" />
+        </button>`;
+    }).join("");
   }
 
   resultFor(item) {

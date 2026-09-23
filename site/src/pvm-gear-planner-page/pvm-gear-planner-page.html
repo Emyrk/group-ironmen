@@ -16,7 +16,11 @@
 <div class="pvm-gear-planner-page__workspace">
   <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
     <header><h2>Current loadout</h2><span>Choose a slot to compare</span></header>
-    <div class="pvm-gear-planner-page__slots">${this.renderSlots()}</div>
+    <div class="pvm-gear-planner-page__paperdoll" aria-label="Current equipment">${this.renderPaperdoll()}</div>
+    <div class="pvm-gear-planner-page__selected-slot">
+      <span>${SLOT_NAMES[this.activeSlot]}</span>
+      <strong>${this.selectedItems[this.activeSlot].name}</strong>
+    </div>
   </section>
   <section class="pvm-gear-planner-page__choices rsbackground rsborder-tiny">
     <header>
