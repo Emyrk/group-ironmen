@@ -73,9 +73,21 @@ describe("vendored OSRS Wiki calculator worker", () => {
       ...meleeRequest,
       requestId: 45,
       player: { ...meleeRequest.player, equipment: { weapon: 27665 } },
-      options: { mode: "Magic" },
+      options: { mode: "Magic", spell: "Fire Surge" },
     });
     expect(magic).toMatchObject({ result: { style: { type: "magic", stance: "Accurate" } } });
+
+    const missingSpell = handleCalculatorRequest({
+      ...meleeRequest,
+      requestId: 46,
+      player: { ...meleeRequest.player, equipment: { weapon: 27665 } },
+      options: { mode: "Magic" },
+    });
+    expect(missingSpell).toEqual({
+      version: 1,
+      requestId: 46,
+      error: { message: "Magic mode requires an offensive spell" },
+    });
 
     const incompatible = handleCalculatorRequest({ ...meleeRequest, requestId: 45, options: { mode: "Ranged" } });
     expect(incompatible).toEqual({

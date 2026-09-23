@@ -4,12 +4,13 @@ import { pubsub } from "../src/data/pubsub";
 
 const requests = [];
 
-function equipment(id, name, slot, score = 0) {
+function equipment(id, name, slot, score = 0, category = "") {
   return {
     id,
     name,
     slot,
     version: "",
+    category,
     weight: 1,
     speed: slot === "weapon" ? 4 : 0,
     isTwoHanded: false,
@@ -19,13 +20,21 @@ function equipment(id, name, slot, score = 0) {
   };
 }
 
+function combatWeapon(id, name, category, type) {
+  const item = equipment(id, name, "weapon", 4, category);
+  item.offensive = { stab: 0, slash: 0, crush: 0, magic: 0, ranged: 0, [type]: 80 };
+  return item;
+}
+
 const equipmentEntities = [
   equipment(10828, "Helm of Neitiznot", "head", 2),
   equipment(24271, "Neitiznot faceguard", "head", 4),
   equipment(6570, "Fire cape", "cape", 2),
   equipment(6585, "Amulet of fury", "neck", 2),
   equipment(9244, "Dragon bolts (e)", "ammo", 2),
-  equipment(4151, "Abyssal whip", "weapon", 4),
+  combatWeapon(4151, "Abyssal whip", "Whip", "slash"),
+  combatWeapon(21012, "Dragon hunter crossbow", "Crossbow", "ranged"),
+  combatWeapon(27665, "Accursed sceptre", "Powered Staff", "magic"),
   equipment(11832, "Bandos chestplate", "body", 4),
   equipment(10551, "Fighter torso", "body", 3),
   equipment(9674, "Proselyte hauberk", "body", 1),
@@ -59,6 +68,11 @@ function normalizedEntities() {
   }
   return {
     equipment: equipmentEntities,
+    spells: [
+      { name: "Fire Surge", spellbook: "standard", max_hit: 24 },
+      { name: "Ice Barrage", spellbook: "ancient", max_hit: 30 },
+      { name: "Bind", spellbook: "standard", max_hit: 0 },
+    ].filter((spell) => spell.max_hit > 0),
     equipmentById: new Map(equipmentEntities.map((item) => [item.id, item])),
     equipmentBySlot,
     monsters: monsterEntities,
@@ -109,7 +123,7 @@ PvmGearPlannerPage.prototype.html = function () {
     </header>
     ${this.renderStatus()}
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
-    <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</section>
+    <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}${this.renderSpellControls()}</section>
     <section>
       <h2>Top owned candidates ranked by real DPS</h2>
       <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
@@ -147,7 +161,11 @@ function groupData() {
     members: new Map([
       [
         "Alice",
-        member("Alice", [10828, 24271, 6570, 6585, 9244, 4151, 11832, 10551, 8850, 11834, 7462, 11840, 6737], 11832),
+        member(
+          "Alice",
+          [10828, 24271, 6570, 6585, 9244, 4151, 21012, 27665, 11832, 10551, 8850, 11834, 7462, 11840, 6737],
+          11832
+        ),
       ],
       ["Bob", member("Bob", [10828, 6570, 6585, 4151, 10551, 11834, 7462, 11840, 6737], 10551)],
       ["@SHARED", member("@SHARED", [9674], 0)],
@@ -168,6 +186,7 @@ async function createPage() {
 describe("pvm-gear-planner-page", () => {
   beforeEach(() => {
     requests.length = 0;
+    localStorage.clear();
     document.body.innerHTML = "";
     window.history.replaceState("", "", "/group/pvm-gear");
   });
@@ -239,6 +258,65 @@ describe("pvm-gear-planner-page", () => {
     expect(request.player.skills.atk).toBe(99);
     expect(request.player.equipment.body).toBe(11832);
     page.remove();
+  });
+
+  it("requires a matching weapon and offensive spell for ranged and magic modes", async () => {
+    const page = await createPage();
+    const mode = page.querySelector("[data-control='mode']");
+
+    mode.value = "Ranged";
+    mode.dispatchEvent(new Event("change"));
+    expect(page.activeSlot).toBe("weapon");
+    expect(page.selectedItems.weapon).toBeNull();
+    expect(page.textContent).toContain("Choose an owned ranged weapon.");
+    expect(page.querySelector("[data-equip-item='4151']")).toBeNull();
+    page.querySelector("[data-equip-item='21012']").click();
+    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(21012));
+
+    mode.value = "Magic";
+    mode.dispatchEvent(new Event("change"));
+    expect(page.selectedItems.weapon).toBeNull();
+    expect(page.querySelector("[data-equip-item='21012']")).toBeNull();
+    expect(page.querySelector("[data-equip-item='27665']")).not.toBeNull();
+    expect(page.textContent).toContain("Choose an owned magic weapon.");
+    page.querySelector("[data-equip-item='27665']").click();
+    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(27665));
+    expect(page.textContent).toContain("Choose an offensive spell from a spellbook.");
+
+    const spellbook = page.querySelector("[data-control='spellbook']");
+    const spell = page.querySelector("[data-control='spell']");
+    expect([...spell.options].map((option) => option.value)).toEqual(["", "Fire Surge"]);
+    spellbook.value = "ancient";
+    spellbook.dispatchEvent(new Event("change"));
+    expect([...page.querySelector("[data-control='spell']").options].map((option) => option.value)).toEqual(["", "Ice Barrage"]);
+    spellbook.value = "standard";
+    spellbook.dispatchEvent(new Event("change"));
+    page.querySelector("[data-control='spell']").value = "Fire Surge";
+    page.querySelector("[data-control='spell']").dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            request.options.mode === "Magic" && request.options.spell === "Fire Surge" && request.player.equipment.weapon === 27665
+        )
+      ).toBe(true)
+    );
+    page.remove();
+  });
+
+  it("restores the most recently selected member", async () => {
+    const firstPage = await createPage();
+    const player = firstPage.querySelector("[data-control='member']");
+    player.value = "Bob";
+    player.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(firstPage.selectedMember).toBe("Bob"));
+    expect(localStorage.getItem("pvmGearPlannerSelectedMember")).toBe("Bob");
+    firstPage.remove();
+
+    const restoredPage = await createPage();
+    expect(restoredPage.querySelector("[data-control='member']").value).toBe("Bob");
+    restoredPage.remove();
   });
 
   it("preserves a manual gear choice across unchanged polling updates", async () => {

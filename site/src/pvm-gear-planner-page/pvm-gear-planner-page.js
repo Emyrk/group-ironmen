@@ -19,6 +19,7 @@ const PAPERDOLL_SLOTS = [
 const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
 const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
 const COMBAT_MODES = ["Best", "Melee", "Ranged", "Magic"];
+const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
 const MAX_CANDIDATES = 12;
 const DEFAULT_TARGET = ["Giant Mole", ""];
 
@@ -48,6 +49,12 @@ function equipmentScore(item) {
   const offensive = Object.values(item.offensive || {}).reduce((sum, value) => sum + Math.max(0, value || 0), 0);
   const bonuses = item.bonuses || {};
   return offensive + (bonuses.str || 0) * 3 + (bonuses.ranged_str || 0) * 3 + (bonuses.magic_str || 0) * 3;
+}
+
+function weaponSupportsMode(item, mode) {
+  if (mode === "Ranged") return (item?.offensive?.ranged || 0) > 0;
+  if (mode === "Magic") return (item?.offensive?.magic || 0) > 0;
+  return true;
 }
 
 function uniqueById(items) {
@@ -85,9 +92,11 @@ export class PvmGearPlannerPage extends BaseElement {
     super.connectedCallback();
     this.groupData = null;
     this.entities = null;
-    this.selectedMember = "";
+    this.selectedMember = localStorage.getItem(SELECTED_MEMBER_STORAGE_KEY) || "";
     this.selectedTargetKey = "";
     this.combatMode = "Best";
+    this.selectedSpellbook = "standard";
+    this.selectedSpell = "";
     this.activeSlot = "body";
     this.selectedItems = Object.fromEntries(SLOT_KEYS.map((slot) => [slot, null]));
     this.currentResult = null;
@@ -182,7 +191,27 @@ export class PvmGearPlannerPage extends BaseElement {
 
   ownedEquipment(slot) {
     if (!this.entities || !this.selectedMemberData) return [];
-    return uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter((item) => this.isOwned(item));
+    return uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter(
+      (item) => this.isOwned(item) && (slot !== "weapon" || weaponSupportsMode(item, this.combatMode))
+    );
+  }
+
+  get availableSpells() {
+    return (this.entities?.spells || []).filter((spell) => spell.spellbook === this.selectedSpellbook);
+  }
+
+  get calculationConfigurationError() {
+    if ((this.combatMode === "Ranged" || this.combatMode === "Magic") && !this.selectedItems.weapon) {
+      return `Choose an owned ${this.combatMode.toLowerCase()} weapon.`;
+    }
+    if (this.combatMode === "Magic" && !this.selectedSpell) return "Choose an offensive spell from a spellbook.";
+    return "";
+  }
+
+  ensureCombatModeLoadout() {
+    if (this.combatMode !== "Ranged" && this.combatMode !== "Magic") return;
+    this.activeSlot = "weapon";
+    if (!weaponSupportsMode(this.selectedItems.weapon, this.combatMode)) this.selectedItems.weapon = null;
   }
 
   initializeLoadout({ preserveSelections = false } = {}) {
@@ -227,9 +256,13 @@ export class PvmGearPlannerPage extends BaseElement {
     const member = this.querySelector("[data-control='member']");
     const target = this.querySelector("[data-control='target']");
     const mode = this.querySelector("[data-control='mode']");
+    const spellbook = this.querySelector("[data-control='spellbook']");
+    const spell = this.querySelector("[data-control='spell']");
     if (member) this.eventListener(member, "change", this.handleMemberChange.bind(this));
     if (target) this.eventListener(target, "change", this.handleTargetChange.bind(this));
     if (mode) this.eventListener(mode, "change", this.handleCombatModeChange.bind(this));
+    if (spellbook) this.eventListener(spellbook, "change", this.handleSpellbookChange.bind(this));
+    if (spell) this.eventListener(spell, "change", this.handleSpellChange.bind(this));
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
@@ -240,6 +273,7 @@ export class PvmGearPlannerPage extends BaseElement {
 
   handleMemberChange(event) {
     this.selectedMember = event.target.value;
+    localStorage.setItem(SELECTED_MEMBER_STORAGE_KEY, this.selectedMember);
     this.loadoutInitialized = false;
     this.initializeLoadout();
     this.renderAndBind();
@@ -262,6 +296,24 @@ export class PvmGearPlannerPage extends BaseElement {
 
   handleCombatModeChange(event) {
     this.combatMode = event.target.value;
+    this.ensureCombatModeLoadout();
+    this.currentResult = null;
+    this.candidateResults = new Map();
+    this.renderAndBind();
+    this.refreshCalculations();
+  }
+
+  handleSpellbookChange(event) {
+    this.selectedSpellbook = event.target.value;
+    this.selectedSpell = "";
+    this.currentResult = null;
+    this.candidateResults = new Map();
+    this.renderAndBind();
+    this.refreshCalculations();
+  }
+
+  handleSpellChange(event) {
+    this.selectedSpell = event.target.value;
     this.currentResult = null;
     this.candidateResults = new Map();
     this.renderAndBind();
@@ -304,7 +356,10 @@ export class PvmGearPlannerPage extends BaseElement {
       member: this.selectedMemberData,
       equipmentIds: this.equipmentIds(overrides),
       monster: this.selectedTarget,
-      options: { mode: this.combatMode },
+      options: {
+        mode: this.combatMode,
+        ...(this.combatMode === "Magic" && this.selectedSpell ? { spell: this.selectedSpell } : {}),
+      },
     };
   }
 
@@ -321,6 +376,13 @@ export class PvmGearPlannerPage extends BaseElement {
   async refreshCalculations() {
     const generation = ++this.calculationGeneration;
     if (!this.entities || !this.selectedMemberData || !this.selectedTarget) return;
+    if (this.calculationConfigurationError) {
+      this.calculating = false;
+      this.currentResult = null;
+      this.candidateResults = new Map();
+      this.renderAndBind();
+      return;
+    }
     this.calculating = true;
     this.error = "";
     this.renderAndBind();
@@ -397,8 +459,44 @@ export class PvmGearPlannerPage extends BaseElement {
     ).join("");
   }
 
+  renderSpellControls() {
+    if (this.combatMode !== "Magic") return "";
+    return `
+      <div class="pvm-gear-planner-page__spell-controls">
+        <label>
+          Spellbook
+          <select data-control="spellbook">
+            ${["standard", "ancient", "arceuus"]
+              .map(
+                (spellbook) =>
+                  `<option value="${spellbook}" ${spellbook === this.selectedSpellbook ? "selected" : ""}>${
+                    spellbook[0].toUpperCase() + spellbook.slice(1)
+                  }</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+        <label>
+          Offensive spell
+          <select data-control="spell">
+            <option value="">Choose a spell</option>
+            ${this.availableSpells
+              .map(
+                (spell) =>
+                  `<option value="${escapeHtml(spell.name)}" ${
+                    spell.name === this.selectedSpell ? "selected" : ""
+                  }>${escapeHtml(spell.name)}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+      </div>`;
+  }
+
   renderStatus() {
     if (this.loadingEntities) return '<div class="pvm-gear-planner-page__status">Loading authoritative PvM data…</div>';
+    if (this.calculationConfigurationError)
+      return `<div class="pvm-gear-planner-page__status">${escapeHtml(this.calculationConfigurationError)}</div>`;
     if (this.error)
       return `<div class="pvm-gear-planner-page__status error"><strong>Calculator error:</strong> ${escapeHtml(
         this.error

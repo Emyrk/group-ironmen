@@ -1,6 +1,7 @@
 const ENTITY_URLS = Object.freeze({
   equipment: "/data/pvm/equipment.json",
   monsters: "/data/pvm/monsters.json",
+  spells: "/data/pvm/spells.json",
 });
 
 let entityPromise;
@@ -20,8 +21,8 @@ function targetLabel(monster) {
   return `${monster.name}${version} [${monster.id}]`;
 }
 
-function normalizeEntities(equipment, monsters) {
-  if (!Array.isArray(equipment) || !Array.isArray(monsters)) {
+function normalizeEntities(equipment, monsters, spells) {
+  if (!Array.isArray(equipment) || !Array.isArray(monsters) || !Array.isArray(spells)) {
     throw new Error("PvM entity data has an unexpected format");
   }
 
@@ -44,6 +45,7 @@ function normalizeEntities(equipment, monsters) {
     equipmentById,
     equipmentBySlot,
     monsters,
+    spells: spells.filter((spell) => spell?.name && Number.isFinite(spell.max_hit) && spell.max_hit > 0),
     targets,
     targetsByKey: new Map(targets.map((monster) => [monster.key, monster])),
     targetsByLabel: new Map(targets.map((monster) => [monster.label, monster])),
@@ -55,8 +57,9 @@ export function loadPvmEntities(fetchImplementation = fetch) {
     entityPromise = Promise.all([
       fetchJson(ENTITY_URLS.equipment, fetchImplementation),
       fetchJson(ENTITY_URLS.monsters, fetchImplementation),
+      fetchJson(ENTITY_URLS.spells, fetchImplementation),
     ])
-      .then(([equipment, monsters]) => normalizeEntities(equipment, monsters))
+      .then(([equipment, monsters, spells]) => normalizeEntities(equipment, monsters, spells))
       .catch((error) => {
         entityPromise = undefined;
         throw error;

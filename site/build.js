@@ -54,7 +54,7 @@ const pvmEntityDataPlugin = {
       const destinationDirectory = "public/data/pvm";
       await fs.promises.mkdir(destinationDirectory, { recursive: true });
       await Promise.all(
-        ["equipment.json", "monsters.json"].map((fileName) =>
+        ["equipment.json", "monsters.json", "spells.json"].map((fileName) =>
           fs.promises.copyFile(path.join(sourceDirectory, fileName), path.join(destinationDirectory, fileName))
         )
       );

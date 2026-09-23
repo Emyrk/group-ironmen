@@ -198,6 +198,10 @@ export function calculate(request: CalculatorRequest) {
   if (request.action !== "calculate") throw new Error(`Unsupported calculator action ${request.action}`);
   const monster = createMonster(request);
   const options = request.options || {};
+  if (options.mode === "Magic") {
+    const spell = typeof options.spell === "string" ? spellByName(options.spell) : null;
+    if (!spell || spell.max_hit <= 0) throw new Error("Magic mode requires an offensive spell");
+  }
   const equipment = equipmentFromIds(request.player.equipment);
   const category = equipment.weapon?.category || EquipmentCategory.NONE;
   const styles = resolveStyles(category, options);
