@@ -97,6 +97,9 @@ export class PvmGearPlannerPage extends BaseElement {
     this.combatMode = "Best";
     this.selectedSpellbook = "standard";
     this.selectedSpell = "";
+    this.compatibleAmmoIds = null;
+    this.rangedWeaponRequiresAmmo = false;
+    this.ammoRequestId = 0;
     this.activeSlot = "body";
     this.selectedItems = Object.fromEntries(SLOT_KEYS.map((slot) => [slot, null]));
     this.currentResult = null;
@@ -110,6 +113,7 @@ export class PvmGearPlannerPage extends BaseElement {
     const transport = createWorkerCalculatorTransport();
     this.resultCalculator = new CalculatorClient(transport);
     this.candidateCalculator = new CalculatorClient(transport);
+    this.ammoTransport = createWorkerCalculatorTransport();
     this.renderAndBind();
     this.subscribe("get-group-data", this.handleGroupData.bind(this));
     this.loadEntities();
@@ -192,7 +196,13 @@ export class PvmGearPlannerPage extends BaseElement {
   ownedEquipment(slot) {
     if (!this.entities || !this.selectedMemberData) return [];
     return uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter(
-      (item) => this.isOwned(item) && (slot !== "weapon" || weaponSupportsMode(item, this.combatMode))
+      (item) =>
+        this.isOwned(item) &&
+        (slot !== "weapon" || weaponSupportsMode(item, this.combatMode)) &&
+        (slot !== "ammo" ||
+          this.combatMode !== "Ranged" ||
+          !this.compatibleAmmoIds ||
+          this.compatibleAmmoIds.has(item.id))
     );
   }
 
@@ -204,14 +214,47 @@ export class PvmGearPlannerPage extends BaseElement {
     if ((this.combatMode === "Ranged" || this.combatMode === "Magic") && !this.selectedItems.weapon) {
       return `Choose an owned ${this.combatMode.toLowerCase()} weapon.`;
     }
+    if (this.combatMode === "Ranged" && this.rangedWeaponRequiresAmmo && !this.selectedItems.ammo)
+      return "Choose compatible ammunition.";
     if (this.combatMode === "Magic" && !this.selectedSpell) return "Choose an offensive spell from a spellbook.";
     return "";
   }
 
-  ensureCombatModeLoadout() {
+  async ensureCombatModeLoadout() {
     if (this.combatMode !== "Ranged" && this.combatMode !== "Magic") return;
     this.activeSlot = "weapon";
-    if (!weaponSupportsMode(this.selectedItems.weapon, this.combatMode)) this.selectedItems.weapon = null;
+    if (!weaponSupportsMode(this.selectedItems.weapon, this.combatMode)) {
+      this.selectedItems.weapon =
+        this.ownedEquipment("weapon").sort((left, right) => equipmentScore(right) - equipmentScore(left))[0] || null;
+    }
+    if (this.combatMode === "Ranged") await this.syncRangedAmmo();
+  }
+
+  async syncRangedAmmo() {
+    const weapon = this.selectedItems.weapon;
+    this.compatibleAmmoIds = null;
+    this.rangedWeaponRequiresAmmo = false;
+    if (!weapon) return;
+
+    const requestId = ++this.ammoRequestId;
+    const response = await this.ammoTransport({
+      version: 1,
+      action: "compatible-ammo",
+      requestId,
+      player: { equipment: { weapon: weapon.id } },
+    });
+    if (requestId !== this.ammoRequestId) return;
+    if (response.error) throw new Error(response.error.message || "Unable to find compatible ammunition");
+
+    this.compatibleAmmoIds = new Set(response.result.ammoIds);
+    this.rangedWeaponRequiresAmmo = response.result.requiresAmmo;
+    if (!this.rangedWeaponRequiresAmmo) {
+      this.selectedItems.ammo = null;
+      return;
+    }
+    if (this.compatibleAmmoIds.has(this.selectedItems.ammo?.id)) return;
+    this.selectedItems.ammo =
+      this.ownedEquipment("ammo").sort((left, right) => equipmentScore(right) - equipmentScore(left))[0] || null;
   }
 
   initializeLoadout({ preserveSelections = false } = {}) {
@@ -294,11 +337,15 @@ export class PvmGearPlannerPage extends BaseElement {
     this.refreshCalculations();
   }
 
-  handleCombatModeChange(event) {
+  async handleCombatModeChange(event) {
     this.combatMode = event.target.value;
-    this.ensureCombatModeLoadout();
     this.currentResult = null;
     this.candidateResults = new Map();
+    try {
+      await this.ensureCombatModeLoadout();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    }
     this.renderAndBind();
     this.refreshCalculations();
   }
@@ -327,11 +374,16 @@ export class PvmGearPlannerPage extends BaseElement {
     this.refreshCalculations();
   }
 
-  handleEquipClick(event) {
+  async handleEquipClick(event) {
     const item = this.entities?.equipmentById.get(Number(event.currentTarget.dataset.equipItem));
     if (!item || item.slot !== this.activeSlot || !this.isOwned(item)) return;
     this.selectedItems[this.activeSlot] = item;
     this.normalizeTwoHandedEquipment(this.activeSlot);
+    try {
+      if (this.combatMode === "Ranged" && this.activeSlot === "weapon") await this.syncRangedAmmo();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    }
     this.currentResult = null;
     this.candidateResults = new Map();
     this.renderAndBind();

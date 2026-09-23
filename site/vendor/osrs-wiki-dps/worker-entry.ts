@@ -1,6 +1,11 @@
 import mergeWith from "lodash.mergewith";
 import PlayerVsNPCCalc from "@/lib/PlayerVsNPCCalc";
-import { availableEquipment, calculateEquipmentBonusesFromGear, getCanonicalItemId } from "@/lib/Equipment";
+import {
+  availableEquipment,
+  calculateEquipmentBonusesFromGear,
+  getCanonicalItemId,
+  validAmmoForRangedWeapon,
+} from "@/lib/Equipment";
 import { getMonsters, INITIAL_MONSTER_INPUTS } from "@/lib/Monsters";
 import { EquipmentCategory } from "@/enums/EquipmentCategory";
 import { Prayer, PrayerMap } from "@/enums/Prayer";
@@ -193,6 +198,13 @@ function createMonster(request: CalculatorRequest) {
   };
 }
 
+function compatibleAmmo(request: CalculatorRequest) {
+  const weaponId = request.player.equipment?.weapon;
+  if (!Number.isSafeInteger(weaponId)) throw new Error("A weapon ID is required to find compatible ammunition");
+  const ammoIds = validAmmoForRangedWeapon(weaponId);
+  return { ammoIds: ammoIds || [], requiresAmmo: Boolean(ammoIds?.length) };
+}
+
 export function calculate(request: CalculatorRequest) {
   if (request.version !== PROTOCOL_VERSION) throw new Error("Unsupported calculator protocol version");
   if (request.action !== "calculate") throw new Error(`Unsupported calculator action ${request.action}`);
@@ -227,7 +239,8 @@ export function calculate(request: CalculatorRequest) {
 
 export function handleCalculatorRequest(request: CalculatorRequest) {
   try {
-    return { version: PROTOCOL_VERSION, requestId: request?.requestId, result: calculate(request) };
+    const result = request.action === "compatible-ammo" ? compatibleAmmo(request) : calculate(request);
+    return { version: PROTOCOL_VERSION, requestId: request?.requestId, result };
   } catch (error) {
     return {
       version: PROTOCOL_VERSION,

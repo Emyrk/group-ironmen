@@ -97,6 +97,40 @@ describe("vendored OSRS Wiki calculator worker", () => {
     });
   });
 
+  it("returns only the upstream-compatible ammunition for a ranged weapon", () => {
+    expect(
+      handleCalculatorRequest({
+        version: 1,
+        action: "compatible-ammo",
+        requestId: 47,
+        player: { skills: maxSkills, equipment: { weapon: 21012 } },
+        monster: { id: 5779 },
+      })
+    ).toMatchObject({
+      version: 1,
+      requestId: 47,
+      result: { requiresAmmo: true },
+    });
+    expect(
+      handleCalculatorRequest({
+        version: 1,
+        action: "compatible-ammo",
+        requestId: 48,
+        player: { skills: maxSkills, equipment: { weapon: 21012 } },
+        monster: { id: 5779 },
+      }).result.ammoIds
+    ).toContain(9244);
+    expect(
+      handleCalculatorRequest({
+        version: 1,
+        action: "compatible-ammo",
+        requestId: 49,
+        player: { skills: maxSkills, equipment: { weapon: 861 } },
+        monster: { id: 5779 },
+      }).result.ammoIds
+    ).toContain(892);
+  });
+
   it("returns protocol errors instead of throwing across the worker boundary", () => {
     expect(
       handleCalculatorRequest({

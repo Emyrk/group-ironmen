@@ -181,8 +181,10 @@ export enum AmmoApplicability {
  * @param weaponId - the item ID of the ranged weapon
  * @param ammoId - the item ID of the ammo (such as bronze arrows)
  */
+export const validAmmoForRangedWeapon = (weaponId?: number): number[] | undefined => ammoForRangedWeapons[weaponId || -1];
+
 export const ammoApplicability = (weaponId?: number, ammoId?: number): AmmoApplicability => {
-  const validAmmo = ammoForRangedWeapons[weaponId || -1];
+  const validAmmo = validAmmoForRangedWeapon(weaponId);
 
   // The weapon does not use ammo
   if (!validAmmo || validAmmo.length === 0) {

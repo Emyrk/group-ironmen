@@ -20,9 +20,9 @@ function equipment(id, name, slot, score = 0, category = "") {
   };
 }
 
-function combatWeapon(id, name, category, type) {
+function combatWeapon(id, name, category, type, score = 80) {
   const item = equipment(id, name, "weapon", 4, category);
-  item.offensive = { stab: 0, slash: 0, crush: 0, magic: 0, ranged: 0, [type]: 80 };
+  item.offensive = { stab: 0, slash: 0, crush: 0, magic: 0, ranged: 0, [type]: score };
   return item;
 }
 
@@ -32,7 +32,9 @@ const equipmentEntities = [
   equipment(6570, "Fire cape", "cape", 2),
   equipment(6585, "Amulet of fury", "neck", 2),
   equipment(9244, "Dragon bolts (e)", "ammo", 2),
+  equipment(892, "Rune arrow", "ammo", 3),
   combatWeapon(4151, "Abyssal whip", "Whip", "slash"),
+  combatWeapon(861, "Magic shortbow", "Bow", "ranged", 100),
   combatWeapon(21012, "Dragon hunter crossbow", "Crossbow", "ranged"),
   combatWeapon(27665, "Accursed sceptre", "Powered Staff", "magic"),
   equipment(11832, "Bandos chestplate", "body", 4),
@@ -92,6 +94,15 @@ vi.mock("../src/pvm/calculator-client", async () => {
     ...actual,
     createWorkerCalculatorTransport: vi.fn(() => async (request) => {
       requests.push(request);
+      if (request.action === "compatible-ammo") {
+        const ammoIds =
+          request.player.equipment.weapon === 861 ? [892] : request.player.equipment.weapon === 21012 ? [9244] : [];
+        return {
+          version: 1,
+          requestId: request.requestId,
+          result: { ammoIds, requiresAmmo: ammoIds.length > 0 },
+        };
+      }
       const bodyId = request.player.equipment.body;
       const targetModifier = request.monster.id === 8059 ? -1 : 0;
       const modeModifier = request.options.mode === "Melee" ? 0.5 : 0;
@@ -163,7 +174,7 @@ function groupData() {
         "Alice",
         member(
           "Alice",
-          [10828, 24271, 6570, 6585, 9244, 4151, 21012, 27665, 11832, 10551, 8850, 11834, 7462, 11840, 6737],
+          [10828, 24271, 6570, 6585, 892, 9244, 4151, 861, 21012, 27665, 11832, 10551, 8850, 11834, 7462, 11840, 6737],
           11832
         ),
       ],
@@ -266,21 +277,24 @@ describe("pvm-gear-planner-page", () => {
 
     mode.value = "Ranged";
     mode.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(861));
     expect(page.activeSlot).toBe("weapon");
-    expect(page.selectedItems.weapon).toBeNull();
-    expect(page.textContent).toContain("Choose an owned ranged weapon.");
-    expect(page.querySelector("[data-equip-item='4151']")).toBeNull();
+    expect(page.selectedItems.ammo?.id).toBe(892);
+    page.querySelector("[data-slot='ammo']").click();
+    expect(page.querySelector("[data-equip-item='892']")).not.toBeNull();
+    expect(page.querySelector("[data-equip-item='9244']")).toBeNull();
+    page.querySelector("[data-slot='weapon']").click();
     page.querySelector("[data-equip-item='21012']").click();
-    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(21012));
+    await vi.waitFor(() => expect(page.selectedItems.ammo?.id).toBe(9244));
+    page.querySelector("[data-slot='ammo']").click();
+    expect(page.querySelector("[data-equip-item='892']")).toBeNull();
+    expect(page.querySelector("[data-equip-item='9244']")).not.toBeNull();
 
     mode.value = "Magic";
     mode.dispatchEvent(new Event("change"));
-    expect(page.selectedItems.weapon).toBeNull();
+    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(27665));
     expect(page.querySelector("[data-equip-item='21012']")).toBeNull();
     expect(page.querySelector("[data-equip-item='27665']")).not.toBeNull();
-    expect(page.textContent).toContain("Choose an owned magic weapon.");
-    page.querySelector("[data-equip-item='27665']").click();
-    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(27665));
     expect(page.textContent).toContain("Choose an offensive spell from a spellbook.");
 
     const spellbook = page.querySelector("[data-control='spellbook']");
@@ -288,7 +302,10 @@ describe("pvm-gear-planner-page", () => {
     expect([...spell.options].map((option) => option.value)).toEqual(["", "Fire Surge"]);
     spellbook.value = "ancient";
     spellbook.dispatchEvent(new Event("change"));
-    expect([...page.querySelector("[data-control='spell']").options].map((option) => option.value)).toEqual(["", "Ice Barrage"]);
+    expect([...page.querySelector("[data-control='spell']").options].map((option) => option.value)).toEqual([
+      "",
+      "Ice Barrage",
+    ]);
     spellbook.value = "standard";
     spellbook.dispatchEvent(new Event("change"));
     page.querySelector("[data-control='spell']").value = "Fire Surge";
@@ -298,7 +315,9 @@ describe("pvm-gear-planner-page", () => {
       expect(
         requests.some(
           (request) =>
-            request.options.mode === "Magic" && request.options.spell === "Fire Surge" && request.player.equipment.weapon === 27665
+            request.options?.mode === "Magic" &&
+            request.options.spell === "Fire Surge" &&
+            request.player.equipment.weapon === 27665
         )
       ).toBe(true)
     );
