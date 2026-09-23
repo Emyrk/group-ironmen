@@ -1,0 +1,28 @@
+<header class="pvm-gear-planner-page__header">
+  <div>
+    <h1>PvM Gear Planner</h1>
+    <p>Compare the gear you own, inspect tradeoffs, and choose each slot yourself.</p>
+  </div>
+  <div class="pvm-gear-planner-page__controls rsbackground rsborder-tiny">
+    <label>Member<select data-control="member">${this.renderMemberOptions()}</select></label>
+    <label>Target<select data-control="target">${this.renderTargetOptions()}</select></label>
+  </div>
+</header>
+<div class="pvm-gear-planner-page__notice rsbackground rsborder-tiny">
+  <strong>UI prototype</strong>
+  <span>Results update live, but currently use fixture combat values. The production calculator engine and complete equipment data are not connected yet.</span>
+</div>
+<section class="pvm-gear-planner-page__results rsbackground rsborder-tiny">${this.renderResults()}</section>
+<div class="pvm-gear-planner-page__workspace">
+  <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
+    <header><h2>Current loadout</h2><span>Choose a slot to compare</span></header>
+    <div class="pvm-gear-planner-page__slots">${this.renderSlots()}</div>
+  </section>
+  <section class="pvm-gear-planner-page__choices rsbackground rsborder-tiny">
+    <header>
+      <div><h2>${SLOT_NAMES[this.activeSlot]} options</h2><span>Ranked for the current target and loadout</span></div>
+      <button class="men-button" type="button" disabled>Save preset</button>
+    </header>
+    <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
+  </section>
+</div>
