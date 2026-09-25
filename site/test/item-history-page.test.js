@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
+import { Item } from "../src/data/item";
 import { pubsub } from "../src/data/pubsub";
 import { ItemHistoryPage } from "../src/item-history-page/item-history-page";
 import { utility } from "../src/utility";
@@ -173,6 +174,37 @@ describe("item-history-page", () => {
 
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt" }));
     expect(page.classList.contains("item-history-page--ranking")).toBe(false);
+    page.remove();
+  });
+
+  it("filters gained, lost, and charge changes by item name", async () => {
+    Item.itemDetails = {
+      995: { id: 995, name: "Coins", stacks: null },
+      2552: { id: 2552, name: "Ring of dueling", stacks: null },
+      4151: { id: 4151, name: "Abyssal whip", stacks: null },
+    };
+    vi.spyOn(api, "getItemHistory").mockResolvedValue(history);
+    const page = document.createElement("item-history-page");
+    document.body.appendChild(page);
+    pubsub.publish("get-group-data");
+    await vi.waitFor(() => expect(page.querySelector(".item-history-page__search")).not.toBeNull());
+
+    const search = page.querySelector(".item-history-page__search");
+    search.value = "WHIP";
+    search.dispatchEvent(new Event("input"));
+
+    expect(page.textContent).toContain("Abyssal whip");
+    expect(page.textContent).not.toContain("Coins");
+    expect(page.textContent).not.toContain("Ring of dueling");
+    expect(page.textContent).toContain("Gained (0)");
+    expect(page.textContent).toContain("Lost (1)");
+
+    search.value = "ring";
+    search.dispatchEvent(new Event("input"));
+
+    expect(page.textContent).toContain("Ring of dueling");
+    expect(page.textContent).toContain("Charge changes (1)");
+    expect(page.textContent).not.toContain("Abyssal whip");
     page.remove();
   });
 });

@@ -45,6 +45,15 @@ item-history-page {
   border: 1px solid var(--light-border);
 }
 
+.item-history-page__search {
+  min-width: 180px;
+  padding: 4px 6px;
+  color: var(--primary-text);
+  color-scheme: dark;
+  background: #302a22;
+  border: 1px solid var(--light-border);
+}
+
 .item-history-page__storage {
   color: #aaa;
   font-size: 0.9em;

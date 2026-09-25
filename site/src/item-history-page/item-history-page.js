@@ -13,6 +13,7 @@ export class ItemHistoryPage extends BaseElement {
     this.data = null;
     this.error = null;
     this.altMode = false;
+    this.searchQuery = "";
     this.itemRankings = new Map();
     this.render();
     this.eventListener(window, "keydown", this.handleKeyDown.bind(this));
@@ -114,6 +115,13 @@ export class ItemHistoryPage extends BaseElement {
     for (const select of this.querySelectorAll(".item-history-page__date-select")) {
       this.eventListener(select, "change", this.handleDateChange.bind(this));
     }
+    const search = this.querySelector(".item-history-page__search");
+    if (search) this.eventListener(search, "input", this.handleSearchInput.bind(this));
+  }
+
+  handleSearchInput(event) {
+    this.searchQuery = event.target.value;
+    this.querySelector(".item-history-page__days").innerHTML = this.renderHistory();
   }
 
   async handleRefresh() {
@@ -168,6 +176,8 @@ export class ItemHistoryPage extends BaseElement {
           value="${this.data.from}" min="${minDate}" max="${maxDate}" /></label>
         <label>To<input type="date" class="item-history-page__date-select item-history-page__to-date"
           value="${this.data.to}" min="${minDate}" max="${maxDate}" /></label>
+        <label>Search<input type="search" class="item-history-page__search"
+          value="${this.escapeHtml(this.searchQuery)}" placeholder="Filter items" /></label>
         <span class="item-history-page__storage">${storageText}</span>
       </div>
     `;
@@ -229,6 +239,26 @@ export class ItemHistoryPage extends BaseElement {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  escapeHtml(value) {
+    return String(value).replace(
+      /[&<>"]/g,
+      (character) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+        }[character])
+    );
+  }
+
+  matchesSearch(change) {
+    if (!this.searchQuery.trim()) return true;
+    const details = Item.itemDetails?.[change.item_id];
+    const name = change.name || details?.name || `Item ${change.item_id}`;
+    return `${name} ${change.item_id}`.toLowerCase().includes(this.searchQuery.trim().toLowerCase());
+  }
+
   renderHighAlch(highAlch) {
     if (!highAlch) return "";
     const netClass = highAlch.net > 0 ? "positive" : highAlch.net < 0 ? "negative" : "";
@@ -243,8 +273,9 @@ export class ItemHistoryPage extends BaseElement {
   }
 
   renderChargeChanges(changes) {
-    if (changes.length === 0) return "";
-    const items = changes
+    const filteredChanges = changes.filter((change) => this.matchesSearch(change));
+    if (filteredChanges.length === 0) return "";
+    const items = filteredChanges
       .map((change) => {
         const details = Item.itemDetails?.[change.item_id];
         const image = details ? Item.imageUrl(change.item_id, 1) : "";
@@ -263,7 +294,7 @@ export class ItemHistoryPage extends BaseElement {
       .join("");
     return `
       <div class="item-history-page__charges">
-        <h3>Charge changes (${changes.length})</h3>
+        <h3>Charge changes (${filteredChanges.length})</h3>
         <div class="item-history-page__charge-items">${items}</div>
       </div>
     `;
@@ -272,6 +303,7 @@ export class ItemHistoryPage extends BaseElement {
   renderChanges(title, changes, type, ignored = false) {
     const rankedChanges = changes
       .filter((change) => (this.itemRank(change.item_id) === "ignore") === ignored)
+      .filter((change) => this.matchesSearch(change))
       .sort((a, b) => {
         const rankDifference =
           ITEM_RANKS.indexOf(this.itemRank(b.item_id)) - ITEM_RANKS.indexOf(this.itemRank(a.item_id));
