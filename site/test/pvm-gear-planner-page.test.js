@@ -104,12 +104,12 @@ function normalizedEntities() {
   return {
     equipment: equipmentEntities,
     spells: [
-      { name: "Fire Surge", spellbook: "standard", max_hit: 24 },
-      { name: "Ice Barrage", spellbook: "ancient", max_hit: 30 },
-      { name: "Dark Demonbane", spellbook: "arceuus", max_hit: 30 },
-      { name: "Saradomin Strike", spellbook: "standard", max_hit: 20 },
-      { name: "Ghostly Grasp", spellbook: "arceuus", max_hit: 12 },
-      { name: "Bind", spellbook: "standard", max_hit: 0 },
+      { name: "Fire Surge", image: "Fire Surge.png", spellbook: "standard", max_hit: 24 },
+      { name: "Ice Barrage", image: "Ice Barrage.png", spellbook: "ancient", max_hit: 30 },
+      { name: "Dark Demonbane", image: "Dark Demonbane.png", spellbook: "arceuus", max_hit: 30 },
+      { name: "Saradomin Strike", image: "Saradomin Strike.png", spellbook: "standard", max_hit: 20 },
+      { name: "Ghostly Grasp", image: "Ghostly Grasp.png", spellbook: "arceuus", max_hit: 12 },
+      { name: "Bind", image: "Bind.png", spellbook: "standard", max_hit: 0 },
     ].filter((spell) => spell.max_hit > 0),
     equipmentById: new Map(equipmentEntities.map((item) => [item.id, item])),
     equipmentBySlot,
@@ -719,6 +719,20 @@ describe("pvm-gear-planner-page", () => {
 
     page.querySelector("[data-style='Magic']").click();
     expect(page.querySelector(".pvm-gear-planner-page__selected-spell").textContent).toContain("Fire Surge");
+    const spellResults = [...page.querySelectorAll(".pvm-gear-planner-page__spell-result")];
+    expect(spellResults).toHaveLength(5);
+    expect(spellResults.map((result) => result.querySelector("strong").textContent)).toEqual([
+      "Fire Surge",
+      "Ice Barrage",
+      "Saradomin Strike",
+      "Ghostly Grasp",
+      "Dark Demonbane",
+    ]);
+    expect(spellResults[0].classList.contains("selected")).toBe(true);
+    expect(spellResults[0].textContent).toContain("11.00 DPS");
+    expect(spellResults[0].querySelector("img").getAttribute("src")).toBe(
+      "https://oldschool.runescape.wiki/images/Fire_Surge.png"
+    );
     page.remove();
   });
 
@@ -729,6 +743,9 @@ describe("pvm-gear-planner-page", () => {
 
     page.querySelector("[data-rune-restriction='wrath']").click();
     await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Ice Barrage"));
+    expect(
+      [...page.querySelectorAll(".pvm-gear-planner-page__spell-result strong")].map((node) => node.textContent)
+    ).not.toContain("Fire Surge");
     expect(
       requests
         .filter((request) => request.options?.mode === "Magic")

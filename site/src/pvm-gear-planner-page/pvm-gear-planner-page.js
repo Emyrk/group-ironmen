@@ -177,6 +177,11 @@ function attackStyleLabel(style) {
   return `${style.name || details[0] || "Unknown"}${details.length ? ` (${details.join(", ")})` : ""}`;
 }
 
+function spellImageUrl(image) {
+  if (!image) return "";
+  return `https://oldschool.runescape.wiki/images/${encodeURIComponent(image.replaceAll(" ", "_"))}`;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -802,15 +807,20 @@ export class PvmGearPlannerPage extends BaseElement {
 
     let best = null;
     let lastError = null;
+    const spellResults = [];
     for (const spell of this.eligibleMagicSpells) {
       try {
         const result = await calculator.calculate(this.calculatorInput(style, overrides, spell.name));
-        if (result && (!best || result.dps > best.result.dps)) best = { result, spell: spell.name };
+        if (result) {
+          spellResults.push({ spell: spell.name, image: spell.image, dps: result.dps });
+          if (!best || result.dps > best.result.dps) best = { result, spell: spell.name };
+        }
       } catch (error) {
         lastError = error;
       }
     }
     if (!best && lastError) throw lastError;
+    if (best) best.result = { ...best.result, spellResults: spellResults.sort((left, right) => right.dps - left.dps) };
     return best;
   }
 
@@ -1264,6 +1274,28 @@ export class PvmGearPlannerPage extends BaseElement {
       .join("");
   }
 
+  renderSpellResults(result) {
+    if (this.activeStyle !== "Magic" || !Array.isArray(result?.spellResults)) return "";
+    const spells = result.spellResults.slice(0, 5);
+    if (spells.length === 0) return "";
+    return `<div class="pvm-gear-planner-page__spell-results">
+      <span>Top eligible spells</span>
+      <div class="pvm-gear-planner-page__spell-result-list">
+        ${spells
+          .map(({ spell, image, dps }) => {
+            const selected = spell === this.activeLoadout.selectedSpell;
+            return `<div class="pvm-gear-planner-page__spell-result ${selected ? "selected" : ""}">
+              <img src="${spellImageUrl(image)}" alt="" />
+              <span>${selected ? "Chosen" : "Available"}</span>
+              <strong>${escapeHtml(spell)}</strong>
+              <b>${formatNumber(dps, 2)} DPS</b>
+            </div>`;
+          })
+          .join("")}
+      </div>
+    </div>`;
+  }
+
   renderAttackStyleResults(result) {
     if (this.activeStyle === "Magic" || !Array.isArray(result?.styleResults)) return "";
     const styles = [...result.styleResults].sort((left, right) => right.dps - left.dps);
@@ -1305,7 +1337,8 @@ export class PvmGearPlannerPage extends BaseElement {
       <div><span>Prayer</span><strong>+${summary.prayer}</strong></div>
       <div><span>Defence</span><strong>${summary.defence}</strong></div>
       <div><span>Weight</span><strong>${formatNumber(summary.weight)} kg</strong></div>
-      ${this.renderAttackStyleResults(result)}`;
+      ${this.renderAttackStyleResults(result)}
+      ${this.renderSpellResults(result)}`;
   }
 }
 
