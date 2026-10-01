@@ -151,9 +151,8 @@ vi.mock("../src/pvm/calculator-client", async () => {
   };
 });
 
-const { PvmGearPlannerPage, spellRuneTags, weaponSupportsStyle } = await import(
-  "../src/pvm-gear-planner-page/pvm-gear-planner-page"
-);
+const { PvmGearPlannerPage, preferCandidateOnTie, spellRuneTags, targetStyleDefence, weaponSupportsStyle } =
+  await import("../src/pvm-gear-planner-page/pvm-gear-planner-page");
 
 PvmGearPlannerPage.prototype.html = function () {
   return `
@@ -238,6 +237,25 @@ describe("pvm-gear-planner-page", () => {
     localStorage.clear();
     document.body.innerHTML = "";
     window.history.replaceState("", "", "/group/pvm-gear");
+  });
+
+  it("breaks equal-offence ties with target-style defence, then prayer", () => {
+    const target = { style: ["Crush", "Ranged", "Dragonfire"] };
+    const base = equipment(30001, "Base armour", "body", 4);
+    const defensive = equipment(30002, "Defensive armour", "body", 4);
+    defensive.defensive.crush = 12;
+    defensive.defensive.ranged = 8;
+    const prayer = equipment(30003, "Prayer armour", "body", 4);
+    prayer.defensive.crush = 12;
+    prayer.defensive.ranged = 8;
+    prayer.bonuses.prayer = 5;
+
+    expect(targetStyleDefence(defensive, target)).toBe(20);
+    expect(preferCandidateOnTie(defensive, base, "slash", target)).toBe(true);
+    expect(preferCandidateOnTie(prayer, defensive, "slash", target)).toBe(true);
+
+    prayer.offensive.slash += 1;
+    expect(preferCandidateOnTie(prayer, defensive, "slash", target)).toBe(false);
   });
 
   it("only treats weapons with real calculator magic styles as magic weapons", () => {

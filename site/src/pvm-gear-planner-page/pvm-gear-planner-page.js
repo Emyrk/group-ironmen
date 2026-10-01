@@ -116,6 +116,42 @@ function equipmentScore(item) {
   return offensive + (bonuses.str || 0) * 3 + (bonuses.ranged_str || 0) * 3 + (bonuses.magic_str || 0) * 3;
 }
 
+function offensiveTieBreakValues(item, style) {
+  const normalizedStyle = String(style).toLowerCase();
+  if (normalizedStyle === "ranged") return [item?.offensive?.ranged || 0, item?.bonuses?.ranged_str || 0];
+  if (normalizedStyle === "magic") return [item?.offensive?.magic || 0, item?.bonuses?.magic_str || 0];
+  if (["stab", "slash", "crush"].includes(normalizedStyle)) {
+    return [item?.offensive?.[normalizedStyle] || 0, item?.bonuses?.str || 0];
+  }
+  return [
+    Math.max(item?.offensive?.stab || 0, item?.offensive?.slash || 0, item?.offensive?.crush || 0),
+    item?.bonuses?.str || 0,
+  ];
+}
+
+function hasSameOffensiveBonuses(left, right, style) {
+  const leftValues = offensiveTieBreakValues(left, style);
+  const rightValues = offensiveTieBreakValues(right, style);
+  return leftValues.every((value, index) => value === rightValues[index]);
+}
+
+export function targetStyleDefence(item, target) {
+  const styles = Array.isArray(target?.style) ? target.style : target?.style ? [target.style] : [];
+  const supportedStyles = new Set(["stab", "slash", "crush", "magic", "ranged"]);
+  return styles.reduce((sum, style) => {
+    const key = String(style).toLowerCase();
+    return sum + (supportedStyles.has(key) ? item?.defensive?.[key] || 0 : 0);
+  }, 0);
+}
+
+export function preferCandidateOnTie(candidate, current, style, target) {
+  if (!hasSameOffensiveBonuses(candidate, current, style)) return false;
+  const candidateDefence = targetStyleDefence(candidate, target);
+  const currentDefence = targetStyleDefence(current, target);
+  if (candidateDefence !== currentDefence) return candidateDefence > currentDefence;
+  return (candidate?.bonuses?.prayer || 0) > (current?.bonuses?.prayer || 0);
+}
+
 const MAGIC_WEAPON_CATEGORIES = new Set(["Bladed Staff", "Powered Staff", "Powered Wand", "Staff"]);
 const RANGED_WEAPON_CATEGORIES = new Set(["Bow", "Chinchompas", "Crossbow", "Salamander", "Thrown"]);
 
@@ -584,7 +620,13 @@ export class PvmGearPlannerPage extends BaseElement {
     const selectedId = this.loadouts[style].items[slot]?.id;
     return this.ownedEquipment(slot, style, this.loadouts[style])
       .filter((item) => item.id !== selectedId)
-      .sort((left, right) => equipmentScore(right) - equipmentScore(left))
+      .sort((left, right) => {
+        const scoreDifference = equipmentScore(right) - equipmentScore(left);
+        if (scoreDifference !== 0) return scoreDifference;
+        if (preferCandidateOnTie(right, left, style, this.selectedTarget)) return 1;
+        if (preferCandidateOnTie(left, right, style, this.selectedTarget)) return -1;
+        return 0;
+      })
       .slice(0, MAX_CANDIDATES);
   }
 
@@ -649,7 +691,17 @@ export class PvmGearPlannerPage extends BaseElement {
                 this.optimizerCalculator
               );
               if (generation !== this.calculationGeneration) return false;
-              if (candidate && candidate.result.dps > best.result.dps) {
+              if (
+                candidate &&
+                (candidate.result.dps > best.result.dps ||
+                  (candidate.result.dps === best.result.dps &&
+                    preferCandidateOnTie(
+                      weapon,
+                      best.item,
+                      candidate.result.style?.type || style,
+                      this.selectedTarget
+                    )))
+              ) {
                 best = { result: candidate.result, item: weapon, extra: variant };
               }
             }
@@ -665,7 +717,12 @@ export class PvmGearPlannerPage extends BaseElement {
                 style === "Magic" && slot === "weapon" ? "" : fixedSpell
               );
               if (generation !== this.calculationGeneration) return false;
-              if (candidate && candidate.result.dps > best.result.dps)
+              if (
+                candidate &&
+                (candidate.result.dps > best.result.dps ||
+                  (candidate.result.dps === best.result.dps &&
+                    preferCandidateOnTie(item, best.item, candidate.result.style?.type || style, this.selectedTarget)))
+              )
                 best = { result: candidate.result, item, extra: null };
             } catch {
               // Some gear combinations are invalid (for example incompatible ammunition); skip them.
@@ -673,7 +730,12 @@ export class PvmGearPlannerPage extends BaseElement {
           }
         }
 
-        if (best.result.dps > loadout.currentResult.dps) {
+        if (
+          best.result.dps > loadout.currentResult.dps ||
+          (best.result.dps === loadout.currentResult.dps &&
+            best.item !== loadout.items[slot] &&
+            preferCandidateOnTie(best.item, loadout.items[slot], best.result.style?.type || style, this.selectedTarget))
+        ) {
           this.applyOptimizedItem(style, slot, best.item);
           if (best.extra) {
             loadout.items.ammo = best.extra.ammo;
@@ -902,7 +964,14 @@ export class PvmGearPlannerPage extends BaseElement {
     const loadout = this.activeLoadout;
     const ranked = this.activeCandidates()
       .map((item) => ({ item, result: loadout.candidateResults.get(item.id) }))
-      .sort((left, right) => (right.result?.dps || -1) - (left.result?.dps || -1));
+      .sort((left, right) => {
+        const dpsDifference = (right.result?.dps || -1) - (left.result?.dps || -1);
+        if (dpsDifference !== 0) return dpsDifference;
+        const attackStyle = right.result?.style?.type || left.result?.style?.type || this.activeStyle;
+        if (preferCandidateOnTie(right.item, left.item, attackStyle, this.selectedTarget)) return 1;
+        if (preferCandidateOnTie(left.item, right.item, attackStyle, this.selectedTarget)) return -1;
+        return 0;
+      });
     if (ranked.length === 0)
       return '<p class="pvm-gear-planner-page__empty">No owned equipment found for this slot.</p>';
     const bestDps = Math.max(0, ...ranked.map(({ result }) => result?.dps || 0));
