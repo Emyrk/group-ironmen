@@ -73,6 +73,9 @@ function normalizedEntities() {
     spells: [
       { name: "Fire Surge", spellbook: "standard", max_hit: 24 },
       { name: "Ice Barrage", spellbook: "ancient", max_hit: 30 },
+      { name: "Dark Demonbane", spellbook: "arceuus", max_hit: 30 },
+      { name: "Saradomin Strike", spellbook: "standard", max_hit: 20 },
+      { name: "Ghostly Grasp", spellbook: "arceuus", max_hit: 12 },
       { name: "Bind", spellbook: "standard", max_hit: 0 },
     ].filter((spell) => spell.max_hit > 0),
     equipmentById: new Map(equipmentEntities.map((item) => [item.id, item])),
@@ -105,15 +108,24 @@ vi.mock("../src/pvm/calculator-client", async () => {
       }
       const bodyId = request.player.equipment.body;
       const targetModifier = request.monster.id === 8059 ? -1 : 0;
-      const modeModifier = request.options.mode === "Melee" ? 0.5 : 0;
-      const dps = 5 + (bodyId === 11832 ? 3 : bodyId === 10551 ? 2 : 1) + targetModifier + modeModifier;
+      const modeModifier = request.options.mode === "Melee" ? 0.5 : request.options.mode === "Ranged" ? 0.25 : 0;
+      const spellDps = {
+        "Fire Surge": 10,
+        "Ice Barrage": 9,
+        "Dark Demonbane": 4,
+        "Saradomin Strike": 8,
+        "Ghostly Grasp": 5,
+      };
+      const gearDps = bodyId === 11832 ? 3 : bodyId === 10551 ? 2 : 1;
+      const dps =
+        request.options.mode === "Magic" ? spellDps[request.options.spell] + gearDps : 5 + gearDps + modeModifier;
       return {
         version: 1,
         requestId: request.requestId,
         result: {
-          dps,
+          dps: dps + targetModifier,
           accuracy: 0.75,
-          maxHit: 32,
+          maxHit: request.options.spell === "Fire Surge" ? 20 : 32,
           attackSpeed: 4,
           expectedTtk: request.monster.id === 8059 ? 100 : 25,
         },
@@ -122,7 +134,7 @@ vi.mock("../src/pvm/calculator-client", async () => {
   };
 });
 
-const { PvmGearPlannerPage } = await import("../src/pvm-gear-planner-page/pvm-gear-planner-page");
+const { PvmGearPlannerPage, spellRuneTags } = await import("../src/pvm-gear-planner-page/pvm-gear-planner-page");
 
 PvmGearPlannerPage.prototype.html = function () {
   return `
@@ -130,11 +142,17 @@ PvmGearPlannerPage.prototype.html = function () {
       <select data-control="member">${this.renderMemberOptions()}</select>
       <input data-control="target" value="${this.renderSelectedTargetLabel()}" />
       <datalist>${this.renderTargetOptions()}</datalist>
-      <select data-control="mode">${this.renderStyleOptions()}</select>
     </header>
+    <section class="pvm-gear-planner-page__style-picker">${this.renderStyleCards()}</section>
+    <div class="pvm-gear-planner-page__rune-restrictions">${this.renderRuneRestrictions()}</div>
     ${this.renderStatus()}
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
-    <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}${this.renderSpellControls()}</section>
+    <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</section>
+    ${
+      this.activeStyle === "Magic"
+        ? `<div class="pvm-gear-planner-page__selected-spell">${this.activeLoadout.selectedSpell}</div>`
+        : ""
+    }
     <section>
       <h2>Top owned candidates ranked by real DPS</h2>
       <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
@@ -202,6 +220,16 @@ describe("pvm-gear-planner-page", () => {
     window.history.replaceState("", "", "/group/pvm-gear");
   });
 
+  it("classifies every authoritative offensive spell for budget rune filtering", () => {
+    const spells = JSON.parse(readFileSync("vendor/osrs-wiki-dps/cdn/json/spells.json", "utf8"));
+    for (const spell of spells.filter((candidate) => candidate.max_hit > 0)) {
+      expect(() => spellRuneTags(spell.name)).not.toThrow();
+    }
+    expect([...spellRuneTags("Fire Surge")]).toEqual(["wrath"]);
+    expect([...spellRuneTags("Fire Blast")]).toEqual(["death"]);
+    expect([...spellRuneTags("Fire Wave")]).toEqual(["blood"]);
+  });
+
   it("registers the authenticated page and navigation entry", () => {
     const index = readFileSync("src/index.html", "utf8");
     const navigation = readFileSync("src/app-navigation/app-navigation.html", "utf8");
@@ -211,15 +239,14 @@ describe("pvm-gear-planner-page", () => {
     expect(index).toContain('route-path="/pvm-gear"');
     expect(index).toContain('route-component="pvm-gear-planner-page"');
     expect(navigation).toContain('link-href="/group/pvm-gear"');
-    expect(plannerTemplate).toContain('class="pvm-gear-planner-page__combat-mode"');
-    expect(plannerTemplate.indexOf('class="pvm-gear-planner-page__combat-mode"')).toBeGreaterThan(
-      plannerTemplate.indexOf('class="pvm-gear-planner-page__loadout')
-    );
+    expect(plannerTemplate).toContain('class="pvm-gear-planner-page__style-picker"');
+    expect(plannerTemplate).toContain('class="pvm-gear-planner-page__rune-restrictions"');
+    expect(plannerTemplate).not.toContain('data-control="spell"');
     expect(components).toContain("pvm-gear-planner-page");
     expect(customElements.get("pvm-gear-planner-page")).toBe(PvmGearPlannerPage);
   });
 
-  it("initializes all slots from real equipped items and owned defaults", async () => {
+  it("renders three always-visible cards and initializes style-appropriate weapons", async () => {
     const page = await createPage();
 
     expect(page.querySelector("[data-control='member']").value).toBe("Alice");
@@ -227,11 +254,18 @@ describe("pvm-gear-planner-page", () => {
       "Alice",
       "Bob",
     ]);
+    expect([...page.querySelectorAll("[data-style]")].map((card) => card.dataset.style)).toEqual([
+      "Melee",
+      "Ranged",
+      "Magic",
+    ]);
+    expect(page.loadouts.Melee.items.weapon.id).toBe(4151);
+    expect(page.loadouts.Ranged.items.weapon.id).toBe(861);
+    expect(page.loadouts.Ranged.items.ammo.id).toBe(892);
+    expect(page.loadouts.Magic.items.weapon.id).toBe(27665);
     expect(page.querySelectorAll(".pvm-gear-planner-page__paperdoll-slot")).toHaveLength(11);
     expect(page.querySelector("[data-slot='body']").title).toContain("Bandos chestplate");
-    expect(page.querySelector("[data-slot='head']").title).toContain("Neitiznot faceguard");
     expect(page.textContent).toContain("Top owned candidates ranked by real DPS");
-    expect(page.textContent).not.toContain("UI prototype");
     page.remove();
   });
 
@@ -251,76 +285,101 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
-  it("sends synchronized skills, target version, equipment IDs, and combat mode", async () => {
+  it("switches cards without overwriting independent loadout selections", async () => {
+    const page = await createPage();
+    page.querySelector("[data-equip-item='9674']").click();
+    await vi.waitFor(() => expect(page.loadouts.Melee.items.body.id).toBe(9674));
+
+    page.querySelector("[data-style='Ranged']").click();
+    expect(page.querySelector("[data-slot='body']").title).toContain("Bandos chestplate");
+    page.querySelector("[data-equip-item='10551']").click();
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(10551));
+
+    page.querySelector("[data-style='Melee']").click();
+    expect(page.querySelector("[data-slot='body']").title).toContain("Proselyte hauberk");
+    expect(page.loadouts.Ranged.items.body.id).toBe(10551);
+    page.remove();
+  });
+
+  it("refreshes all style cards for target changes with synchronized player data", async () => {
     const page = await createPage();
     const target = page.querySelector("[data-control='target']");
     target.value = "Vorkath (Post-quest) [8059]";
     target.dispatchEvent(new Event("change"));
-    const mode = page.querySelector("[data-control='mode']");
-    expect([...mode.options].map((option) => option.textContent)).toEqual(["Best DPS", "Melee", "Ranged", "Magic"]);
-    mode.value = "Melee";
-    mode.dispatchEvent(new Event("change"));
 
     await vi.waitFor(() =>
-      expect(requests.some((request) => request.monster.id === 8059 && request.options.mode === "Melee")).toBe(true)
+      expect(
+        ["Melee", "Ranged", "Magic"].every((mode) =>
+          requests.some((request) => request.monster?.id === 8059 && request.options?.mode === mode)
+        )
+      ).toBe(true)
     );
-    const request = requests.find((candidate) => candidate.monster.id === 8059 && candidate.options.mode === "Melee");
+    const request = requests.find((candidate) => candidate.monster?.id === 8059 && candidate.options?.mode === "Melee");
     expect(request.monster.version).toBe("Post-quest");
     expect(request.player.skills.atk).toBe(99);
     expect(request.player.equipment.body).toBe(11832);
     page.remove();
   });
 
-  it("requires a matching weapon and offensive spell for ranged and magic modes", async () => {
+  it("auto-selects and filters compatible ranged ammunition", async () => {
     const page = await createPage();
-    const mode = page.querySelector("[data-control='mode']");
-
-    mode.value = "Ranged";
-    mode.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(861));
-    expect(page.activeSlot).toBe("weapon");
-    expect(page.selectedItems.ammo?.id).toBe(892);
+    page.querySelector("[data-style='Ranged']").click();
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.ammo?.id).toBe(892));
     page.querySelector("[data-slot='ammo']").click();
     expect(page.querySelector("[data-equip-item='892']")).not.toBeNull();
     expect(page.querySelector("[data-equip-item='9244']")).toBeNull();
+
     page.querySelector("[data-slot='weapon']").click();
     page.querySelector("[data-equip-item='21012']").click();
-    await vi.waitFor(() => expect(page.selectedItems.ammo?.id).toBe(9244));
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.ammo?.id).toBe(9244));
     page.querySelector("[data-slot='ammo']").click();
     expect(page.querySelector("[data-equip-item='892']")).toBeNull();
     expect(page.querySelector("[data-equip-item='9244']")).not.toBeNull();
+    page.remove();
+  });
 
-    mode.value = "Magic";
-    mode.dispatchEvent(new Event("change"));
-    await vi.waitFor(() => expect(page.selectedItems.weapon?.id).toBe(27665));
-    expect(page.querySelector("[data-equip-item='21012']")).toBeNull();
-    expect(page.querySelector("[data-equip-item='27665']")).not.toBeNull();
-    expect(page.textContent).toContain("Choose an offensive spell from a spellbook.");
+  it("chooses the best magic spell by mocked DPS rather than max hit", async () => {
+    const page = await createPage();
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Fire Surge"));
+    expect(page.loadouts.Magic.currentResult.maxHit).toBe(20);
+    expect(page.querySelector("[data-style='Magic']").textContent).toContain("Fire Surge");
+    expect(page.querySelector("[data-control='spell']")).toBeNull();
 
-    const spellbook = page.querySelector("[data-control='spellbook']");
-    const spell = page.querySelector("[data-control='spell']");
-    expect([...spell.options].map((option) => option.value)).toEqual(["", "Fire Surge"]);
-    spellbook.value = "ancient";
-    spellbook.dispatchEvent(new Event("change"));
-    expect([...page.querySelector("[data-control='spell']").options].map((option) => option.value)).toEqual([
-      "",
-      "Ice Barrage",
-    ]);
-    spellbook.value = "standard";
-    spellbook.dispatchEvent(new Event("change"));
-    page.querySelector("[data-control='spell']").value = "Fire Surge";
-    page.querySelector("[data-control='spell']").dispatchEvent(new Event("change"));
+    page.querySelector("[data-style='Magic']").click();
+    expect(page.querySelector(".pvm-gear-planner-page__selected-spell").textContent).toContain("Fire Surge");
+    page.remove();
+  });
 
-    await vi.waitFor(() =>
-      expect(
-        requests.some(
-          (request) =>
-            request.options?.mode === "Magic" &&
-            request.options.spell === "Fire Surge" &&
-            request.player.equipment.weapon === 27665
-        )
-      ).toBe(true)
-    );
+  it("excludes rune-tagged spell requests and falls back to an unaffected spell", async () => {
+    const page = await createPage();
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Fire Surge"));
+    requests.length = 0;
+
+    page.querySelector("[data-rune-restriction='wrath']").click();
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Ice Barrage"));
+    expect(
+      requests
+        .filter((request) => request.options?.mode === "Magic")
+        .some((request) => request.options.spell === "Fire Surge")
+    ).toBe(false);
+
+    requests.length = 0;
+    page.querySelector("[data-rune-restriction='death']").click();
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Saradomin Strike"));
+    expect(
+      requests
+        .filter((request) => request.options?.mode === "Magic")
+        .some((request) => request.options.spell === "Ice Barrage")
+    ).toBe(false);
+
+    requests.length = 0;
+    page.querySelector("[data-rune-restriction='blood']").click();
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Ghostly Grasp"));
+    const requestedSpells = requests
+      .filter((request) => request.options?.mode === "Magic")
+      .map((request) => request.options.spell);
+    expect(requestedSpells).toContain("Ghostly Grasp");
+    expect(requestedSpells).not.toContain("Saradomin Strike");
     page.remove();
   });
 

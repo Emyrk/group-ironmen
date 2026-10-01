@@ -36,6 +36,56 @@ pvm-gear-planner-page {
   background: #302a22;
   border: 1px solid var(--light-border);
 }
+.pvm-gear-planner-page__style-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.pvm-gear-planner-page__style-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  color: var(--primary-text);
+  text-align: left;
+  cursor: pointer;
+  background: #302a22;
+  border: 1px solid #666;
+}
+.pvm-gear-planner-page__style-card:hover,
+.pvm-gear-planner-page__style-card.active {
+  border-color: var(--orange);
+  box-shadow: inset 3px 0 var(--orange), 0 0 10px rgb(230 189 75 / 25%);
+}
+.pvm-gear-planner-page__style-card span {
+  color: #bbb;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+.pvm-gear-planner-page__style-card strong {
+  color: var(--orange);
+  font-size: 1.45rem;
+}
+.pvm-gear-planner-page__style-card small {
+  overflow: hidden;
+  color: #bbb;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pvm-gear-planner-page__rune-restrictions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.pvm-gear-planner-page__rune-restrictions span {
+  color: #aaa;
+  font-size: 0.8rem;
+}
+.pvm-gear-planner-page__rune-restrictions .men-button.active {
+  color: #18130d;
+  background: var(--orange);
+}
 .pvm-gear-planner-page__status {
   margin-top: 12px;
   padding: 10px 12px;
@@ -169,7 +219,8 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   top: 220px;
   left: 176px;
 }
-.pvm-gear-planner-page__selected-slot {
+.pvm-gear-planner-page__selected-slot,
+.pvm-gear-planner-page__selected-spell {
   display: grid;
   gap: 3px;
   padding: 10px;
@@ -177,44 +228,18 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   background: #302a22;
   border: 1px solid #666;
 }
-.pvm-gear-planner-page__selected-slot span {
+.pvm-gear-planner-page__selected-spell {
+  margin-top: 10px;
+}
+.pvm-gear-planner-page__selected-slot span,
+.pvm-gear-planner-page__selected-spell span {
   color: #aaa;
   font-size: 0.75rem;
   text-transform: uppercase;
 }
-.pvm-gear-planner-page__selected-slot strong {
+.pvm-gear-planner-page__selected-slot strong,
+.pvm-gear-planner-page__selected-spell strong {
   color: var(--orange);
-}
-.pvm-gear-planner-page__combat-mode {
-  display: grid;
-  gap: 4px;
-  margin-top: 10px;
-  color: var(--orange);
-}
-.pvm-gear-planner-page__combat-mode select {
-  width: 100%;
-  padding: 7px;
-  color: var(--primary-text);
-  background: #302a22;
-  border: 1px solid var(--light-border);
-}
-.pvm-gear-planner-page__spell-controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 10px;
-}
-.pvm-gear-planner-page__spell-controls label {
-  display: grid;
-  gap: 4px;
-  color: var(--orange);
-}
-.pvm-gear-planner-page__spell-controls select {
-  width: 100%;
-  padding: 7px;
-  color: var(--primary-text);
-  background: #302a22;
-  border: 1px solid var(--light-border);
 }
 .pvm-gear-planner-page__alternative img {
   width: 36px;
@@ -328,6 +353,12 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   .pvm-gear-planner-page__controls {
     align-items: stretch;
     flex-direction: column;
+  }
+  .pvm-gear-planner-page__style-picker {
+    grid-template-columns: 1fr;
+  }
+  .pvm-gear-planner-page__rune-restrictions {
+    flex-wrap: wrap;
   }
   .pvm-gear-planner-page__results {
     grid-template-columns: repeat(2, 1fr);

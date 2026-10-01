@@ -18,10 +18,75 @@ const PAPERDOLL_SLOTS = [
 ];
 const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
 const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
-const COMBAT_MODES = ["Best", "Melee", "Ranged", "Magic"];
+const COMBAT_STYLES = ["Melee", "Ranged", "Magic"];
 const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
 const MAX_CANDIDATES = 12;
 const DEFAULT_TARGET = ["Giant Mole", ""];
+
+// spells.json intentionally has no rune costs. Keep these snapshot-specific restrictions local and explicit.
+// This only models the three expensive rune types exposed by the budget controls; all other rune costs are ignored.
+const WRATH_RUNE_SPELLS = new Set(["Earth Surge", "Fire Surge", "Water Surge", "Wind Surge"]);
+const DEATH_RUNE_SPELLS = new Set([
+  "Blood Barrage",
+  "Blood Blitz",
+  "Blood Burst",
+  "Blood Rush",
+  "Earth Blast",
+  "Fire Blast",
+  "Iban Blast",
+  "Ice Barrage",
+  "Ice Blitz",
+  "Ice Burst",
+  "Ice Rush",
+  "Shadow Barrage",
+  "Shadow Blitz",
+  "Shadow Burst",
+  "Shadow Rush",
+  "Skeletal Grasp",
+  "Smoke Barrage",
+  "Smoke Blitz",
+  "Smoke Burst",
+  "Smoke Rush",
+  "Water Blast",
+  "Wind Blast",
+]);
+const BLOOD_RUNE_SPELLS = new Set([
+  "Blood Barrage",
+  "Blood Blitz",
+  "Blood Burst",
+  "Blood Rush",
+  "Claws of Guthix",
+  "Earth Wave",
+  "Fire Wave",
+  "Flames of Zamorak",
+  "Ice Barrage",
+  "Ice Blitz",
+  "Saradomin Strike",
+  "Shadow Barrage",
+  "Shadow Blitz",
+  "Smoke Barrage",
+  "Smoke Blitz",
+  "Undead Grasp",
+  "Water Wave",
+  "Wind Wave",
+]);
+const UNAFFECTED_RUNE_SPELLS = new Set([
+  "Crumble Undead",
+  "Dark Demonbane",
+  "Earth Bolt",
+  "Earth Strike",
+  "Entangle",
+  "Fire Bolt",
+  "Fire Strike",
+  "Ghostly Grasp",
+  "Inferior Demonbane",
+  "Snare",
+  "Superior Demonbane",
+  "Water Bolt",
+  "Water Strike",
+  "Wind Bolt",
+  "Wind Strike",
+]);
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -51,10 +116,36 @@ function equipmentScore(item) {
   return offensive + (bonuses.str || 0) * 3 + (bonuses.ranged_str || 0) * 3 + (bonuses.magic_str || 0) * 3;
 }
 
-function weaponSupportsMode(item, mode) {
-  if (mode === "Ranged") return (item?.offensive?.ranged || 0) > 0;
-  if (mode === "Magic") return (item?.offensive?.magic || 0) > 0;
-  return true;
+function weaponSupportsStyle(item, style) {
+  if (style === "Ranged") return (item?.offensive?.ranged || 0) > 0;
+  if (style === "Magic") return (item?.offensive?.magic || 0) > 0;
+  return ["stab", "slash", "crush"].some((type) => (item?.offensive?.[type] || 0) > 0);
+}
+
+export function spellRuneTags(spellName) {
+  if (UNAFFECTED_RUNE_SPELLS.has(spellName)) return new Set();
+  const tags = new Set();
+  if (WRATH_RUNE_SPELLS.has(spellName)) tags.add("wrath");
+  if (DEATH_RUNE_SPELLS.has(spellName)) tags.add("death");
+  if (BLOOD_RUNE_SPELLS.has(spellName)) tags.add("blood");
+  if (tags.size === 0) throw new Error(`Missing budget rune classification for ${spellName}`);
+  return tags;
+}
+
+function emptyItems() {
+  return Object.fromEntries(SLOT_KEYS.map((slot) => [slot, null]));
+}
+
+function createLoadout(style) {
+  return {
+    style,
+    items: emptyItems(),
+    currentResult: null,
+    candidateResults: new Map(),
+    selectedSpell: "",
+    compatibleAmmoIds: null,
+    rangedWeaponRequiresAmmo: false,
+  };
 }
 
 function uniqueById(items) {
@@ -94,16 +185,11 @@ export class PvmGearPlannerPage extends BaseElement {
     this.entities = null;
     this.selectedMember = localStorage.getItem(SELECTED_MEMBER_STORAGE_KEY) || "";
     this.selectedTargetKey = "";
-    this.combatMode = "Best";
-    this.selectedSpellbook = "standard";
-    this.selectedSpell = "";
-    this.compatibleAmmoIds = null;
-    this.rangedWeaponRequiresAmmo = false;
+    this.activeStyle = "Melee";
+    this.loadouts = Object.fromEntries(COMBAT_STYLES.map((style) => [style, createLoadout(style)]));
+    this.runeRestrictions = { wrath: false, death: false, blood: false };
     this.ammoRequestId = 0;
     this.activeSlot = "body";
-    this.selectedItems = Object.fromEntries(SLOT_KEYS.map((slot) => [slot, null]));
-    this.currentResult = null;
-    this.candidateResults = new Map();
     this.loadingEntities = true;
     this.calculating = false;
     this.error = "";
@@ -193,47 +279,42 @@ export class PvmGearPlannerPage extends BaseElement {
     return `Owned by ${this.selectedMember}`;
   }
 
-  ownedEquipment(slot) {
+  get activeLoadout() {
+    return this.loadouts[this.activeStyle];
+  }
+
+  ownedEquipment(slot, style = this.activeStyle, loadout = this.loadouts[style]) {
     if (!this.entities || !this.selectedMemberData) return [];
     return uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter(
       (item) =>
         this.isOwned(item) &&
-        (slot !== "weapon" || weaponSupportsMode(item, this.combatMode)) &&
-        (slot !== "ammo" ||
-          this.combatMode !== "Ranged" ||
-          !this.compatibleAmmoIds ||
-          this.compatibleAmmoIds.has(item.id))
+        (slot !== "weapon" || weaponSupportsStyle(item, style)) &&
+        (slot !== "ammo" || style !== "Ranged" || !loadout.compatibleAmmoIds || loadout.compatibleAmmoIds.has(item.id))
     );
   }
 
-  get availableSpells() {
-    return (this.entities?.spells || []).filter((spell) => spell.spellbook === this.selectedSpellbook);
+  get eligibleMagicSpells() {
+    return (this.entities?.spells || []).filter((spell) => {
+      const tags = spellRuneTags(spell.name);
+      return ![...tags].some((tag) => this.runeRestrictions[tag]);
+    });
   }
 
-  get calculationConfigurationError() {
-    if ((this.combatMode === "Ranged" || this.combatMode === "Magic") && !this.selectedItems.weapon) {
-      return `Choose an owned ${this.combatMode.toLowerCase()} weapon.`;
-    }
-    if (this.combatMode === "Ranged" && this.rangedWeaponRequiresAmmo && !this.selectedItems.ammo)
-      return "Choose compatible ammunition.";
-    if (this.combatMode === "Magic" && !this.selectedSpell) return "Choose an offensive spell from a spellbook.";
+  calculationConfigurationError(style = this.activeStyle) {
+    const loadout = this.loadouts[style];
+    if (!loadout?.items.weapon) return `No owned ${style.toLowerCase()} weapon is available.`;
+    if (style === "Ranged" && loadout.rangedWeaponRequiresAmmo && !loadout.items.ammo)
+      return "No owned compatible ammunition is available.";
+    if (style === "Magic" && this.eligibleMagicSpells.length === 0)
+      return "No offensive spells remain with the selected rune restrictions.";
     return "";
   }
 
-  async ensureCombatModeLoadout() {
-    if (this.combatMode !== "Ranged" && this.combatMode !== "Magic") return;
-    this.activeSlot = "weapon";
-    if (!weaponSupportsMode(this.selectedItems.weapon, this.combatMode)) {
-      this.selectedItems.weapon =
-        this.ownedEquipment("weapon").sort((left, right) => equipmentScore(right) - equipmentScore(left))[0] || null;
-    }
-    if (this.combatMode === "Ranged") await this.syncRangedAmmo();
-  }
-
   async syncRangedAmmo() {
-    const weapon = this.selectedItems.weapon;
-    this.compatibleAmmoIds = null;
-    this.rangedWeaponRequiresAmmo = false;
+    const loadout = this.loadouts.Ranged;
+    const weapon = loadout.items.weapon;
+    loadout.compatibleAmmoIds = null;
+    loadout.rangedWeaponRequiresAmmo = false;
     if (!weapon) return;
 
     const requestId = ++this.ammoRequestId;
@@ -246,47 +327,64 @@ export class PvmGearPlannerPage extends BaseElement {
     if (requestId !== this.ammoRequestId) return;
     if (response.error) throw new Error(response.error.message || "Unable to find compatible ammunition");
 
-    this.compatibleAmmoIds = new Set(response.result.ammoIds);
-    this.rangedWeaponRequiresAmmo = response.result.requiresAmmo;
-    if (!this.rangedWeaponRequiresAmmo) {
-      this.selectedItems.ammo = null;
+    loadout.compatibleAmmoIds = new Set(response.result.ammoIds);
+    loadout.rangedWeaponRequiresAmmo = response.result.requiresAmmo;
+    if (!loadout.rangedWeaponRequiresAmmo) {
+      loadout.items.ammo = null;
       return;
     }
-    if (this.compatibleAmmoIds.has(this.selectedItems.ammo?.id)) return;
-    this.selectedItems.ammo =
-      this.ownedEquipment("ammo").sort((left, right) => equipmentScore(right) - equipmentScore(left))[0] || null;
+    if (loadout.compatibleAmmoIds.has(loadout.items.ammo?.id)) return;
+    loadout.items.ammo =
+      this.ownedEquipment("ammo", "Ranged", loadout).sort(
+        (left, right) => equipmentScore(right) - equipmentScore(left)
+      )[0] || null;
   }
 
   initializeLoadout({ preserveSelections = false } = {}) {
     if (!this.entities || !this.selectedMemberData) return;
     const equippedIds = equipmentIdsFromMember(this.selectedMemberData);
-    const nextItems = {};
-    for (const slot of SLOT_KEYS) {
-      const selected = this.selectedItems[slot];
-      const equipped = this.entities.equipmentById.get(equippedIds[slot]);
-      const owned = this.ownedEquipment(slot).sort((left, right) => equipmentScore(right) - equipmentScore(left));
-      if (preserveSelections && selected?.slot === slot && this.isOwned(selected)) {
-        nextItems[slot] = selected;
-      } else {
-        nextItems[slot] = equipped?.slot === slot ? equipped : owned[0] || null;
+    for (const style of COMBAT_STYLES) {
+      const loadout = this.loadouts[style];
+      const nextItems = {};
+      for (const slot of SLOT_KEYS) {
+        const selected = loadout.items[slot];
+        const equipped = this.entities.equipmentById.get(equippedIds[slot]);
+        const equippedIsSuitable =
+          equipped?.slot === slot && (slot !== "weapon" || weaponSupportsStyle(equipped, style));
+        const owned = this.ownedEquipment(slot, style, loadout).sort(
+          (left, right) => equipmentScore(right) - equipmentScore(left)
+        );
+        if (
+          preserveSelections &&
+          selected?.slot === slot &&
+          this.isOwned(selected) &&
+          (slot !== "weapon" || weaponSupportsStyle(selected, style))
+        ) {
+          nextItems[slot] = selected;
+        } else {
+          nextItems[slot] = equippedIsSuitable ? equipped : owned[0] || null;
+        }
       }
+      loadout.items = nextItems;
+      loadout.currentResult = null;
+      loadout.candidateResults = new Map();
+      loadout.selectedSpell = "";
+      loadout.compatibleAmmoIds = null;
+      loadout.rangedWeaponRequiresAmmo = false;
+      this.normalizeTwoHandedEquipment(loadout);
     }
-    this.selectedItems = nextItems;
-    this.normalizeTwoHandedEquipment();
     this.memberSignature = `${memberDataSignature(this.selectedMemberData)}|${memberDataSignature(
       this.sharedStorageData
     )}`;
     this.loadoutInitialized = true;
-    this.currentResult = null;
-    this.candidateResults = new Map();
   }
 
-  normalizeTwoHandedEquipment(changedSlot) {
-    const weapon = this.selectedItems.weapon;
-    if (changedSlot === "shield" && this.selectedItems.shield && weapon?.isTwoHanded) {
-      this.selectedItems.weapon = null;
+  normalizeTwoHandedEquipment(loadout = this.activeLoadout, changedSlot) {
+    const weapon = loadout.items.weapon;
+    if (changedSlot === "shield" && loadout.items.shield && weapon?.isTwoHanded) {
+      loadout.items.weapon = null;
     } else if (weapon?.isTwoHanded) {
-      this.selectedItems.shield = null;
+      loadout.items.shield = null;
     }
   }
 
@@ -298,14 +396,14 @@ export class PvmGearPlannerPage extends BaseElement {
   bindControls() {
     const member = this.querySelector("[data-control='member']");
     const target = this.querySelector("[data-control='target']");
-    const mode = this.querySelector("[data-control='mode']");
-    const spellbook = this.querySelector("[data-control='spellbook']");
-    const spell = this.querySelector("[data-control='spell']");
     if (member) this.eventListener(member, "change", this.handleMemberChange.bind(this));
     if (target) this.eventListener(target, "change", this.handleTargetChange.bind(this));
-    if (mode) this.eventListener(mode, "change", this.handleCombatModeChange.bind(this));
-    if (spellbook) this.eventListener(spellbook, "change", this.handleSpellbookChange.bind(this));
-    if (spell) this.eventListener(spell, "change", this.handleSpellChange.bind(this));
+    for (const button of this.querySelectorAll("[data-style]")) {
+      this.eventListener(button, "click", this.handleStyleClick.bind(this));
+    }
+    for (const button of this.querySelectorAll("[data-rune-restriction]")) {
+      this.eventListener(button, "click", this.handleRuneRestrictionClick.bind(this));
+    }
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
@@ -331,93 +429,90 @@ export class PvmGearPlannerPage extends BaseElement {
       return;
     }
     this.selectedTargetKey = target.key;
-    this.currentResult = null;
-    this.candidateResults = new Map();
-    this.renderAndBind();
-    this.refreshCalculations();
-  }
-
-  async handleCombatModeChange(event) {
-    this.combatMode = event.target.value;
-    this.currentResult = null;
-    this.candidateResults = new Map();
-    try {
-      await this.ensureCombatModeLoadout();
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
+    for (const loadout of Object.values(this.loadouts)) {
+      loadout.currentResult = null;
+      loadout.candidateResults = new Map();
+      if (loadout.style === "Magic") loadout.selectedSpell = "";
     }
     this.renderAndBind();
     this.refreshCalculations();
   }
 
-  handleSpellbookChange(event) {
-    this.selectedSpellbook = event.target.value;
-    this.selectedSpell = "";
-    this.currentResult = null;
-    this.candidateResults = new Map();
+  handleStyleClick(event) {
+    const style = event.currentTarget.dataset.style;
+    if (!COMBAT_STYLES.includes(style) || style === this.activeStyle) return;
+    this.activeStyle = style;
     this.renderAndBind();
-    this.refreshCalculations();
+    this.refreshActiveCandidates();
   }
 
-  handleSpellChange(event) {
-    this.selectedSpell = event.target.value;
-    this.currentResult = null;
-    this.candidateResults = new Map();
+  handleRuneRestrictionClick(event) {
+    const rune = event.currentTarget.dataset.runeRestriction;
+    if (!Object.hasOwn(this.runeRestrictions, rune)) return;
+    this.runeRestrictions[rune] = !this.runeRestrictions[rune];
+    const magic = this.loadouts.Magic;
+    magic.currentResult = null;
+    magic.candidateResults = new Map();
+    magic.selectedSpell = "";
     this.renderAndBind();
-    this.refreshCalculations();
+    this.refreshCalculations({ styles: ["Magic"] });
   }
 
   handleSlotClick(event) {
     this.activeSlot = event.currentTarget.dataset.slot;
-    this.candidateResults = new Map();
+    this.activeLoadout.candidateResults = new Map();
     this.renderAndBind();
-    this.refreshCalculations();
+    this.refreshActiveCandidates();
   }
 
   async handleEquipClick(event) {
     const item = this.entities?.equipmentById.get(Number(event.currentTarget.dataset.equipItem));
     if (!item || item.slot !== this.activeSlot || !this.isOwned(item)) return;
-    this.selectedItems[this.activeSlot] = item;
-    this.normalizeTwoHandedEquipment(this.activeSlot);
+    const loadout = this.activeLoadout;
+    loadout.items[this.activeSlot] = item;
+    this.normalizeTwoHandedEquipment(loadout, this.activeSlot);
     try {
-      if (this.combatMode === "Ranged" && this.activeSlot === "weapon") await this.syncRangedAmmo();
+      if (this.activeStyle === "Ranged" && this.activeSlot === "weapon") await this.syncRangedAmmo();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     }
-    this.currentResult = null;
-    this.candidateResults = new Map();
+    loadout.currentResult = null;
+    loadout.candidateResults = new Map();
+    if (this.activeStyle === "Magic") loadout.selectedSpell = "";
     this.renderAndBind();
-    this.refreshCalculations();
+    this.refreshCalculations({ styles: [this.activeStyle] });
   }
 
   itemImage(item) {
     return `/icons/items/${item.id}.webp`;
   }
 
-  equipmentIds(overrides = {}) {
+  equipmentIds(style, overrides = {}) {
+    const loadout = this.loadouts[style];
     const items = Object.fromEntries(
-      SLOT_KEYS.map((slot) => [slot, Object.hasOwn(overrides, slot) ? overrides[slot] : this.selectedItems[slot]])
+      SLOT_KEYS.map((slot) => [slot, Object.hasOwn(overrides, slot) ? overrides[slot] : loadout.items[slot]])
     );
     if (Object.hasOwn(overrides, "shield") && items.shield && items.weapon?.isTwoHanded) items.weapon = null;
     if (items.weapon?.isTwoHanded) items.shield = null;
     return Object.fromEntries(SLOT_KEYS.map((slot) => [slot, items[slot]?.id || null]));
   }
 
-  calculatorInput(overrides = {}) {
+  calculatorInput(style, overrides = {}, spell = "") {
     return {
       member: this.selectedMemberData,
-      equipmentIds: this.equipmentIds(overrides),
+      equipmentIds: this.equipmentIds(style, overrides),
       monster: this.selectedTarget,
       options: {
-        mode: this.combatMode,
-        ...(this.combatMode === "Magic" && this.selectedSpell ? { spell: this.selectedSpell } : {}),
+        mode: style,
+        ...(style === "Magic" && spell ? { spell } : {}),
       },
     };
   }
 
   activeCandidates() {
-    const selected = this.selectedItems[this.activeSlot];
-    const candidates = this.ownedEquipment(this.activeSlot).sort(
+    const loadout = this.activeLoadout;
+    const selected = loadout.items[this.activeSlot];
+    const candidates = this.ownedEquipment(this.activeSlot, this.activeStyle, loadout).sort(
       (left, right) => equipmentScore(right) - equipmentScore(left)
     );
     const bounded = candidates.slice(0, MAX_CANDIDATES);
@@ -425,38 +520,56 @@ export class PvmGearPlannerPage extends BaseElement {
     return bounded;
   }
 
-  async refreshCalculations() {
-    const generation = ++this.calculationGeneration;
+  async calculateStyleResult(style, overrides, calculator) {
+    if (style !== "Magic") {
+      const result = await calculator.calculate(this.calculatorInput(style, overrides));
+      return result ? { result, spell: "" } : null;
+    }
+
+    let best = null;
+    let lastError = null;
+    for (const spell of this.eligibleMagicSpells) {
+      try {
+        const result = await calculator.calculate(this.calculatorInput(style, overrides, spell.name));
+        if (result && (!best || result.dps > best.result.dps)) best = { result, spell: spell.name };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!best && lastError) throw lastError;
+    return best;
+  }
+
+  async calculateActiveCandidates(generation) {
+    const style = this.activeStyle;
+    const loadout = this.activeLoadout;
+    const results = new Map();
+    for (const item of this.activeCandidates()) {
+      if (generation !== this.calculationGeneration) return false;
+      if (item.id === loadout.items[this.activeSlot]?.id && loadout.currentResult) {
+        results.set(item.id, loadout.currentResult);
+        continue;
+      }
+      const calculated = await this.calculateStyleResult(style, { [this.activeSlot]: item }, this.candidateCalculator);
+      if (generation !== this.calculationGeneration) return false;
+      if (calculated) results.set(item.id, calculated.result);
+    }
+    loadout.candidateResults = results;
+    return true;
+  }
+
+  async refreshActiveCandidates() {
     if (!this.entities || !this.selectedMemberData || !this.selectedTarget) return;
-    if (this.calculationConfigurationError) {
-      this.calculating = false;
-      this.currentResult = null;
-      this.candidateResults = new Map();
-      this.renderAndBind();
+    if (!this.activeLoadout.currentResult) {
+      this.refreshCalculations({ styles: [this.activeStyle] });
       return;
     }
+    const generation = ++this.calculationGeneration;
     this.calculating = true;
     this.error = "";
     this.renderAndBind();
-
     try {
-      const currentResult = await this.resultCalculator.calculate(this.calculatorInput());
-      if (generation !== this.calculationGeneration || !currentResult) return;
-      this.currentResult = currentResult;
-      this.renderAndBind();
-
-      const results = new Map();
-      for (const item of this.activeCandidates()) {
-        if (generation !== this.calculationGeneration) return;
-        if (item.id === this.selectedItems[this.activeSlot]?.id) {
-          results.set(item.id, currentResult);
-          continue;
-        }
-        const result = await this.candidateCalculator.calculate(this.calculatorInput({ [this.activeSlot]: item }));
-        if (generation !== this.calculationGeneration || !result) return;
-        results.set(item.id, result);
-      }
-      this.candidateResults = results;
+      if (!(await this.calculateActiveCandidates(generation))) return;
       this.calculating = false;
       this.renderAndBind();
     } catch (error) {
@@ -467,7 +580,44 @@ export class PvmGearPlannerPage extends BaseElement {
     }
   }
 
-  loadoutSummary(items = this.selectedItems) {
+  async refreshCalculations({ styles = COMBAT_STYLES } = {}) {
+    const generation = ++this.calculationGeneration;
+    if (!this.entities || !this.selectedMemberData || !this.selectedTarget) return;
+    this.calculating = true;
+    this.error = "";
+    this.renderAndBind();
+
+    try {
+      if (styles.includes("Ranged")) await this.syncRangedAmmo();
+      for (const style of styles) {
+        if (generation !== this.calculationGeneration) return;
+        const loadout = this.loadouts[style];
+        const configurationError = this.calculationConfigurationError(style);
+        if (configurationError) {
+          loadout.currentResult = null;
+          loadout.candidateResults = new Map();
+          if (style === "Magic") loadout.selectedSpell = "";
+          continue;
+        }
+        const calculated = await this.calculateStyleResult(style, {}, this.resultCalculator);
+        if (generation !== this.calculationGeneration || !calculated) return;
+        loadout.currentResult = calculated.result;
+        loadout.selectedSpell = calculated.spell;
+        this.renderAndBind();
+      }
+
+      if (styles.includes(this.activeStyle) && !(await this.calculateActiveCandidates(generation))) return;
+      this.calculating = false;
+      this.renderAndBind();
+    } catch (error) {
+      if (generation !== this.calculationGeneration) return;
+      this.calculating = false;
+      this.error = error instanceof Error ? error.message : String(error);
+      this.renderAndBind();
+    }
+  }
+
+  loadoutSummary(items = this.activeLoadout.items) {
     const equipped = Object.values(items).filter(Boolean);
     return {
       prayer: equipped.reduce((sum, item) => sum + (item.bonuses?.prayer || 0), 0),
@@ -502,53 +652,38 @@ export class PvmGearPlannerPage extends BaseElement {
     return this.entities.targets.map((target) => `<option value="${escapeHtml(target.label)}"></option>`).join("");
   }
 
-  renderStyleOptions() {
-    return COMBAT_MODES.map(
-      (mode) =>
-        `<option value="${mode}" ${mode === this.combatMode ? "selected" : ""}>${
-          mode === "Best" ? "Best DPS" : mode
-        }</option>`
-    ).join("");
+  renderStyleCards() {
+    return COMBAT_STYLES.map((style) => {
+      const loadout = this.loadouts[style];
+      const result = loadout.currentResult;
+      const weapon = loadout.items.weapon;
+      return `
+        <button class="pvm-gear-planner-page__style-card ${style === this.activeStyle ? "active" : ""}"
+          data-style="${style}" aria-pressed="${style === this.activeStyle}">
+          <span>${style}</span>
+          <strong>${result ? formatNumber(result.dps, 2) : "…"} DPS</strong>
+          <small>${escapeHtml(weapon?.name || "No owned weapon")}</small>
+          ${style === "Magic" ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>` : ""}
+        </button>`;
+    }).join("");
   }
 
-  renderSpellControls() {
-    if (this.combatMode !== "Magic") return "";
-    return `
-      <div class="pvm-gear-planner-page__spell-controls">
-        <label>
-          Spellbook
-          <select data-control="spellbook">
-            ${["standard", "ancient", "arceuus"]
-              .map(
-                (spellbook) =>
-                  `<option value="${spellbook}" ${spellbook === this.selectedSpellbook ? "selected" : ""}>${
-                    spellbook[0].toUpperCase() + spellbook.slice(1)
-                  }</option>`
-              )
-              .join("")}
-          </select>
-        </label>
-        <label>
-          Offensive spell
-          <select data-control="spell">
-            <option value="">Choose a spell</option>
-            ${this.availableSpells
-              .map(
-                (spell) =>
-                  `<option value="${escapeHtml(spell.name)}" ${
-                    spell.name === this.selectedSpell ? "selected" : ""
-                  }>${escapeHtml(spell.name)}</option>`
-              )
-              .join("")}
-          </select>
-        </label>
-      </div>`;
+  renderRuneRestrictions() {
+    return ["wrath", "death", "blood"]
+      .map(
+        (rune) => `
+          <button class="men-button ${this.runeRestrictions[rune] ? "active" : ""}"
+            data-rune-restriction="${rune}" aria-pressed="${this.runeRestrictions[rune]}">
+            No ${rune[0].toUpperCase() + rune.slice(1)} runes
+          </button>`
+      )
+      .join("");
   }
 
   renderStatus() {
     if (this.loadingEntities) return '<div class="pvm-gear-planner-page__status">Loading authoritative PvM data…</div>';
-    if (this.calculationConfigurationError)
-      return `<div class="pvm-gear-planner-page__status">${escapeHtml(this.calculationConfigurationError)}</div>`;
+    const configurationError = this.calculationConfigurationError();
+    if (configurationError) return `<div class="pvm-gear-planner-page__status">${escapeHtml(configurationError)}</div>`;
     if (this.error)
       return `<div class="pvm-gear-planner-page__status error"><strong>Calculator error:</strong> ${escapeHtml(
         this.error
@@ -561,7 +696,7 @@ export class PvmGearPlannerPage extends BaseElement {
 
   renderPaperdoll() {
     return PAPERDOLL_SLOTS.map(({ slot, position, label, emptyIcon }) => {
-      const item = this.selectedItems[slot];
+      const item = this.activeLoadout.items[slot];
       return `
         <button
           class="pvm-gear-planner-page__paperdoll-slot position-${position} ${
@@ -577,20 +712,21 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   renderAlternatives() {
+    const loadout = this.activeLoadout;
     const ranked = this.activeCandidates()
-      .map((item) => ({ item, result: this.candidateResults.get(item.id) }))
+      .map((item) => ({ item, result: loadout.candidateResults.get(item.id) }))
       .sort((left, right) => (right.result?.dps || -1) - (left.result?.dps || -1));
     if (ranked.length === 0)
       return '<p class="pvm-gear-planner-page__empty">No owned equipment found for this slot.</p>';
     const bestDps = Math.max(0, ...ranked.map(({ result }) => result?.dps || 0));
     return ranked
       .map(({ item, result }) => {
-        const selected = this.selectedItems[this.activeSlot]?.id === item.id;
+        const selected = loadout.items[this.activeSlot]?.id === item.id;
         const dpsChange =
-          result && this.currentResult?.dps
-            ? ((result.dps - this.currentResult.dps) / this.currentResult.dps) * 100
+          result && loadout.currentResult?.dps
+            ? ((result.dps - loadout.currentResult.dps) / loadout.currentResult.dps) * 100
             : null;
-        const summary = this.loadoutSummary({ ...this.selectedItems, [this.activeSlot]: item });
+        const summary = this.loadoutSummary({ ...loadout.items, [this.activeSlot]: item });
         return `
           <article class="pvm-gear-planner-page__alternative ${selected ? "selected" : ""}">
             <div class="pvm-gear-planner-page__tier tier-${
@@ -621,7 +757,7 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   renderResults() {
-    const result = this.currentResult;
+    const result = this.activeLoadout.currentResult;
     const summary = this.loadoutSummary();
     return `
       <div><span>DPS${result?.style ? ` (${escapeHtml(result.style.type)})` : ""}</span><strong>${

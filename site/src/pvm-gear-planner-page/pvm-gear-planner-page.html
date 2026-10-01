@@ -12,25 +12,32 @@
     </label>
   </div>
 </header>
+<section class="pvm-gear-planner-page__style-picker" aria-label="Combat loadouts">${this.renderStyleCards()}</section>
+<div class="pvm-gear-planner-page__rune-restrictions">
+  <span>Magic spell restrictions</span>
+  ${this.renderRuneRestrictions()}
+</div>
 ${this.renderStatus()}
 <section class="pvm-gear-planner-page__results rsbackground rsborder-tiny">${this.renderResults()}</section>
 <div class="pvm-gear-planner-page__workspace">
   <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
-    <header><h2>Current loadout</h2><span>Choose a slot to compare</span></header>
-    <div class="pvm-gear-planner-page__paperdoll" aria-label="Current equipment">${this.renderPaperdoll()}</div>
+    <header><h2>${this.activeStyle} loadout</h2><span>Choose a slot to compare</span></header>
+    <div class="pvm-gear-planner-page__paperdoll" aria-label="${this.activeStyle} equipment">${this.renderPaperdoll()}</div>
     <div class="pvm-gear-planner-page__selected-slot">
       <span>${this.slotName(this.activeSlot)}</span>
-      <strong>${this.selectedItems[this.activeSlot]?.name || "Empty"}</strong>
+      <strong>${this.activeLoadout.items[this.activeSlot]?.name || "Empty"}</strong>
     </div>
-    <label class="pvm-gear-planner-page__combat-mode">
-      Combat mode
-      <select data-control="mode">${this.renderStyleOptions()}</select>
-    </label>
-    ${this.renderSpellControls()}
+    ${
+      this.activeStyle === "Magic"
+        ? `<div class="pvm-gear-planner-page__selected-spell"><span>Best eligible spell</span><strong>${
+            this.activeLoadout.selectedSpell || "Calculating…"
+          }</strong></div>`
+        : ""
+    }
   </section>
   <section class="pvm-gear-planner-page__choices rsbackground rsborder-tiny">
     <header>
-      <div><h2>${this.slotName(this.activeSlot)} options</h2><span>Top owned candidates ranked by real DPS</span></div>
+      <div><h2>${this.slotName(this.activeSlot)} options</h2><span>Top owned ${this.activeStyle.toLowerCase()} candidates ranked by real DPS</span></div>
     </header>
     <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
   </section>
