@@ -381,6 +381,8 @@ describe("pvm-gear-planner-page", () => {
 
     expect(page.loadouts.Ranged.items.body.id).toBe(9674);
     expect(page.querySelector("[data-lock-slot='body']").getAttribute("aria-pressed")).toBe("true");
+    expect(page.querySelector("[data-lock-slot='body']").textContent).toBe("LOCK");
+    expect(page.querySelector("[data-slot='body']").classList.contains("slot-locked")).toBe(true);
     page.remove();
   });
 

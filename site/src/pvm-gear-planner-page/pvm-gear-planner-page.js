@@ -881,7 +881,7 @@ export class PvmGearPlannerPage extends BaseElement {
         <button
           class="pvm-gear-planner-page__paperdoll-slot position-${position} ${
         slot === this.activeSlot ? "active" : ""
-      } ${item ? "" : "empty"}"
+      } ${item ? "" : "empty"} ${this.activeLoadout.lockedSlots.has(slot) ? "slot-locked" : ""}"
           data-slot="${slot}"
           title="${label}: ${escapeHtml(item?.name || "Empty")}"
           aria-label="Choose ${label.toLowerCase()} equipment. Currently ${escapeHtml(item?.name || "empty")}."
@@ -892,7 +892,7 @@ export class PvmGearPlannerPage extends BaseElement {
           }" data-lock-slot="${slot}" role="button" tabindex="0"
             aria-pressed="${this.activeLoadout.lockedSlots.has(slot)}"
             title="${this.activeLoadout.lockedSlots.has(slot) ? "Unlock" : "Lock"} ${label.toLowerCase()} slot">${
-        this.activeLoadout.lockedSlots.has(slot) ? "🔒" : "🔓"
+        this.activeLoadout.lockedSlots.has(slot) ? "LOCK" : "🔓"
       }</span>
         </button>`;
     }).join("");
