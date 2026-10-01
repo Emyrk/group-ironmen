@@ -27,7 +27,7 @@ describe("vendored OSRS Wiki calculator worker", () => {
           ammo: 21944,
         },
       },
-      monster: { id: 8059, version: "Post-quest" },
+      monster: { id: 8059, version: "Post-quest", styles: ["Slash", "Magic", "Ranged", "Dragonfire"] },
       options: { prayers: ["RIGOUR"] },
     });
 
@@ -40,6 +40,7 @@ describe("vendored OSRS Wiki calculator worker", () => {
       },
     });
     expect(response.result.dps).toBeCloseTo(6.4337974019, 9);
+    expect(response.result.damageTakenPerSecond).toBeGreaterThan(0);
     expect(response.result.accuracy).toBeCloseTo(0.6146669226, 9);
     expect(response.result.expectedTtk).toBeCloseTo(120.5687734583, 9);
   });

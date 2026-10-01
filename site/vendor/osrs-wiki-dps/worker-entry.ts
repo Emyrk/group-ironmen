@@ -1,5 +1,7 @@
 import mergeWith from "lodash.mergewith";
 import PlayerVsNPCCalc from "@/lib/PlayerVsNPCCalc";
+import NPCVsPlayerCalc from "@/lib/NPCVsPlayerCalc";
+import type { CalcOpts } from "@/lib/BaseCalc";
 import {
   availableEquipment,
   calculateEquipmentBonusesFromGear,
@@ -10,7 +12,7 @@ import { getMonsters, INITIAL_MONSTER_INPUTS } from "@/lib/Monsters";
 import { EquipmentCategory } from "@/enums/EquipmentCategory";
 import { Prayer, PrayerMap } from "@/enums/Prayer";
 import { Player, PlayerEquipment, PlayerSkills } from "@/types/Player";
-import { PlayerCombatStyle } from "@/types/PlayerCombatStyle";
+import { isCombatStyleType, PlayerCombatStyle } from "@/types/PlayerCombatStyle";
 import { spellByName } from "@/types/Spell";
 import { getCombatStylesForCategory } from "@/utils";
 
@@ -49,7 +51,7 @@ interface CalculatorRequest {
     skills: PlayerSkills;
     equipment?: Partial<Record<keyof PlayerEquipment, number | null>>;
   };
-  monster: { id: number; version?: string };
+  monster: { id: number; version?: string; styles?: string[] };
   options?: Record<string, unknown>;
 }
 
@@ -205,6 +207,18 @@ function compatibleAmmo(request: CalculatorRequest) {
   return { ammoIds: ammoIds || [], requiresAmmo: Boolean(ammoIds?.length) };
 }
 
+function damageTakenPerSecond(
+  player: Player,
+  monster: ReturnType<typeof createMonster>,
+  options: Partial<CalcOpts>,
+  requestedStyles: string[] = []
+) {
+  const styles = [...new Set(requestedStyles.map((style) => style.toLowerCase()).filter(isCombatStyleType))];
+  if (styles.length === 0 && monster.style) styles.push(monster.style);
+  if (styles.length === 0) return 0;
+  return Math.max(...styles.map((style) => new NPCVsPlayerCalc(player, { ...monster, style }, options).getDps()));
+}
+
 export function calculate(request: CalculatorRequest) {
   if (request.version !== PROTOCOL_VERSION) throw new Error("Unsupported calculator protocol version");
   if (request.action !== "calculate") throw new Error(`Unsupported calculator action ${request.action}`);
@@ -221,12 +235,14 @@ export function calculate(request: CalculatorRequest) {
     throw new Error(`No viable ${String(options.mode || "combat")} style for the equipped weapon`);
   const results = styles.map((style) => {
     const player = createPlayer(request, monster, style);
-    const calc = new PlayerVsNPCCalc(player, monster, {
+    const calcOptions = {
       disableMonsterScaling: Boolean(options.disableMonsterScaling),
       usingSpecialAttack: Boolean(options.usingSpecialAttack),
-    });
+    };
+    const calc = new PlayerVsNPCCalc(player, monster, calcOptions);
     return {
       dps: calc.getDps(),
+      damageTakenPerSecond: damageTakenPerSecond(player, monster, calcOptions, request.monster.styles),
       accuracy: calc.getDisplayHitChance(),
       maxHit: calc.getDistribution().getMax(),
       attackSpeed: calc.getAttackSpeed(),

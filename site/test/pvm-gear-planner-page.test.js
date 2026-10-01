@@ -162,11 +162,17 @@ vi.mock("../src/pvm/calculator-client", async () => {
           : 1;
       const dps =
         request.options.mode === "Magic" ? spellDps[request.options.spell] + gearDps : 5 + gearDps + modeModifier;
+      const headDamageTaken =
+        request.player.equipment.head === 10828 ? 1 : request.player.equipment.head === 24271 ? 2 : 3;
+      const bodyDamageTaken =
+        request.player.equipment.body === 11832 ? 4 : request.player.equipment.body === 10551 ? 0.5 : 0;
+      const damageTakenPerSecond = headDamageTaken + bodyDamageTaken;
       return {
         version: 1,
         requestId: request.requestId,
         result: {
           dps: dps + targetModifier,
+          damageTakenPerSecond,
           accuracy: 0.75,
           maxHit: request.options.spell === "Fire Surge" ? 20 : 32,
           attackSpeed: 4,
@@ -384,6 +390,39 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelector("[data-slot='body']").title).toContain("Proselyte hauberk");
     page.remove();
   });
+
+  it("uses damage taken to rank equal-offence gear without overriding higher DPS", async () => {
+    const page = await createPage();
+    await vi.waitFor(() => expect(page.querySelector(".pvm-gear-planner-page__tier")?.textContent).not.toBe("…"));
+
+    const bandos = page.querySelector("[data-equip-item='11832']").closest("article");
+    const fighterTorso = page.querySelector("[data-equip-item='10551']").closest("article");
+    expect(bandos.textContent).toContain("Damage taken/s6.00");
+    expect(fighterTorso.textContent).toContain("Damage taken/s2.50");
+    expect(page.querySelector(".pvm-gear-planner-page__alternative strong").textContent).toBe("Bandos chestplate");
+
+    page.querySelector("[data-slot='head']").click();
+    await vi.waitFor(() =>
+      expect(
+        page
+          .querySelector("[data-equip-item='10828']")
+          ?.closest("article")
+          .querySelector(".pvm-gear-planner-page__tier")?.textContent
+      ).toBe("S")
+    );
+    expect(
+      page.querySelector("[data-equip-item='24271']").closest("article").querySelector(".pvm-gear-planner-page__tier")
+        .textContent
+    ).toBe("C");
+    expect(page.querySelector(".pvm-gear-planner-page__alternative strong").textContent).toBe("Helm of Neitiznot");
+
+    page.querySelector("[data-reset-style='Melee']").click();
+    await vi.waitFor(() => expect(page.calculating).toBe(false), { timeout: 10000 });
+    expect(page.loadouts.Melee.items.body.id).toBe(11832);
+    expect(page.loadouts.Melee.items.head.id).toBe(10828);
+    expect(page.querySelector(".pvm-gear-planner-page__results").textContent).toContain("Damage taken/s");
+    page.remove();
+  }, 15000);
 
   it("switches cards without overwriting independent loadout selections", async () => {
     const page = await createPage();

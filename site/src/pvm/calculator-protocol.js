@@ -62,6 +62,7 @@ export function createCalculatorRequest({ requestId, member, equipmentIds, monst
     monster: {
       id: monster.id,
       version: monster.version || "",
+      styles: Array.isArray(monster.style) ? monster.style : monster.style ? [monster.style] : [],
     },
     options,
   };

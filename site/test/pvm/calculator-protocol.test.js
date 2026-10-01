@@ -53,12 +53,18 @@ describe("calculator protocol", () => {
   });
 
   it("creates a versioned calculator request", () => {
-    expect(createCalculatorRequest({ requestId: 7, member, monster: { id: 8059, version: "Vorkath" } })).toMatchObject({
+    expect(
+      createCalculatorRequest({
+        requestId: 7,
+        member,
+        monster: { id: 8059, version: "Vorkath", style: ["Slash", "Magic", "Ranged", "Dragonfire"] },
+      })
+    ).toMatchObject({
       version: CALCULATOR_PROTOCOL_VERSION,
       action: "calculate",
       requestId: 7,
       player: { name: "Alice", skills: { atk: 90 }, equipment: { weapon: 4151 } },
-      monster: { id: 8059, version: "Vorkath" },
+      monster: { id: 8059, version: "Vorkath", styles: ["Slash", "Magic", "Ranged", "Dragonfire"] },
     });
   });
 

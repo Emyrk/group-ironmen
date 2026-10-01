@@ -178,22 +178,41 @@ function formatNumber(value, digits = 1) {
   return Number(value).toFixed(digits);
 }
 
-function tierFor(dps, bestDps) {
-  const loss = bestDps === 0 ? 0 : (bestDps - dps) / bestDps;
+const TIER_ORDER = ["S", "A", "B", "C"];
+
+function tierForLoss(loss) {
   if (loss <= 0.005) return "S";
   if (loss <= 0.02) return "A";
   if (loss <= 0.05) return "B";
   return "C";
 }
 
-function compareCandidateHeuristic(left, right, slot, target) {
-  const protectionDifference = antiFirePriority(right, slot, target) - antiFirePriority(left, slot, target);
-  if (protectionDifference !== 0) return protectionDifference;
-  return equipmentScore(right) - equipmentScore(left);
+function tierFor(dps, bestDps) {
+  return tierForLoss(bestDps === 0 ? 0 : (bestDps - dps) / bestDps);
 }
 
-function candidateTier(item, result, bestDps, slot, target) {
-  const tier = tierFor(result.dps, bestDps);
+function damageTakenTier(damageTakenPerSecond, bestDamageTakenPerSecond) {
+  if (!Number.isFinite(damageTakenPerSecond) || !Number.isFinite(bestDamageTakenPerSecond)) return "S";
+  if (bestDamageTakenPerSecond === 0) return damageTakenPerSecond === 0 ? "S" : "C";
+  return tierForLoss((damageTakenPerSecond - bestDamageTakenPerSecond) / bestDamageTakenPerSecond);
+}
+
+function worseTier(...tiers) {
+  return TIER_ORDER[Math.max(...tiers.map((tier) => TIER_ORDER.indexOf(tier)))];
+}
+
+function compareCandidateHeuristic(left, right, slot, target) {
+  const scoreDifference = equipmentScore(right) - equipmentScore(left);
+  if (scoreDifference !== 0) return scoreDifference;
+  return antiFirePriority(right, slot, target) - antiFirePriority(left, slot, target);
+}
+
+function candidateTier(item, result, bestDps, bestDamageTakenByDps, slot, target) {
+  const offenceTier = tierFor(result.dps, bestDps);
+  const tier = worseTier(
+    offenceTier,
+    damageTakenTier(result.damageTakenPerSecond, bestDamageTakenByDps.get(result.dps))
+  );
   if (slot === "shield" && targetNeedsAntiFire(target) && !isAntiFireShield(item) && ["S", "A"].includes(tier))
     return "B";
   return tier;
@@ -230,10 +249,13 @@ function antiFirePriority(item, slot, target) {
 }
 
 function preferEvaluatedCandidate(candidate, current, style, slot, target) {
+  if (candidate.result.dps !== current.result.dps) return candidate.result.dps > current.result.dps;
   const protectionDifference =
     antiFirePriority(candidate.item, slot, target) - antiFirePriority(current.item, slot, target);
   if (protectionDifference !== 0) return protectionDifference > 0;
-  if (candidate.result.dps !== current.result.dps) return candidate.result.dps > current.result.dps;
+  const candidateDamageTaken = candidate.result.damageTakenPerSecond ?? Number.POSITIVE_INFINITY;
+  const currentDamageTaken = current.result.damageTakenPerSecond ?? Number.POSITIVE_INFINITY;
+  if (candidateDamageTaken !== currentDamageTaken) return candidateDamageTaken < currentDamageTaken;
   return preferCandidateOnTie(candidate.item, current.item, candidate.result.style?.type || style, target);
 }
 
@@ -1080,12 +1102,16 @@ export class PvmGearPlannerPage extends BaseElement {
     const ranked = this.activeCandidates()
       .map((item) => ({ item, result: loadout.candidateResults.get(item.id) }))
       .sort((left, right) => {
+        const dpsDifference = (right.result?.dps || -1) - (left.result?.dps || -1);
+        if (dpsDifference !== 0) return dpsDifference;
         const protectionDifference =
           antiFirePriority(right.item, this.activeSlot, this.selectedTarget) -
           antiFirePriority(left.item, this.activeSlot, this.selectedTarget);
         if (protectionDifference !== 0) return protectionDifference;
-        const dpsDifference = (right.result?.dps || -1) - (left.result?.dps || -1);
-        if (dpsDifference !== 0) return dpsDifference;
+        const damageTakenDifference =
+          (left.result?.damageTakenPerSecond ?? Number.POSITIVE_INFINITY) -
+          (right.result?.damageTakenPerSecond ?? Number.POSITIVE_INFINITY);
+        if (damageTakenDifference !== 0) return damageTakenDifference;
         const attackStyle = right.result?.style?.type || left.result?.style?.type || this.activeStyle;
         if (preferCandidateOnTie(right.item, left.item, attackStyle, this.selectedTarget)) return 1;
         if (preferCandidateOnTie(left.item, right.item, attackStyle, this.selectedTarget)) return -1;
@@ -1094,10 +1120,20 @@ export class PvmGearPlannerPage extends BaseElement {
     if (ranked.length === 0)
       return '<p class="pvm-gear-planner-page__empty">No owned equipment found for this slot.</p>';
     const bestDps = Math.max(0, ...ranked.map(({ result }) => result?.dps || 0));
+    const bestDamageTakenByDps = new Map();
+    for (const { result } of ranked) {
+      if (!result || !Number.isFinite(result.damageTakenPerSecond)) continue;
+      bestDamageTakenByDps.set(
+        result.dps,
+        Math.min(bestDamageTakenByDps.get(result.dps) ?? Number.POSITIVE_INFINITY, result.damageTakenPerSecond)
+      );
+    }
     return ranked
       .map(({ item, result }) => {
         const selected = loadout.items[this.activeSlot]?.id === item.id;
-        const displayedTier = result ? candidateTier(item, result, bestDps, this.activeSlot, this.selectedTarget) : "…";
+        const displayedTier = result
+          ? candidateTier(item, result, bestDps, bestDamageTakenByDps, this.activeSlot, this.selectedTarget)
+          : "…";
         const dpsChange =
           result && loadout.currentResult?.dps
             ? ((result.dps - loadout.currentResult.dps) / loadout.currentResult.dps) * 100
@@ -1117,6 +1153,7 @@ export class PvmGearPlannerPage extends BaseElement {
             </div>
             <dl>
               <div><dt>DPS</dt><dd>${result ? formatNumber(result.dps, 2) : "…"}</dd></div>
+              <div><dt>Damage taken/s</dt><dd>${result ? formatNumber(result.damageTakenPerSecond, 2) : "…"}</dd></div>
               <div><dt>Change</dt><dd class="${dpsChange === null || dpsChange >= 0 ? "positive" : "negative"}">${
           dpsChange === null ? "…" : `${dpsChange >= 0 ? "+" : ""}${formatNumber(dpsChange)}%`
         }</dd></div>
@@ -1139,6 +1176,9 @@ export class PvmGearPlannerPage extends BaseElement {
       <div><span>DPS${result?.style ? ` (${escapeHtml(result.style.type)})` : ""}</span><strong>${
       result ? formatNumber(result.dps, 2) : "…"
     }</strong></div>
+      <div><span>Damage taken/s</span><strong>${
+        result ? formatNumber(result.damageTakenPerSecond, 2) : "…"
+      }</strong></div>
       <div><span>Accuracy</span><strong>${result ? `${formatNumber(result.accuracy * 100)}%` : "…"}</strong></div>
       <div><span>Max hit</span><strong>${result ? formatNumber(result.maxHit, 0) : "…"}</strong></div>
       <div><span>Attack speed</span><strong>${result ? `${result.attackSpeed} ticks` : "…"}</strong></div>
