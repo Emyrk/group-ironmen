@@ -215,6 +215,28 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   object-fit: contain;
   image-rendering: pixelated;
 }
+.pvm-gear-planner-page__slot-lock {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  line-height: 1;
+  background: #211d18;
+  border: 1px solid #666;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+.pvm-gear-planner-page__slot-lock:hover,
+.pvm-gear-planner-page__slot-lock:focus,
+.pvm-gear-planner-page__slot-lock.locked {
+  border-color: var(--orange);
+  opacity: 1;
+}
 .pvm-gear-planner-page__paperdoll-slot.position-head {
   top: 0;
   left: 98px;

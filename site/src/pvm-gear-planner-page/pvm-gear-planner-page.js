@@ -148,6 +148,7 @@ function createLoadout(style) {
     selectedSpell: "",
     compatibleAmmoIds: null,
     rangedWeaponRequiresAmmo: false,
+    lockedSlots: new Set(),
   };
 }
 
@@ -202,6 +203,7 @@ export class PvmGearPlannerPage extends BaseElement {
     const transport = createWorkerCalculatorTransport();
     this.resultCalculator = new CalculatorClient(transport);
     this.candidateCalculator = new CalculatorClient(transport);
+    this.optimizerCalculator = new CalculatorClient(createWorkerCalculatorTransport());
     this.ammoTransport = createWorkerCalculatorTransport();
     this.renderAndBind();
     this.subscribe("get-group-data", this.handleGroupData.bind(this));
@@ -313,13 +315,8 @@ export class PvmGearPlannerPage extends BaseElement {
     return "";
   }
 
-  async syncRangedAmmo() {
-    const loadout = this.loadouts.Ranged;
-    const weapon = loadout.items.weapon;
-    loadout.compatibleAmmoIds = null;
-    loadout.rangedWeaponRequiresAmmo = false;
-    if (!weapon) return;
-
+  async compatibleAmmoForWeapon(weapon) {
+    if (!weapon) return { ammoIds: new Set(), requiresAmmo: false };
     const requestId = ++this.ammoRequestId;
     const response = await this.ammoTransport({
       version: 1,
@@ -327,16 +324,21 @@ export class PvmGearPlannerPage extends BaseElement {
       requestId,
       player: { equipment: { weapon: weapon.id } },
     });
-    if (requestId !== this.ammoRequestId) return;
     if (response.error) throw new Error(response.error.message || "Unable to find compatible ammunition");
+    return { ammoIds: new Set(response.result.ammoIds), requiresAmmo: response.result.requiresAmmo };
+  }
 
-    loadout.compatibleAmmoIds = new Set(response.result.ammoIds);
-    loadout.rangedWeaponRequiresAmmo = response.result.requiresAmmo;
-    if (!loadout.rangedWeaponRequiresAmmo) {
-      loadout.items.ammo = null;
+  async syncRangedAmmo() {
+    const loadout = this.loadouts.Ranged;
+    const { ammoIds, requiresAmmo } = await this.compatibleAmmoForWeapon(loadout.items.weapon);
+    loadout.compatibleAmmoIds = ammoIds;
+    loadout.rangedWeaponRequiresAmmo = requiresAmmo;
+    if (!requiresAmmo) {
+      if (!loadout.lockedSlots.has("ammo")) loadout.items.ammo = null;
       return;
     }
-    if (loadout.compatibleAmmoIds.has(loadout.items.ammo?.id)) return;
+    if (ammoIds.has(loadout.items.ammo?.id)) return;
+    if (loadout.lockedSlots.has("ammo")) return;
     loadout.items.ammo =
       this.ownedEquipment("ammo", "Ranged", loadout).sort(
         (left, right) => equipmentScore(right) - equipmentScore(left)
@@ -413,6 +415,10 @@ export class PvmGearPlannerPage extends BaseElement {
     }
     const resetAll = this.querySelector("[data-reset-all]");
     if (resetAll) this.eventListener(resetAll, "click", this.handleResetAllClick.bind(this));
+    for (const control of this.querySelectorAll("[data-lock-slot]")) {
+      this.eventListener(control, "click", this.handleLockSlotClick.bind(this));
+      this.eventListener(control, "keydown", this.handleLockSlotKeydown.bind(this));
+    }
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
@@ -458,15 +464,11 @@ export class PvmGearPlannerPage extends BaseElement {
   handleResetStyleClick(event) {
     const style = event.currentTarget.dataset.resetStyle;
     if (!COMBAT_STYLES.includes(style)) return;
-    this.initializeStyleLoadout(style);
-    this.renderAndBind();
-    this.refreshCalculations({ styles: [style] });
+    this.optimizeLoadouts([style]);
   }
 
   handleResetAllClick() {
-    for (const style of COMBAT_STYLES) this.initializeStyleLoadout(style);
-    this.renderAndBind();
-    this.refreshCalculations();
+    this.optimizeLoadouts(COMBAT_STYLES);
   }
 
   handleRuneRestrictionClick(event) {
@@ -479,6 +481,21 @@ export class PvmGearPlannerPage extends BaseElement {
     magic.selectedSpell = "";
     this.renderAndBind();
     this.refreshCalculations({ styles: ["Magic"] });
+  }
+
+  handleLockSlotClick(event) {
+    event.stopPropagation();
+    const slot = event.currentTarget.dataset.lockSlot;
+    if (!SLOT_KEYS.includes(slot)) return;
+    if (this.activeLoadout.lockedSlots.has(slot)) this.activeLoadout.lockedSlots.delete(slot);
+    else this.activeLoadout.lockedSlots.add(slot);
+    this.renderAndBind();
+  }
+
+  handleLockSlotKeydown(event) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    this.handleLockSlotClick(event);
   }
 
   handleSlotClick(event) {
@@ -543,10 +560,10 @@ export class PvmGearPlannerPage extends BaseElement {
     return bounded;
   }
 
-  async calculateStyleResult(style, overrides, calculator) {
-    if (style !== "Magic") {
-      const result = await calculator.calculate(this.calculatorInput(style, overrides));
-      return result ? { result, spell: "" } : null;
+  async calculateStyleResult(style, overrides, calculator, fixedSpell = "") {
+    if (style !== "Magic" || fixedSpell) {
+      const result = await calculator.calculate(this.calculatorInput(style, overrides, fixedSpell));
+      return result ? { result, spell: fixedSpell } : null;
     }
 
     let best = null;
@@ -561,6 +578,142 @@ export class PvmGearPlannerPage extends BaseElement {
     }
     if (!best && lastError) throw lastError;
     return best;
+  }
+
+  optimizationCandidates(slot, style) {
+    const selectedId = this.loadouts[style].items[slot]?.id;
+    return this.ownedEquipment(slot, style, this.loadouts[style])
+      .filter((item) => item.id !== selectedId)
+      .sort((left, right) => equipmentScore(right) - equipmentScore(left))
+      .slice(0, MAX_CANDIDATES);
+  }
+
+  candidateRespectsLocks(style, slot, item) {
+    const loadout = this.loadouts[style];
+    if (slot === "weapon" && item?.isTwoHanded && loadout.lockedSlots.has("shield") && loadout.items.shield)
+      return false;
+    if (slot === "shield" && item && loadout.items.weapon?.isTwoHanded && loadout.lockedSlots.has("weapon"))
+      return false;
+    return true;
+  }
+
+  applyOptimizedItem(style, slot, item) {
+    const loadout = this.loadouts[style];
+    loadout.items[slot] = item;
+    if (slot === "weapon" && item?.isTwoHanded && !loadout.lockedSlots.has("shield")) loadout.items.shield = null;
+    if (slot === "shield" && item && loadout.items.weapon?.isTwoHanded && !loadout.lockedSlots.has("weapon")) {
+      loadout.items.weapon = null;
+    }
+  }
+
+  async rangedWeaponVariants(weapon) {
+    const loadout = this.loadouts.Ranged;
+    const { ammoIds, requiresAmmo } = await this.compatibleAmmoForWeapon(weapon);
+    if (loadout.lockedSlots.has("ammo")) {
+      const ammo = loadout.items.ammo;
+      if (requiresAmmo && !ammoIds.has(ammo?.id)) return [];
+      return [{ weapon, ammo, ammoIds, requiresAmmo }];
+    }
+    if (!requiresAmmo) return [{ weapon, ammo: null, ammoIds, requiresAmmo }];
+    const ammo = uniqueById(this.entities.equipmentBySlot.get("ammo") || [])
+      .filter((item) => this.isOwned(item) && ammoIds.has(item.id))
+      .sort((left, right) => equipmentScore(right) - equipmentScore(left))
+      .slice(0, MAX_CANDIDATES);
+    return ammo.map((item) => ({ weapon, ammo: item, ammoIds, requiresAmmo }));
+  }
+
+  async optimizeStyleLoadout(style, generation) {
+    const loadout = this.loadouts[style];
+    if (style === "Ranged") await this.syncRangedAmmo();
+    let calculated = await this.calculateStyleResult(style, {}, this.optimizerCalculator);
+    if (generation !== this.calculationGeneration || !calculated) return false;
+    loadout.currentResult = calculated.result;
+    loadout.selectedSpell = calculated.spell;
+    const fixedSpell = style === "Magic" ? calculated.spell : "";
+    const slotOrder = ["weapon", "ammo", ...SLOT_KEYS.filter((slot) => slot !== "weapon" && slot !== "ammo")];
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      let improved = false;
+      for (const slot of slotOrder) {
+        if (generation !== this.calculationGeneration) return false;
+        if (loadout.lockedSlots.has(slot) || (style !== "Ranged" && slot === "ammo" && !loadout.items.ammo)) continue;
+        let best = { result: loadout.currentResult, item: loadout.items[slot], extra: null };
+
+        if (style === "Ranged" && slot === "weapon") {
+          for (const weapon of this.optimizationCandidates(slot, style)) {
+            if (!weapon || !this.candidateRespectsLocks(style, slot, weapon)) continue;
+            for (const variant of await this.rangedWeaponVariants(weapon)) {
+              const candidate = await this.calculateStyleResult(
+                style,
+                { weapon: variant.weapon, ammo: variant.ammo },
+                this.optimizerCalculator
+              );
+              if (generation !== this.calculationGeneration) return false;
+              if (candidate && candidate.result.dps > best.result.dps) {
+                best = { result: candidate.result, item: weapon, extra: variant };
+              }
+            }
+          }
+        } else {
+          for (const item of this.optimizationCandidates(slot, style)) {
+            if (!this.candidateRespectsLocks(style, slot, item)) continue;
+            try {
+              const candidate = await this.calculateStyleResult(
+                style,
+                { [slot]: item },
+                this.optimizerCalculator,
+                style === "Magic" && slot === "weapon" ? "" : fixedSpell
+              );
+              if (generation !== this.calculationGeneration) return false;
+              if (candidate && candidate.result.dps > best.result.dps)
+                best = { result: candidate.result, item, extra: null };
+            } catch {
+              // Some gear combinations are invalid (for example incompatible ammunition); skip them.
+            }
+          }
+        }
+
+        if (best.result.dps > loadout.currentResult.dps) {
+          this.applyOptimizedItem(style, slot, best.item);
+          if (best.extra) {
+            loadout.items.ammo = best.extra.ammo;
+            loadout.compatibleAmmoIds = best.extra.ammoIds;
+            loadout.rangedWeaponRequiresAmmo = best.extra.requiresAmmo;
+          }
+          loadout.currentResult = best.result;
+          improved = true;
+        }
+      }
+      if (!improved) break;
+    }
+
+    calculated = await this.calculateStyleResult(style, {}, this.optimizerCalculator);
+    if (generation !== this.calculationGeneration || !calculated) return false;
+    loadout.currentResult = calculated.result;
+    loadout.selectedSpell = calculated.spell;
+    loadout.candidateResults = new Map();
+    return true;
+  }
+
+  async optimizeLoadouts(styles) {
+    if (!this.entities || !this.selectedMemberData || !this.selectedTarget) return;
+    const generation = ++this.calculationGeneration;
+    this.calculating = true;
+    this.error = "";
+    this.renderAndBind();
+    try {
+      for (const style of styles) {
+        if (!(await this.optimizeStyleLoadout(style, generation))) return;
+        this.renderAndBind();
+      }
+      this.calculating = false;
+      this.renderAndBind();
+    } catch (error) {
+      if (generation !== this.calculationGeneration) return;
+      this.calculating = false;
+      this.error = error instanceof Error ? error.message : String(error);
+      this.renderAndBind();
+    }
   }
 
   async calculateActiveCandidates(generation) {
@@ -690,7 +843,7 @@ export class PvmGearPlannerPage extends BaseElement {
             ${style === "Magic" ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>` : ""}
           </button>
           <button class="pvm-gear-planner-page__reset-icon" data-reset-style="${style}"
-            title="Reset ${style} to automatically selected gear" aria-label="Reset ${style} loadout">↻</button>
+            title="Optimize unlocked ${style} gear for DPS" aria-label="Optimize ${style} loadout">↻</button>
         </article>`;
     }).join("");
   }
@@ -734,6 +887,13 @@ export class PvmGearPlannerPage extends BaseElement {
           aria-label="Choose ${label.toLowerCase()} equipment. Currently ${escapeHtml(item?.name || "empty")}."
         >
           <img src="${item ? this.itemImage(item) : `/ui/${emptyIcon}`}" alt="" />
+          <span class="pvm-gear-planner-page__slot-lock ${
+            this.activeLoadout.lockedSlots.has(slot) ? "locked" : ""
+          }" data-lock-slot="${slot}" role="button" tabindex="0"
+            aria-pressed="${this.activeLoadout.lockedSlots.has(slot)}"
+            title="${this.activeLoadout.lockedSlots.has(slot) ? "Unlock" : "Lock"} ${label.toLowerCase()} slot">${
+        this.activeLoadout.lockedSlots.has(slot) ? "🔒" : "🔓"
+      }</span>
         </button>`;
     }).join("");
   }

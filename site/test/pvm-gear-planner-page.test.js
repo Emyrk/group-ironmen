@@ -116,7 +116,24 @@ vi.mock("../src/pvm/calculator-client", async () => {
         "Saradomin Strike": 8,
         "Ghostly Grasp": 5,
       };
-      const gearDps = bodyId === 11832 ? 3 : bodyId === 10551 ? 2 : 1;
+      const gearDps =
+        request.options.mode === "Melee"
+          ? bodyId === 11832
+            ? 3
+            : bodyId === 10551
+            ? 2
+            : 1
+          : request.options.mode === "Ranged"
+          ? bodyId === 10551
+            ? 4
+            : bodyId === 9674
+            ? 2
+            : 1
+          : bodyId === 9674
+          ? 5
+          : bodyId === 10551
+          ? 2
+          : 1;
       const dps =
         request.options.mode === "Magic" ? spellDps[request.options.spell] + gearDps : 5 + gearDps + modeModifier;
       return {
@@ -145,7 +162,7 @@ PvmGearPlannerPage.prototype.html = function () {
       <input data-control="target" value="${this.renderSelectedTargetLabel()}" />
       <datalist>${this.renderTargetOptions()}</datalist>
     </header>
-    <button data-reset-all>Reset all</button>
+    <button data-reset-all>Optimize all</button>
     <section class="pvm-gear-planner-page__style-picker">${this.renderStyleCards()}</section>
     <div class="pvm-gear-planner-page__rune-restrictions">${this.renderRuneRestrictions()}</div>
     ${this.renderStatus()}
@@ -316,37 +333,54 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
-  it("resets one style without changing the active or other loadouts", async () => {
+  it("optimizes one style by real DPS without changing the active or other loadouts", async () => {
     const page = await createPage();
     page.querySelector("[data-equip-item='9674']").click();
     await vi.waitFor(() => expect(page.loadouts.Melee.items.body.id).toBe(9674));
 
     page.querySelector("[data-style='Ranged']").click();
-    page.querySelector("[data-equip-item='10551']").click();
-    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(10551));
+    page.querySelector("[data-equip-item='9674']").click();
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(9674));
     page.querySelector("[data-style='Melee']").click();
 
     page.querySelector("[data-reset-style='Ranged']").click();
-    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(11832));
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(10551));
     expect(page.activeStyle).toBe("Melee");
     expect(page.loadouts.Melee.items.body.id).toBe(9674);
     page.remove();
   });
 
-  it("resets all three loadouts to their automatic selections", async () => {
+  it("optimizes all three loadouts to each style's best DPS gear", async () => {
     const page = await createPage();
     for (const style of ["Melee", "Ranged", "Magic"]) {
       page.querySelector(`[data-style='${style}']`).click();
-      page.querySelector("[data-equip-item='9674']").click();
-      await vi.waitFor(() => expect(page.loadouts[style].items.body.id).toBe(9674));
+      page.querySelector("[data-equip-item='10551']").click();
+      await vi.waitFor(() => expect(page.loadouts[style].items.body.id).toBe(10551));
     }
 
     page.querySelector("[data-reset-all]").click();
-    await vi.waitFor(() =>
-      expect(["Melee", "Ranged", "Magic"].map((style) => page.loadouts[style].items.body.id)).toEqual([
-        11832, 11832, 11832,
-      ])
-    );
+    expect(page.calculating).toBe(true);
+    await vi.waitFor(() => expect(page.calculating).toBe(false), { timeout: 10000 });
+    expect(["Melee", "Ranged", "Magic"].map((style) => page.loadouts[style].items.body.id)).toEqual([
+      11832, 10551, 9674,
+    ]);
+    expect(requests.length).toBeLessThan(250);
+    page.remove();
+  }, 15000);
+
+  it("keeps locked slots unchanged while optimizing the rest of a style", async () => {
+    const page = await createPage();
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-equip-item='9674']").click();
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(9674));
+
+    page.querySelector("[data-lock-slot='body']").click();
+    expect(page.loadouts.Ranged.lockedSlots.has("body")).toBe(true);
+    page.querySelector("[data-reset-style='Ranged']").click();
+    await vi.waitFor(() => expect(page.calculating).toBe(false));
+
+    expect(page.loadouts.Ranged.items.body.id).toBe(9674);
+    expect(page.querySelector("[data-lock-slot='body']").getAttribute("aria-pressed")).toBe("true");
     page.remove();
   });
 
