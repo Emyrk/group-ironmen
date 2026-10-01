@@ -92,13 +92,7 @@ function resolveStyles(category: EquipmentCategory, options: Record<string, unkn
     if (allowedTypes) {
       const seen = new Set<string>();
       return styles.filter((style) => {
-        if (
-          !style.type ||
-          !allowedTypes.has(style.type) ||
-          style.stance === "Defensive" ||
-          style.stance === "Longrange"
-        )
-          return false;
+        if (!style.type || !allowedTypes.has(style.type)) return false;
         if (style.stance === "Manual Cast") return false;
         if (style.type === "magic" && !options.spell && ["Autocast", "Defensive Autocast"].includes(style.stance || ""))
           return false;
@@ -250,7 +244,19 @@ export function calculate(request: CalculatorRequest) {
       style: { name: style.name, type: style.type, stance: style.stance },
     };
   });
-  return results.reduce((best, result) => (result.dps > best.dps ? result : best));
+  const best = results.reduce((current, result) => (result.dps > current.dps ? result : current));
+  return {
+    ...best,
+    styleResults: results.map(({ dps, accuracy, maxHit, attackSpeed, expectedTtk, damageTakenPerSecond, style }) => ({
+      dps,
+      accuracy,
+      maxHit,
+      attackSpeed,
+      expectedTtk,
+      damageTakenPerSecond,
+      style,
+    })),
+  };
 }
 
 export function handleCalculatorRequest(request: CalculatorRequest) {

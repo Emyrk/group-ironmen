@@ -61,6 +61,9 @@ describe("vendored OSRS Wiki calculator worker", () => {
     expect(controlled.error).toBeUndefined();
     expect(best).toMatchObject({ result: { style: { type: "slash" } } });
     expect(best.result.dps).toBeCloseTo(Math.max(accurate.result.dps, controlled.result.dps), 9);
+    expect(best.result.styleResults).toHaveLength(3);
+    expect(best.result.styleResults.map((result) => result.style.stance)).toContain("Defensive");
+    expect(best.result.dps).toBe(Math.max(...best.result.styleResults.map((result) => result.dps)));
 
     const ranged = handleCalculatorRequest({
       ...meleeRequest,
@@ -69,6 +72,9 @@ describe("vendored OSRS Wiki calculator worker", () => {
       options: { mode: "Ranged" },
     });
     expect(ranged).toMatchObject({ result: { style: { type: "ranged" } } });
+    expect(ranged.result.styleResults).toHaveLength(3);
+    expect(ranged.result.styleResults.map((result) => result.style.stance)).toContain("Longrange");
+    expect(ranged.result.dps).toBe(Math.max(...ranged.result.styleResults.map((result) => result.dps)));
 
     const magic = handleCalculatorRequest({
       ...meleeRequest,

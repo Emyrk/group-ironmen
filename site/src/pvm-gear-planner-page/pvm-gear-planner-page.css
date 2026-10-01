@@ -188,6 +188,46 @@ pvm-gear-planner-page {
   color: var(--orange);
   font-size: 1.35rem;
 }
+.pvm-gear-planner-page__attack-styles {
+  grid-column: 1 / -1;
+  padding-top: 8px;
+  border-top: 1px solid #55482f;
+}
+.pvm-gear-planner-page__attack-style-list {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 7px !important;
+  margin-top: 5px;
+}
+.pvm-gear-planner-page__attack-style {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto;
+  gap: 2px 8px !important;
+  min-width: 190px;
+  padding: 7px 9px;
+  background: #211d18;
+  border: 1px solid #666;
+  border-radius: 4px;
+}
+.pvm-gear-planner-page__attack-style.selected {
+  border-color: var(--orange);
+  box-shadow: inset 3px 0 var(--orange);
+}
+.pvm-gear-planner-page__attack-style span {
+  grid-column: 1 / -1;
+  font-size: 0.68rem;
+}
+.pvm-gear-planner-page__attack-style strong,
+.pvm-gear-planner-page__attack-style b {
+  font-size: 0.9rem;
+}
+.pvm-gear-planner-page__attack-style strong {
+  color: #ddd;
+}
+.pvm-gear-planner-page__attack-style b {
+  color: var(--orange);
+  text-align: right;
+}
 .pvm-gear-planner-page__workspace {
   display: grid;
   grid-template-columns: minmax(230px, 0.7fr) minmax(520px, 2fr);

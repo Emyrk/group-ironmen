@@ -164,6 +164,19 @@ export function isAntiFireShield(item) {
   return item?.slot === "shield" && ANTI_FIRE_SHIELD_NAMES.has(item.name);
 }
 
+function attackStyleLabel(style) {
+  if (!style) return "Unknown style";
+  const details = [style.type, style.stance]
+    .filter(Boolean)
+    .filter((value) => value.toLowerCase() !== String(style.name || "").toLowerCase())
+    .filter(
+      (value, index, values) =>
+        values.findIndex((candidate) => candidate.toLowerCase() === value.toLowerCase()) === index
+    )
+    .map((value) => value[0].toUpperCase() + value.slice(1));
+  return `${style.name || details[0] || "Unknown"}${details.length ? ` (${details.join(", ")})` : ""}`;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -1081,7 +1094,11 @@ export class PvmGearPlannerPage extends BaseElement {
             <span>${style}</span>
             <strong>${result ? formatNumber(result.dps, 2) : "…"} DPS</strong>
             <small>${escapeHtml(weapon?.name || "No owned weapon")}</small>
-            ${style === "Magic" ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>` : ""}
+            ${
+              style === "Magic"
+                ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>`
+                : `<small>Style: ${escapeHtml(result ? attackStyleLabel(result.style) : "Calculating…")}</small>`
+            }
           </button>
           ${style === "Magic" ? this.renderRuneRestrictions() : ""}
           <button class="pvm-gear-planner-page__reset-icon" data-reset-style="${style}"
@@ -1240,6 +1257,30 @@ export class PvmGearPlannerPage extends BaseElement {
       .join("");
   }
 
+  renderAttackStyleResults(result) {
+    if (this.activeStyle === "Magic" || !Array.isArray(result?.styleResults)) return "";
+    const styles = [...result.styleResults].sort((left, right) => right.dps - left.dps);
+    if (styles.length === 0) return "";
+    return `<div class="pvm-gear-planner-page__attack-styles">
+      <span>Weapon attack styles</span>
+      <div class="pvm-gear-planner-page__attack-style-list">
+        ${styles
+          .map(({ dps, style }) => {
+            const selected =
+              style?.name === result.style?.name &&
+              style?.type === result.style?.type &&
+              style?.stance === result.style?.stance;
+            return `<div class="pvm-gear-planner-page__attack-style ${selected ? "selected" : ""}">
+              <span>${selected ? "Chosen" : "Available"}</span>
+              <strong>${escapeHtml(attackStyleLabel(style))}</strong>
+              <b>${formatNumber(dps, 2)} DPS</b>
+            </div>`;
+          })
+          .join("")}
+      </div>
+    </div>`;
+  }
+
   renderResults() {
     const result = this.activeLoadout.currentResult;
     const summary = this.loadoutSummary();
@@ -1256,7 +1297,8 @@ export class PvmGearPlannerPage extends BaseElement {
       <div><span>Expected TTK</span><strong>${result ? `${formatNumber(result.expectedTtk)}s` : "…"}</strong></div>
       <div><span>Prayer</span><strong>+${summary.prayer}</strong></div>
       <div><span>Defence</span><strong>${summary.defence}</strong></div>
-      <div><span>Weight</span><strong>${formatNumber(summary.weight)} kg</strong></div>`;
+      <div><span>Weight</span><strong>${formatNumber(summary.weight)} kg</strong></div>
+      ${this.renderAttackStyleResults(result)}`;
   }
 }
 

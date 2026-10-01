@@ -167,16 +167,33 @@ vi.mock("../src/pvm/calculator-client", async () => {
       const bodyDamageTaken =
         request.player.equipment.body === 11832 ? 4 : request.player.equipment.body === 10551 ? 0.5 : 0;
       const damageTakenPerSecond = headDamageTaken + bodyDamageTaken;
+      const finalDps = dps + targetModifier;
+      const styleResults =
+        request.options.mode === "Melee"
+          ? [
+              { dps: finalDps, style: { name: "Flick", type: "slash", stance: "Accurate" } },
+              { dps: finalDps - 0.25, style: { name: "Lash", type: "slash", stance: "Controlled" } },
+              { dps: finalDps - 0.5, style: { name: "Deflect", type: "slash", stance: "Defensive" } },
+            ]
+          : request.options.mode === "Ranged"
+          ? [
+              { dps: finalDps, style: { name: "Rapid", type: "ranged", stance: "Rapid" } },
+              { dps: finalDps - 0.25, style: { name: "Accurate", type: "ranged", stance: "Accurate" } },
+              { dps: finalDps - 0.5, style: { name: "Longrange", type: "ranged", stance: "Longrange" } },
+            ]
+          : [{ dps: finalDps, style: { name: "Accurate", type: "magic", stance: "Accurate" } }];
       return {
         version: 1,
         requestId: request.requestId,
         result: {
-          dps: dps + targetModifier,
+          dps: finalDps,
           damageTakenPerSecond,
           accuracy: 0.75,
           maxHit: request.options.spell === "Fire Surge" ? 20 : 32,
           attackSpeed: 4,
           expectedTtk: request.monster.id === 8059 ? 100 : 25,
+          style: styleResults[0].style,
+          styleResults,
         },
       };
     }),
@@ -386,6 +403,31 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelectorAll(".pvm-gear-planner-page__paperdoll-slot")).toHaveLength(11);
     expect(page.querySelector("[data-slot='body']").title).toContain("Bandos chestplate");
     expect(page.textContent).toContain("Top owned candidates ranked by real DPS");
+    page.remove();
+  });
+
+  it("chooses the highest-DPS weapon style and lists the other Melee and Ranged styles", async () => {
+    const page = await createPage();
+
+    const meleeStyles = [...page.querySelectorAll(".pvm-gear-planner-page__attack-style")];
+    expect(meleeStyles).toHaveLength(3);
+    expect(meleeStyles.find((style) => style.classList.contains("selected")).textContent).toContain("Flick");
+    expect(meleeStyles.map((style) => style.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("Lash"), expect.stringContaining("Deflect")])
+    );
+    expect(page.querySelector("[data-style='Melee']").textContent).toContain("Style: Flick (Slash, Accurate)");
+
+    page.querySelector("[data-style='Ranged']").click();
+    const rangedStyles = [...page.querySelectorAll(".pvm-gear-planner-page__attack-style")];
+    expect(rangedStyles).toHaveLength(3);
+    expect(rangedStyles.find((style) => style.classList.contains("selected")).textContent).toContain("Rapid");
+    expect(rangedStyles.map((style) => style.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("Accurate"), expect.stringContaining("Longrange")])
+    );
+    expect(page.querySelector("[data-style='Ranged']").textContent).toContain("Style: Rapid (Ranged)");
+
+    page.querySelector("[data-style='Magic']").click();
+    expect(page.querySelector(".pvm-gear-planner-page__attack-styles")).toBeNull();
     page.remove();
   });
 
