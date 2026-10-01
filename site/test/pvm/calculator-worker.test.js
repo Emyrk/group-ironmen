@@ -97,6 +97,21 @@ describe("vendored OSRS Wiki calculator worker", () => {
     });
   });
 
+  it("calculates autocast magic with Iban's staff", () => {
+    const response = handleCalculatorRequest({
+      version: 1,
+      action: "calculate",
+      requestId: 50,
+      player: { name: "Iban test", skills: maxSkills, equipment: { weapon: 1409 } },
+      monster: { id: 5779 },
+      options: { mode: "Magic", spell: "Iban Blast" },
+    });
+
+    expect(response.error).toBeUndefined();
+    expect(response).toMatchObject({ result: { style: { type: "magic" } } });
+    expect(response.result.dps).toBeGreaterThan(0);
+  });
+
   it("returns only the upstream-compatible ammunition for a ranged weapon", () => {
     expect(
       handleCalculatorRequest({

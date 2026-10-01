@@ -134,7 +134,9 @@ vi.mock("../src/pvm/calculator-client", async () => {
   };
 });
 
-const { PvmGearPlannerPage, spellRuneTags } = await import("../src/pvm-gear-planner-page/pvm-gear-planner-page");
+const { PvmGearPlannerPage, spellRuneTags, weaponSupportsStyle } = await import(
+  "../src/pvm-gear-planner-page/pvm-gear-planner-page"
+);
 
 PvmGearPlannerPage.prototype.html = function () {
   return `
@@ -218,6 +220,17 @@ describe("pvm-gear-planner-page", () => {
     localStorage.clear();
     document.body.innerHTML = "";
     window.history.replaceState("", "", "/group/pvm-gear");
+  });
+
+  it("only treats weapons with real calculator magic styles as magic weapons", () => {
+    const equipment = JSON.parse(readFileSync("vendor/osrs-wiki-dps/cdn/json/equipment.json", "utf8"));
+    const ibanStaff = equipment.find((item) => item.id === 1409);
+    const pharaohSceptre = equipment.find((item) => item.id === 26948);
+
+    expect(ibanStaff).toMatchObject({ name: "Iban's staff", category: "Staff" });
+    expect(weaponSupportsStyle(ibanStaff, "Magic")).toBe(true);
+    expect(pharaohSceptre).toMatchObject({ name: "Pharaoh's sceptre", category: "Polestaff" });
+    expect(weaponSupportsStyle(pharaohSceptre, "Magic")).toBe(false);
   });
 
   it("classifies every authoritative offensive spell for budget rune filtering", () => {

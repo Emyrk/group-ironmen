@@ -116,9 +116,12 @@ function equipmentScore(item) {
   return offensive + (bonuses.str || 0) * 3 + (bonuses.ranged_str || 0) * 3 + (bonuses.magic_str || 0) * 3;
 }
 
-function weaponSupportsStyle(item, style) {
-  if (style === "Ranged") return (item?.offensive?.ranged || 0) > 0;
-  if (style === "Magic") return (item?.offensive?.magic || 0) > 0;
+const MAGIC_WEAPON_CATEGORIES = new Set(["Bladed Staff", "Powered Staff", "Powered Wand", "Staff"]);
+const RANGED_WEAPON_CATEGORIES = new Set(["Bow", "Chinchompas", "Crossbow", "Salamander", "Thrown"]);
+
+export function weaponSupportsStyle(item, style) {
+  if (style === "Ranged") return RANGED_WEAPON_CATEGORIES.has(item?.category);
+  if (style === "Magic") return MAGIC_WEAPON_CATEGORIES.has(item?.category);
   return ["stab", "slash", "crush"].some((type) => (item?.offensive?.[type] || 0) > 0);
 }
 
