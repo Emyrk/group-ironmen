@@ -182,6 +182,14 @@ function spellImageUrl(image) {
   return `https://oldschool.runescape.wiki/images/${encodeURIComponent(image.replaceAll(" ", "_"))}`;
 }
 
+function elementalWeakness(target) {
+  const weakness = target?.weakness;
+  if (!weakness || weakness.element === "none" || !Number.isFinite(weakness.severity) || weakness.severity <= 0)
+    return null;
+  const element = String(weakness.element).toLowerCase();
+  return { element, label: `${element[0].toUpperCase()}${element.slice(1)}`, severity: weakness.severity };
+}
+
 const SPELLBOOK_LABELS = Object.freeze({ standard: "Standard", ancient: "Ancient", arceuus: "Arceuus" });
 const STANDARD_ELEMENT_ORDER = ["air", "water", "earth", "fire", "other"];
 
@@ -1317,28 +1325,54 @@ export class PvmGearPlannerPage extends BaseElement {
     if (this.activeStyle !== "Magic" || !Array.isArray(result?.spellResults)) return "";
     const groups = groupSpellResults(result.spellResults);
     if (groups.length === 0) return "";
+    const weakness = elementalWeakness(this.selectedTarget);
+    const weaknessDescription = weakness
+      ? `${weakness.label} +${weakness.severity}% weakness. Matching spells gain accuracy and damage.`
+      : "No elemental weakness";
     return `<div class="pvm-gear-planner-page__spell-results">
-      <span>Top eligible spells by spellbook</span>
+      <div class="pvm-gear-planner-page__spell-results-header">
+        <span>Spell DPS</span>
+        <span class="pvm-gear-planner-page__target-weakness ${
+          weakness ? "active" : "none"
+        }" data-target-weakness title="${escapeHtml(weaknessDescription)}">${
+      weakness ? `Weakness: ${escapeHtml(weakness.label)} +${weakness.severity}%` : "No elemental weakness"
+    }</span>
+      </div>
       <div class="pvm-gear-planner-page__spell-groups">
         ${groups
-          .map(
-            ({ key, label, spells }) => `<section class="pvm-gear-planner-page__spell-group" data-spell-group="${key}">
+          .map(({ key, label, spells }) => {
+            const groupMatchesWeakness = weakness && key === `standard:${weakness.element}`;
+            return `<section class="pvm-gear-planner-page__spell-group ${
+              groupMatchesWeakness ? "weakness-match" : ""
+            }" data-spell-group="${key}">
               <h3>${escapeHtml(label)}</h3>
               <div class="pvm-gear-planner-page__spell-result-list">
                 ${spells
-                  .map(({ spell, image, dps }) => {
+                  .map(({ spell, image, element, dps }) => {
                     const selected = spell === this.activeLoadout.selectedSpell;
-                    return `<div class="pvm-gear-planner-page__spell-result ${selected ? "selected" : ""}">
+                    const matchesWeakness = weakness && element === weakness.element;
+                    return `<div class="pvm-gear-planner-page__spell-result ${selected ? "selected" : ""} ${
+                      matchesWeakness ? "weakness-match" : ""
+                    }">
                       <img src="${spellImageUrl(image)}" alt="" />
-                      <span>${selected ? "Chosen" : "Available"}</span>
                       <strong>${escapeHtml(spell)}</strong>
+                      <span class="pvm-gear-planner-page__spell-badges">
+                        ${selected ? '<em class="pvm-gear-planner-page__spell-badge selected">Chosen</em>' : ""}
+                        ${
+                          matchesWeakness
+                            ? `<em class="pvm-gear-planner-page__spell-badge weakness" title="${escapeHtml(
+                                weaknessDescription
+                              )}">Weak +${weakness.severity}%</em>`
+                            : ""
+                        }
+                      </span>
                       <b>${formatNumber(dps, 2)} DPS</b>
                     </div>`;
                   })
                   .join("")}
               </div>
-            </section>`
-          )
+            </section>`;
+          })
           .join("")}
       </div>
     </div>`;

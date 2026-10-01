@@ -73,15 +73,24 @@ const equipmentEntities = [
   equipment(6737, "Berserker ring", "ring", 2),
 ];
 const monsterEntities = [
-  { id: 5779, name: "Giant Mole", version: "", style: ["Crush"], skills: { hp: 200 } },
+  {
+    id: 5779,
+    name: "Giant Mole",
+    version: "",
+    style: ["Crush"],
+    weakness: { element: "earth", severity: 50 },
+    skills: { hp: 200 },
+  },
   {
     id: 8059,
     name: "Vorkath",
     version: "Post-quest",
     style: ["Slash", "Magic", "Ranged", "Dragonfire"],
     attributes: ["dragon"],
+    weakness: { element: "fire", severity: 40 },
     skills: { hp: 750 },
   },
+  { id: 415, name: "Abyssal demon", version: "Standard", skills: { hp: 150 } },
   { id: 2267, name: "Dagannoth Rex", version: "", skills: { hp: 255 } },
   { id: 2215, name: "General Graardor", version: "", skills: { hp: 255 } },
   { id: 2042, name: "Zulrah", version: "Serpentine", skills: { hp: 500 } },
@@ -766,6 +775,39 @@ describe("pvm-gear-planner-page", () => {
     expect(spellResults[0].querySelector("img").getAttribute("src")).toBe(
       "https://oldschool.runescape.wiki/images/Fire_Surge.png"
     );
+    page.remove();
+  });
+
+  it("shows the target weakness and highlights matching compact spell rows", async () => {
+    const page = await createPage();
+    const target = page.querySelector("[data-control='target']");
+    target.value = "Vorkath (Post-quest) [8059]";
+    target.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(page.selectedTarget?.id).toBe(8059));
+
+    page.querySelector("[data-style='Magic']").click();
+    await vi.waitFor(() => {
+      expect(page.querySelector("[data-target-weakness]").textContent).toContain("Fire +40%");
+    });
+    const fireSurge = [...page.querySelectorAll(".pvm-gear-planner-page__spell-result")].find(
+      (row) => row.querySelector("strong").textContent === "Fire Surge"
+    );
+    const iceBarrage = [...page.querySelectorAll(".pvm-gear-planner-page__spell-result")].find(
+      (row) => row.querySelector("strong").textContent === "Ice Barrage"
+    );
+    expect(fireSurge.classList.contains("weakness-match")).toBe(true);
+    expect(fireSurge.querySelector(".pvm-gear-planner-page__spell-badge.weakness").textContent).toBe("Weak +40%");
+    expect(iceBarrage.classList.contains("weakness-match")).toBe(false);
+    expect(page.querySelectorAll(".pvm-gear-planner-page__spell-result")).toHaveLength(5);
+    expect(page.querySelector(".pvm-gear-planner-page__spell-results").textContent).not.toContain("Available");
+
+    target.value = "Abyssal demon (Standard) [415]";
+    target.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => {
+      expect(page.selectedTarget?.id).toBe(415);
+      expect(page.querySelector("[data-target-weakness]").textContent).toContain("No elemental weakness");
+      expect(page.querySelectorAll(".pvm-gear-planner-page__spell-result.weakness-match")).toHaveLength(0);
+    });
     page.remove();
   });
 
