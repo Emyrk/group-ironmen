@@ -270,10 +270,35 @@ export function targetStyleDefence(item, target) {
 
 export function preferCandidateOnTie(candidate, current, style, target) {
   if (!hasSameOffensiveBonuses(candidate, current, style)) return false;
-  const candidateDefence = targetStyleDefence(candidate, target);
-  const currentDefence = targetStyleDefence(current, target);
-  if (candidateDefence !== currentDefence) return candidateDefence > currentDefence;
-  return (candidate?.bonuses?.prayer || 0) > (current?.bonuses?.prayer || 0);
+  const candidatePrayer = candidate?.bonuses?.prayer || 0;
+  const currentPrayer = current?.bonuses?.prayer || 0;
+  if (candidatePrayer !== currentPrayer) return candidatePrayer > currentPrayer;
+  return targetStyleDefence(candidate, target) > targetStyleDefence(current, target);
+}
+
+const ITEM_STAT_COMPARISONS = [
+  ["offensive", "stab", "stab attack"],
+  ["offensive", "slash", "slash attack"],
+  ["offensive", "crush", "crush attack"],
+  ["offensive", "magic", "magic attack"],
+  ["offensive", "ranged", "ranged attack"],
+  ["defensive", "stab", "stab defence"],
+  ["defensive", "slash", "slash defence"],
+  ["defensive", "crush", "crush defence"],
+  ["defensive", "magic", "magic defence"],
+  ["defensive", "ranged", "ranged defence"],
+  ["bonuses", "str", "strength"],
+  ["bonuses", "ranged_str", "ranged strength"],
+  ["bonuses", "magic_str", "magic strength"],
+  ["bonuses", "prayer", "Prayer"],
+];
+
+export function itemStatChanges(candidate, current) {
+  if (!candidate || !current) return [];
+  return ITEM_STAT_COMPARISONS.map(([group, key, label]) => ({
+    label,
+    difference: (candidate?.[group]?.[key] || 0) - (current?.[group]?.[key] || 0),
+  })).filter(({ difference }) => difference !== 0);
 }
 
 const MAGIC_WEAPON_CATEGORIES = new Set(["Bladed Staff", "Powered Staff", "Powered Wand", "Staff"]);
@@ -1107,6 +1132,23 @@ export class PvmGearPlannerPage extends BaseElement {
     }).join("");
   }
 
+  renderItemComparisonTooltip(item, equipped) {
+    const changes = itemStatChanges(item, equipped);
+    if (changes.length === 0) return "";
+    return `<div class="pvm-gear-planner-page__comparison-tooltip" role="tooltip">
+      <strong>Compared with ${escapeHtml(equipped.name)}</strong>
+      ${changes
+        .map(
+          ({ label, difference }) =>
+            `<span class="${difference > 0 ? "positive" : "negative"}">${difference > 0 ? "+" : ""}${formatNumber(
+              difference,
+              Number.isInteger(difference) ? 0 : 1
+            )} ${escapeHtml(label)}</span>`
+        )
+        .join("")}
+    </div>`;
+  }
+
   renderAlternatives() {
     const loadout = this.activeLoadout;
     const ranked = this.activeCandidates()
@@ -1138,9 +1180,10 @@ export class PvmGearPlannerPage extends BaseElement {
         Math.min(bestDamageTakenByDps.get(result.dps) ?? Number.POSITIVE_INFINITY, result.damageTakenPerSecond)
       );
     }
+    const equippedItem = loadout.items[this.activeSlot];
     return ranked
       .map(({ item, result }) => {
-        const selected = loadout.items[this.activeSlot]?.id === item.id;
+        const selected = equippedItem?.id === item.id;
         const displayedTier = result
           ? candidateTier(item, result, bestDps, bestDamageTakenByDps, this.activeSlot, this.selectedTarget)
           : "…";
@@ -1174,6 +1217,7 @@ export class PvmGearPlannerPage extends BaseElement {
             <button class="men-button" data-equip-item="${item.id}" ${selected ? "disabled" : ""}>${
           selected ? "Equipped" : "Choose"
         }</button>
+            ${selected ? "" : this.renderItemComparisonTooltip(item, equippedItem)}
           </article>`;
       })
       .join("");

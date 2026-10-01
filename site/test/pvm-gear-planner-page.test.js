@@ -187,6 +187,7 @@ const {
   PvmGearPlannerPage,
   itemFamilyKey,
   itemHasCombatStats,
+  itemStatChanges,
   preferCandidateOnTie,
   spellRuneTags,
   targetNeedsAntiFire,
@@ -294,16 +295,16 @@ describe("pvm-gear-planner-page", () => {
     expect(targetNeedsAntiFire(monsterEntities.find((monster) => monster.id === 5779))).toBe(false);
   });
 
-  it("breaks equal-offence ties with target-style defence, then prayer", () => {
+  it("breaks equal-offence ties with prayer before raw target-style defence", () => {
     const target = { style: ["Crush", "Ranged", "Dragonfire"] };
     const base = equipment(30001, "Base armour", "body", 4);
+    base.bonuses.prayer = 0;
     const defensive = equipment(30002, "Defensive armour", "body", 4);
+    defensive.bonuses.prayer = 0;
     defensive.defensive.crush = 12;
     defensive.defensive.ranged = 8;
     const prayer = equipment(30003, "Prayer armour", "body", 4);
-    prayer.defensive.crush = 12;
-    prayer.defensive.ranged = 8;
-    prayer.bonuses.prayer = 5;
+    prayer.bonuses.prayer = 1;
 
     expect(targetStyleDefence(defensive, target)).toBe(20);
     expect(preferCandidateOnTie(defensive, base, "slash", target)).toBe(true);
@@ -311,6 +312,20 @@ describe("pvm-gear-planner-page", () => {
 
     prayer.offensive.slash += 1;
     expect(preferCandidateOnTie(prayer, defensive, "slash", target)).toBe(false);
+  });
+
+  it("reports only non-zero item stat changes", () => {
+    const equipped = equipment(30004, "Equipped cape", "cape");
+    const candidate = equipment(30005, "Candidate cape", "cape");
+    candidate.defensive.slash = 1;
+    candidate.defensive.magic = -2;
+    candidate.bonuses.prayer = 3;
+
+    expect(itemStatChanges(candidate, equipped)).toEqual([
+      { label: "slash defence", difference: 1 },
+      { label: "magic defence", difference: -2 },
+      { label: "Prayer", difference: 3 },
+    ]);
   });
 
   it("only treats weapons with real calculator magic styles as magic weapons", () => {
@@ -383,6 +398,14 @@ describe("pvm-gear-planner-page", () => {
     );
     expect(alternatives[0]).toBe("Bandos chestplate");
     expect(page.querySelector("[data-equip-item='9674']").closest("article").textContent).toContain("Shared storage");
+    const fighterTorsoTooltip = page
+      .querySelector("[data-equip-item='10551']")
+      .closest("article")
+      .querySelector(".pvm-gear-planner-page__comparison-tooltip");
+    expect(fighterTorsoTooltip.textContent).toContain("Compared with Bandos chestplate");
+    expect(fighterTorsoTooltip.textContent).toContain("-1 stab attack");
+    expect(fighterTorsoTooltip.textContent).toContain("-1 Prayer");
+    expect(fighterTorsoTooltip.textContent).not.toContain("magic defence");
 
     page.querySelector("[data-equip-item='9674']").click();
     await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")?.textContent).toBe("Equipped"));

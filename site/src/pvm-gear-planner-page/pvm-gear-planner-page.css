@@ -343,6 +343,7 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   gap: 7px;
 }
 .pvm-gear-planner-page__alternative {
+  position: relative;
   display: grid;
   grid-template-columns: 38px 42px minmax(150px, 1fr) minmax(300px, 1.5fr) 92px;
   gap: 9px;
@@ -350,6 +351,46 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   padding: 8px;
   background: #302a22;
   border: 1px solid #666;
+}
+.pvm-gear-planner-page__comparison-tooltip {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  gap: 3px;
+  min-width: 210px;
+  max-width: 300px;
+  padding: 8px 10px;
+  color: #ddd;
+  font-size: 0.78rem;
+  pointer-events: none;
+  visibility: hidden;
+  background: #181512;
+  border: 1px solid var(--orange);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 70%);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 100ms ease, transform 100ms ease, visibility 100ms ease;
+}
+.pvm-gear-planner-page__comparison-tooltip strong {
+  padding-bottom: 3px;
+  color: var(--orange);
+  font-size: 0.78rem;
+  border-bottom: 1px solid #55482f;
+}
+.pvm-gear-planner-page__comparison-tooltip .positive {
+  color: #7dd58c;
+}
+.pvm-gear-planner-page__comparison-tooltip .negative {
+  color: #e1847a;
+}
+.pvm-gear-planner-page__alternative:hover .pvm-gear-planner-page__comparison-tooltip,
+.pvm-gear-planner-page__alternative:focus-within .pvm-gear-planner-page__comparison-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
 }
 .pvm-gear-planner-page__alternative.selected {
   border-color: #55a967;
