@@ -1,5 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { CalculatorClient, createWorkerCalculatorTransport } from "../pvm/calculator-client";
+import { itemVariations } from "../data/item-variations";
 import { equipmentIdsFromMember } from "../pvm/calculator-protocol";
 import { loadPvmEntities } from "../pvm/entity-loader";
 
@@ -88,6 +89,81 @@ const UNAFFECTED_RUNE_SPELLS = new Set([
   "Wind Strike",
 ]);
 
+const ITEM_PROGRESSION_GROUPS = Object.freeze([
+  // Only the strongest owned tier is useful in the planner when the items otherwise fill the same role.
+  [
+    1189, // Bronze kiteshield
+    1191, // Iron kiteshield
+    1193, // Steel kiteshield
+    1195, // Black kiteshield
+    1197, // Mithril kiteshield
+    1199, // Adamant kiteshield
+    1201, // Rune kiteshield
+    21895, // Dragon kiteshield
+  ],
+]);
+const ITEM_PROGRESSION_RANKS = new Map();
+for (const [groupIndex, itemIds] of ITEM_PROGRESSION_GROUPS.entries()) {
+  for (const [rank, itemId] of itemIds.entries()) ITEM_PROGRESSION_RANKS.set(itemId, { groupIndex, rank });
+}
+const ANTI_FIRE_SHIELD_NAMES = new Set([
+  "Anti-dragon shield",
+  "Anti-dragon shield (nz)",
+  "Dragonfire shield",
+  "Dragonfire ward",
+  "Ancient wyvern shield",
+]);
+
+export function itemHasCombatStats(item) {
+  return [item?.bonuses, item?.offensive, item?.defensive].some((stats) =>
+    Object.values(stats || {}).some((value) => Number(value) !== 0)
+  );
+}
+
+export function itemFamilyKey(item) {
+  const progression = ITEM_PROGRESSION_RANKS.get(item?.id);
+  if (progression) return `progression:${progression.groupIndex}`;
+  const variations = itemVariations(item?.id || 0);
+  return variations.length > 1 ? `variation:${Math.min(...variations)}` : `item:${item?.id}`;
+}
+
+function itemCharge(item) {
+  const match = String(item?.version || item?.name || "").match(/\(?([0-9]+)\)?$/);
+  return match ? Number(match[1]) : 0;
+}
+
+function preferFamilyRepresentative(candidate, current) {
+  const candidateProgression = ITEM_PROGRESSION_RANKS.get(candidate.id);
+  const currentProgression = ITEM_PROGRESSION_RANKS.get(current.id);
+  if (candidateProgression || currentProgression) {
+    return (candidateProgression?.rank || 0) > (currentProgression?.rank || 0);
+  }
+  const chargeDifference = itemCharge(candidate) - itemCharge(current);
+  if (chargeDifference !== 0) return chargeDifference > 0;
+  const scoreDifference = equipmentScore(candidate) - equipmentScore(current);
+  if (scoreDifference !== 0) return scoreDifference > 0;
+  return candidate.id > current.id;
+}
+
+function collapseItemFamilies(items) {
+  const representatives = new Map();
+  for (const item of items) {
+    const key = itemFamilyKey(item);
+    const current = representatives.get(key);
+    if (!current || preferFamilyRepresentative(item, current)) representatives.set(key, item);
+  }
+  return [...representatives.values()];
+}
+
+export function targetNeedsAntiFire(target) {
+  const styles = Array.isArray(target?.style) ? target.style : target?.style ? [target.style] : [];
+  return styles.some((style) => String(style).toLowerCase() === "dragonfire");
+}
+
+export function isAntiFireShield(item) {
+  return item?.slot === "shield" && ANTI_FIRE_SHIELD_NAMES.has(item.name);
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -108,6 +184,19 @@ function tierFor(dps, bestDps) {
   if (loss <= 0.02) return "A";
   if (loss <= 0.05) return "B";
   return "C";
+}
+
+function compareCandidateHeuristic(left, right, slot, target) {
+  const protectionDifference = antiFirePriority(right, slot, target) - antiFirePriority(left, slot, target);
+  if (protectionDifference !== 0) return protectionDifference;
+  return equipmentScore(right) - equipmentScore(left);
+}
+
+function candidateTier(item, result, bestDps, slot, target) {
+  const tier = tierFor(result.dps, bestDps);
+  if (slot === "shield" && targetNeedsAntiFire(target) && !isAntiFireShield(item) && ["S", "A"].includes(tier))
+    return "B";
+  return tier;
 }
 
 function equipmentScore(item) {
@@ -133,6 +222,19 @@ function hasSameOffensiveBonuses(left, right, style) {
   const leftValues = offensiveTieBreakValues(left, style);
   const rightValues = offensiveTieBreakValues(right, style);
   return leftValues.every((value, index) => value === rightValues[index]);
+}
+
+function antiFirePriority(item, slot, target) {
+  if (slot !== "shield" || !targetNeedsAntiFire(target)) return 0;
+  return isAntiFireShield(item) ? 1 : 0;
+}
+
+function preferEvaluatedCandidate(candidate, current, style, slot, target) {
+  const protectionDifference =
+    antiFirePriority(candidate.item, slot, target) - antiFirePriority(current.item, slot, target);
+  if (protectionDifference !== 0) return protectionDifference > 0;
+  if (candidate.result.dps !== current.result.dps) return candidate.result.dps > current.result.dps;
+  return preferCandidateOnTie(candidate.item, current.item, candidate.result.style?.type || style, target);
 }
 
 export function targetStyleDefence(item, target) {
@@ -326,11 +428,17 @@ export class PvmGearPlannerPage extends BaseElement {
 
   ownedEquipment(slot, style = this.activeStyle, loadout = this.loadouts[style]) {
     if (!this.entities || !this.selectedMemberData) return [];
-    return uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter(
-      (item) =>
-        this.isOwned(item) &&
-        (slot !== "weapon" || weaponSupportsStyle(item, style)) &&
-        (slot !== "ammo" || style !== "Ranged" || !loadout.compatibleAmmoIds || loadout.compatibleAmmoIds.has(item.id))
+    return collapseItemFamilies(
+      uniqueById(this.entities.equipmentBySlot.get(slot) || []).filter(
+        (item) =>
+          this.isOwned(item) &&
+          itemHasCombatStats(item) &&
+          (slot !== "weapon" || weaponSupportsStyle(item, style)) &&
+          (slot !== "ammo" ||
+            style !== "Ranged" ||
+            !loadout.compatibleAmmoIds ||
+            loadout.compatibleAmmoIds.has(item.id))
+      )
     );
   }
 
@@ -388,10 +496,16 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const slot of SLOT_KEYS) {
       const selected = loadout.items[slot];
       const equipped = this.entities.equipmentById.get(equippedIds[slot]);
-      const equippedIsSuitable = equipped?.slot === slot && (slot !== "weapon" || weaponSupportsStyle(equipped, style));
-      const owned = this.ownedEquipment(slot, style, loadout).sort(
-        (left, right) => equipmentScore(right) - equipmentScore(left)
+      const owned = this.ownedEquipment(slot, style, loadout).sort((left, right) =>
+        compareCandidateHeuristic(left, right, slot, this.selectedTarget)
       );
+      const equippedRepresentative = equipped
+        ? owned.find((item) => itemFamilyKey(item) === itemFamilyKey(equipped)) || equipped
+        : null;
+      const equippedIsSuitable =
+        itemHasCombatStats(equippedRepresentative) &&
+        equippedRepresentative?.slot === slot &&
+        (slot !== "weapon" || weaponSupportsStyle(equippedRepresentative, style));
       if (
         preserveSelections &&
         selected?.slot === slot &&
@@ -400,7 +514,7 @@ export class PvmGearPlannerPage extends BaseElement {
       ) {
         nextItems[slot] = selected;
       } else {
-        nextItems[slot] = equippedIsSuitable ? equipped : owned[0] || null;
+        nextItems[slot] = equippedIsSuitable ? equippedRepresentative : owned[0] || null;
       }
     }
     loadout.items = nextItems;
@@ -588,8 +702,8 @@ export class PvmGearPlannerPage extends BaseElement {
   activeCandidates() {
     const loadout = this.activeLoadout;
     const selected = loadout.items[this.activeSlot];
-    const candidates = this.ownedEquipment(this.activeSlot, this.activeStyle, loadout).sort(
-      (left, right) => equipmentScore(right) - equipmentScore(left)
+    const candidates = this.ownedEquipment(this.activeSlot, this.activeStyle, loadout).sort((left, right) =>
+      compareCandidateHeuristic(left, right, this.activeSlot, this.selectedTarget)
     );
     const bounded = candidates.slice(0, MAX_CANDIDATES);
     if (selected && !bounded.some((item) => item.id === selected.id)) bounded.push(selected);
@@ -621,7 +735,7 @@ export class PvmGearPlannerPage extends BaseElement {
     return this.ownedEquipment(slot, style, this.loadouts[style])
       .filter((item) => item.id !== selectedId)
       .sort((left, right) => {
-        const scoreDifference = equipmentScore(right) - equipmentScore(left);
+        const scoreDifference = compareCandidateHeuristic(left, right, slot, this.selectedTarget);
         if (scoreDifference !== 0) return scoreDifference;
         if (preferCandidateOnTie(right, left, style, this.selectedTarget)) return 1;
         if (preferCandidateOnTie(left, right, style, this.selectedTarget)) return -1;
@@ -693,14 +807,13 @@ export class PvmGearPlannerPage extends BaseElement {
               if (generation !== this.calculationGeneration) return false;
               if (
                 candidate &&
-                (candidate.result.dps > best.result.dps ||
-                  (candidate.result.dps === best.result.dps &&
-                    preferCandidateOnTie(
-                      weapon,
-                      best.item,
-                      candidate.result.style?.type || style,
-                      this.selectedTarget
-                    )))
+                preferEvaluatedCandidate(
+                  { result: candidate.result, item: weapon },
+                  best,
+                  style,
+                  slot,
+                  this.selectedTarget
+                )
               ) {
                 best = { result: candidate.result, item: weapon, extra: variant };
               }
@@ -719,9 +832,7 @@ export class PvmGearPlannerPage extends BaseElement {
               if (generation !== this.calculationGeneration) return false;
               if (
                 candidate &&
-                (candidate.result.dps > best.result.dps ||
-                  (candidate.result.dps === best.result.dps &&
-                    preferCandidateOnTie(item, best.item, candidate.result.style?.type || style, this.selectedTarget)))
+                preferEvaluatedCandidate({ result: candidate.result, item }, best, style, slot, this.selectedTarget)
               )
                 best = { result: candidate.result, item, extra: null };
             } catch {
@@ -731,10 +842,14 @@ export class PvmGearPlannerPage extends BaseElement {
         }
 
         if (
-          best.result.dps > loadout.currentResult.dps ||
-          (best.result.dps === loadout.currentResult.dps &&
-            best.item !== loadout.items[slot] &&
-            preferCandidateOnTie(best.item, loadout.items[slot], best.result.style?.type || style, this.selectedTarget))
+          best.item !== loadout.items[slot] &&
+          preferEvaluatedCandidate(
+            best,
+            { result: loadout.currentResult, item: loadout.items[slot] },
+            style,
+            slot,
+            this.selectedTarget
+          )
         ) {
           this.applyOptimizedItem(style, slot, best.item);
           if (best.extra) {
@@ -965,6 +1080,10 @@ export class PvmGearPlannerPage extends BaseElement {
     const ranked = this.activeCandidates()
       .map((item) => ({ item, result: loadout.candidateResults.get(item.id) }))
       .sort((left, right) => {
+        const protectionDifference =
+          antiFirePriority(right.item, this.activeSlot, this.selectedTarget) -
+          antiFirePriority(left.item, this.activeSlot, this.selectedTarget);
+        if (protectionDifference !== 0) return protectionDifference;
         const dpsDifference = (right.result?.dps || -1) - (left.result?.dps || -1);
         if (dpsDifference !== 0) return dpsDifference;
         const attackStyle = right.result?.style?.type || left.result?.style?.type || this.activeStyle;
@@ -978,6 +1097,7 @@ export class PvmGearPlannerPage extends BaseElement {
     return ranked
       .map(({ item, result }) => {
         const selected = loadout.items[this.activeSlot]?.id === item.id;
+        const displayedTier = result ? candidateTier(item, result, bestDps, this.activeSlot, this.selectedTarget) : "…";
         const dpsChange =
           result && loadout.currentResult?.dps
             ? ((result.dps - loadout.currentResult.dps) / loadout.currentResult.dps) * 100
@@ -986,8 +1106,8 @@ export class PvmGearPlannerPage extends BaseElement {
         return `
           <article class="pvm-gear-planner-page__alternative ${selected ? "selected" : ""}">
             <div class="pvm-gear-planner-page__tier tier-${
-              result ? tierFor(result.dps, bestDps).toLowerCase() : "pending"
-            }">${result ? tierFor(result.dps, bestDps) : "…"}</div>
+              result ? displayedTier.toLowerCase() : "pending"
+            }">${displayedTier}</div>
             <img src="${this.itemImage(item)}" alt="" />
             <div class="pvm-gear-planner-page__alternative-name">
               <strong>${escapeHtml(item.name)}</strong>

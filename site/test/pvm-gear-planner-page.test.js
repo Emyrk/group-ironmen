@@ -26,11 +26,26 @@ function combatWeapon(id, name, category, type, score = 80) {
   return item;
 }
 
+function defensiveShield(id, name, defence) {
+  const item = equipment(id, name, "shield");
+  item.defensive = { stab: defence, slash: defence, crush: defence, magic: defence, ranged: defence };
+  return item;
+}
+
+function chargedJewellery(id, name, version, score) {
+  const item = equipment(id, name, "neck", score);
+  item.version = version;
+  return item;
+}
+
 const equipmentEntities = [
   equipment(10828, "Helm of Neitiznot", "head", 2),
   equipment(24271, "Neitiznot faceguard", "head", 4),
   equipment(6570, "Fire cape", "cape", 2),
   equipment(6585, "Amulet of fury", "neck", 2),
+  chargedJewellery(1704, "Amulet of glory", "Uncharged", 1),
+  chargedJewellery(11978, "Amulet of glory", "6", 1),
+  equipment(11105, "Skills necklace", "neck"),
   equipment(9244, "Dragon bolts (e)", "ammo", 2),
   equipment(892, "Rune arrow", "ammo", 3),
   combatWeapon(4151, "Abyssal whip", "Whip", "slash"),
@@ -41,14 +56,25 @@ const equipmentEntities = [
   equipment(10551, "Fighter torso", "body", 3),
   equipment(9674, "Proselyte hauberk", "body", 1),
   equipment(8850, "Rune defender", "shield", 2),
+  defensiveShield(1540, "Anti-dragon shield", 8),
+  defensiveShield(1193, "Steel kiteshield", 14),
+  defensiveShield(1197, "Mithril kiteshield", 20),
+  defensiveShield(1201, "Rune kiteshield", 46),
   equipment(11834, "Bandos tassets", "legs", 3),
   equipment(7462, "Barrows gloves", "hands", 2),
   equipment(11840, "Dragon boots", "feet", 2),
   equipment(6737, "Berserker ring", "ring", 2),
 ];
 const monsterEntities = [
-  { id: 5779, name: "Giant Mole", version: "", skills: { hp: 200 } },
-  { id: 8059, name: "Vorkath", version: "Post-quest", skills: { hp: 750 } },
+  { id: 5779, name: "Giant Mole", version: "", style: ["Crush"], skills: { hp: 200 } },
+  {
+    id: 8059,
+    name: "Vorkath",
+    version: "Post-quest",
+    style: ["Slash", "Magic", "Ranged", "Dragonfire"],
+    attributes: ["dragon"],
+    skills: { hp: 750 },
+  },
   { id: 2267, name: "Dagannoth Rex", version: "", skills: { hp: 255 } },
   { id: 2215, name: "General Graardor", version: "", skills: { hp: 255 } },
   { id: 2042, name: "Zulrah", version: "Serpentine", skills: { hp: 500 } },
@@ -151,8 +177,16 @@ vi.mock("../src/pvm/calculator-client", async () => {
   };
 });
 
-const { PvmGearPlannerPage, preferCandidateOnTie, spellRuneTags, targetStyleDefence, weaponSupportsStyle } =
-  await import("../src/pvm-gear-planner-page/pvm-gear-planner-page");
+const {
+  PvmGearPlannerPage,
+  itemFamilyKey,
+  itemHasCombatStats,
+  preferCandidateOnTie,
+  spellRuneTags,
+  targetNeedsAntiFire,
+  targetStyleDefence,
+  weaponSupportsStyle,
+} = await import("../src/pvm-gear-planner-page/pvm-gear-planner-page");
 
 PvmGearPlannerPage.prototype.html = function () {
   return `
@@ -211,7 +245,10 @@ function groupData() {
         "Alice",
         member(
           "Alice",
-          [10828, 24271, 6570, 6585, 892, 9244, 4151, 861, 21012, 27665, 11832, 10551, 8850, 11834, 7462, 11840, 6737],
+          [
+            10828, 24271, 6570, 6585, 1704, 11978, 11105, 892, 9244, 4151, 861, 21012, 27665, 11832, 10551, 8850, 1540,
+            1193, 1197, 1201, 11834, 7462, 11840, 6737,
+          ],
           11832
         ),
       ],
@@ -237,6 +274,19 @@ describe("pvm-gear-planner-page", () => {
     localStorage.clear();
     document.body.innerHTML = "";
     window.history.replaceState("", "", "/group/pvm-gear");
+  });
+
+  it("filters statless items and groups tiered and charged variants", () => {
+    expect(itemHasCombatStats(equipmentEntities.find((item) => item.id === 11105))).toBe(false);
+    expect(itemHasCombatStats(equipmentEntities.find((item) => item.id === 1540))).toBe(true);
+    expect(itemFamilyKey(equipmentEntities.find((item) => item.id === 1193))).toBe(
+      itemFamilyKey(equipmentEntities.find((item) => item.id === 1201))
+    );
+    expect(itemFamilyKey(equipmentEntities.find((item) => item.id === 1704))).toBe(
+      itemFamilyKey(equipmentEntities.find((item) => item.id === 11978))
+    );
+    expect(targetNeedsAntiFire(monsterEntities.find((monster) => monster.id === 8059))).toBe(true);
+    expect(targetNeedsAntiFire(monsterEntities.find((monster) => monster.id === 5779))).toBe(false);
   });
 
   it("breaks equal-offence ties with target-style defence, then prayer", () => {
@@ -403,6 +453,46 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelector("[data-slot='body']").classList.contains("slot-locked")).toBe(true);
     page.remove();
   });
+
+  it("shows only the strongest owned family member and highest charged equivalent", async () => {
+    const page = await createPage();
+    page.querySelector("[data-slot='shield']").click();
+    expect(page.querySelector("[data-equip-item='1201']")).not.toBeNull();
+    expect(page.querySelector("[data-equip-item='1193']")).toBeNull();
+    expect(page.querySelector("[data-equip-item='1197']")).toBeNull();
+
+    page.querySelector("[data-slot='neck']").click();
+    expect(page.querySelector("[data-equip-item='11978']")).not.toBeNull();
+    expect(page.querySelector("[data-equip-item='1704']")).toBeNull();
+    expect(page.querySelector("[data-equip-item='11105']")).toBeNull();
+    page.remove();
+  });
+
+  it("prioritizes anti-fire protection and caps ordinary shields at B against dragonfire", async () => {
+    const page = await createPage();
+    const target = page.querySelector("[data-control='target']");
+    target.value = "Vorkath (Post-quest) [8059]";
+    target.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(page.selectedTarget?.id).toBe(8059));
+
+    page.querySelector("[data-reset-style='Melee']").click();
+    await vi.waitFor(() => expect(page.calculating).toBe(false), { timeout: 10000 });
+    expect(page.loadouts.Melee.items.shield.id).toBe(1540);
+
+    page.querySelector("[data-slot='shield']").click();
+    let ordinaryTier;
+    await vi.waitFor(() => {
+      ordinaryTier = page
+        .querySelector("[data-equip-item='1201']")
+        ?.closest("article")
+        .querySelector(".pvm-gear-planner-page__tier");
+      expect(["B", "C"]).toContain(ordinaryTier?.textContent);
+    });
+    expect(page.querySelector("[data-equip-item='1540']").closest("article").textContent).toContain(
+      "Anti-dragon shield"
+    );
+    page.remove();
+  }, 15000);
 
   it("refreshes all style cards for target changes with synchronized player data", async () => {
     const page = await createPage();
