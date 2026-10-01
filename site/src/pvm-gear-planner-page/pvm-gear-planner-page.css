@@ -326,6 +326,17 @@ pvm-gear-planner-page {
   text-align: right;
   white-space: nowrap;
 }
+.pvm-gear-planner-page__spell-result b.higher {
+  color: hsl(112deg var(--dps-saturation) var(--dps-lightness));
+  text-shadow: 0 0 5px currentcolor;
+}
+.pvm-gear-planner-page__spell-result b.lower {
+  color: hsl(4deg var(--dps-saturation) var(--dps-lightness));
+  text-shadow: 0 0 5px currentcolor;
+}
+.pvm-gear-planner-page__spell-result b.equal {
+  color: var(--orange);
+}
 .pvm-gear-planner-page__spell-badges {
   display: flex !important;
   gap: 3px !important;

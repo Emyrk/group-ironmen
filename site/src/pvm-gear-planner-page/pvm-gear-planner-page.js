@@ -182,6 +182,22 @@ function spellImageUrl(image) {
   return `https://oldschool.runescape.wiki/images/${encodeURIComponent(image.replaceAll(" ", "_"))}`;
 }
 
+export function spellDpsComparison(dps, selectedDps) {
+  if (!Number.isFinite(dps) || !Number.isFinite(selectedDps) || selectedDps <= 0) {
+    return { direction: "equal", percentage: 0, lightness: 62, saturation: 70 };
+  }
+  const difference = dps - selectedDps;
+  if (Math.abs(difference) < 0.005) return { direction: "equal", percentage: 0, lightness: 62, saturation: 70 };
+  const percentage = Math.round((difference / selectedDps) * 1000) / 10;
+  const intensity = Math.min(Math.abs(percentage) / 50, 1);
+  return {
+    direction: difference > 0 ? "higher" : "lower",
+    percentage,
+    lightness: Math.round((54 + intensity * 26) * 10) / 10,
+    saturation: Math.round((58 + intensity * 34) * 10) / 10,
+  };
+}
+
 function elementalWeakness(target) {
   const weakness = target?.weakness;
   if (!weakness || weakness.element === "none" || !Number.isFinite(weakness.severity) || weakness.severity <= 0)
@@ -1326,6 +1342,8 @@ export class PvmGearPlannerPage extends BaseElement {
     const groups = groupSpellResults(result.spellResults);
     if (groups.length === 0) return "";
     const weakness = elementalWeakness(this.selectedTarget);
+    const selectedDps =
+      result.spellResults.find(({ spell }) => spell === this.activeLoadout.selectedSpell)?.dps ?? result.dps;
     const weaknessDescription = weakness
       ? `${weakness.label} +${weakness.severity}% weakness. Matching spells gain accuracy and damage.`
       : "No elemental weakness";
@@ -1351,6 +1369,13 @@ export class PvmGearPlannerPage extends BaseElement {
                   .map(({ spell, image, element, dps }) => {
                     const selected = spell === this.activeLoadout.selectedSpell;
                     const matchesWeakness = weakness && element === weakness.element;
+                    const comparison = spellDpsComparison(dps, selectedDps);
+                    const differenceLabel =
+                      comparison.direction === "equal"
+                        ? "Selected spell DPS"
+                        : `${formatNumber(Math.abs(dps - selectedDps), 2)} DPS ${
+                            comparison.direction
+                          } than selected (${Math.abs(comparison.percentage)}%)`;
                     return `<div class="pvm-gear-planner-page__spell-result ${selected ? "selected" : ""} ${
                       matchesWeakness ? "weakness-match" : ""
                     }">
@@ -1366,7 +1391,11 @@ export class PvmGearPlannerPage extends BaseElement {
                             : ""
                         }
                       </span>
-                      <b>${formatNumber(dps, 2)} DPS</b>
+                      <b class="${comparison.direction}" style="--dps-lightness: ${
+                      comparison.lightness
+                    }%; --dps-saturation: ${comparison.saturation}%;" title="${escapeHtml(
+                      differenceLabel
+                    )}">${formatNumber(dps, 2)} DPS</b>
                     </div>`;
                   })
                   .join("")}

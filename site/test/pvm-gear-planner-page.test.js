@@ -224,6 +224,7 @@ const {
   itemHasCombatStats,
   itemStatChanges,
   preferCandidateOnTie,
+  spellDpsComparison,
   spellRuneTags,
   targetNeedsAntiFire,
   targetStyleDefence,
@@ -774,6 +775,32 @@ describe("pvm-gear-planner-page", () => {
     expect(spellResults[0].textContent).toContain("11.00 DPS");
     expect(spellResults[0].querySelector("img").getAttribute("src")).toBe(
       "https://oldschool.runescape.wiki/images/Fire_Surge.png"
+    );
+    page.remove();
+  });
+
+  it("scales spell DPS comparison colors by distance from the selected spell", async () => {
+    expect(spellDpsComparison(12, 10)).toMatchObject({ direction: "higher", percentage: 20 });
+    expect(spellDpsComparison(8, 10)).toMatchObject({ direction: "lower", percentage: -20 });
+    expect(spellDpsComparison(10, 10)).toMatchObject({ direction: "equal", percentage: 0 });
+    expect(spellDpsComparison(5, 10).lightness).toBeGreaterThan(spellDpsComparison(9, 10).lightness);
+
+    const page = await createPage();
+    page.querySelector("[data-style='Magic']").click();
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Fire Surge"));
+    const rows = [...page.querySelectorAll(".pvm-gear-planner-page__spell-result")];
+    const selectedDps = rows.find((row) => row.querySelector("strong").textContent === "Fire Surge").querySelector("b");
+    const closeDps = rows.find((row) => row.querySelector("strong").textContent === "Ice Barrage").querySelector("b");
+    const distantDps = rows
+      .find((row) => row.querySelector("strong").textContent === "Dark Demonbane")
+      .querySelector("b");
+
+    expect(selectedDps.classList.contains("equal")).toBe(true);
+    expect(closeDps.classList.contains("lower")).toBe(true);
+    expect(closeDps.title).toContain("lower than selected");
+    expect(distantDps.classList.contains("lower")).toBe(true);
+    expect(Number.parseFloat(distantDps.style.getPropertyValue("--dps-lightness"))).toBeGreaterThan(
+      Number.parseFloat(closeDps.style.getPropertyValue("--dps-lightness"))
     );
     page.remove();
   });
