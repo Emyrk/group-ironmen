@@ -619,9 +619,26 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
+    for (const row of this.querySelectorAll(".pvm-gear-planner-page__alternative")) {
+      if (row.querySelector(".pvm-gear-planner-page__comparison-tooltip")) {
+        this.eventListener(row, "mousemove", this.handleComparisonTooltipMove.bind(this));
+      }
+    }
     for (const button of this.querySelectorAll("[data-equip-item]")) {
       this.eventListener(button, "click", this.handleEquipClick.bind(this));
     }
+  }
+
+  handleComparisonTooltipMove(event) {
+    const tooltip = event.currentTarget.querySelector(".pvm-gear-planner-page__comparison-tooltip");
+    if (!tooltip) return;
+    const gap = 16;
+    const width = tooltip.offsetWidth;
+    const height = tooltip.offsetHeight;
+    const left = event.clientX + gap + width > window.innerWidth ? event.clientX - width - gap : event.clientX + gap;
+    const top = event.clientY + gap + height > window.innerHeight ? event.clientY - height - gap : event.clientY + gap;
+    tooltip.style.left = `${Math.max(gap, left)}px`;
+    tooltip.style.top = `${Math.max(gap, top)}px`;
   }
 
   handleMemberChange(event) {

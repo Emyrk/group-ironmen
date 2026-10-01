@@ -353,17 +353,17 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   border: 1px solid #666;
 }
 .pvm-gear-planner-page__comparison-tooltip {
-  position: absolute;
-  right: 8px;
-  bottom: calc(100% + 6px);
-  z-index: 5;
+  position: fixed;
+  top: 50vh;
+  left: 50vw;
+  z-index: 20;
   display: grid;
-  gap: 3px;
-  min-width: 210px;
-  max-width: 300px;
-  padding: 8px 10px;
+  gap: 5px;
+  min-width: 280px;
+  max-width: 380px;
+  padding: 12px 14px;
   color: #ddd;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   pointer-events: none;
   visibility: hidden;
   background: #181512;
@@ -375,9 +375,9 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   transition: opacity 100ms ease, transform 100ms ease, visibility 100ms ease;
 }
 .pvm-gear-planner-page__comparison-tooltip strong {
-  padding-bottom: 3px;
+  padding-bottom: 5px;
   color: var(--orange);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   border-bottom: 1px solid #55482f;
 }
 .pvm-gear-planner-page__comparison-tooltip .positive {

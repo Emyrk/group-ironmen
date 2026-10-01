@@ -406,6 +406,9 @@ describe("pvm-gear-planner-page", () => {
     expect(fighterTorsoTooltip.textContent).toContain("-1 stab attack");
     expect(fighterTorsoTooltip.textContent).toContain("-1 Prayer");
     expect(fighterTorsoTooltip.textContent).not.toContain("magic defence");
+    fighterTorsoTooltip.closest("article").dispatchEvent(new MouseEvent("mousemove", { clientX: 120, clientY: 80 }));
+    expect(fighterTorsoTooltip.style.left).toBe("136px");
+    expect(fighterTorsoTooltip.style.top).toBe("96px");
 
     page.querySelector("[data-equip-item='9674']").click();
     await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")?.textContent).toBe("Equipped"));
