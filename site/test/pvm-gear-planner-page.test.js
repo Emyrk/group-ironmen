@@ -38,6 +38,12 @@ function chargedJewellery(id, name, version, score) {
   return item;
 }
 
+function rangedAmmo(id, name, rangedStrength) {
+  const item = equipment(id, name, "ammo");
+  item.bonuses.ranged_str = rangedStrength;
+  return item;
+}
+
 const equipmentEntities = [
   equipment(10828, "Helm of Neitiznot", "head", 2),
   equipment(24271, "Neitiznot faceguard", "head", 4),
@@ -46,8 +52,9 @@ const equipmentEntities = [
   chargedJewellery(1704, "Amulet of glory", "Uncharged", 1),
   chargedJewellery(11978, "Amulet of glory", "6", 1),
   equipment(11105, "Skills necklace", "neck"),
-  equipment(9244, "Dragon bolts (e)", "ammo", 2),
-  equipment(892, "Rune arrow", "ammo", 3),
+  rangedAmmo(9244, "Dragon bolts (e)", 117),
+  rangedAmmo(892, "Rune arrow", 49),
+  equipment(20220, "Holy blessing", "ammo", 1),
   combatWeapon(4151, "Abyssal whip", "Whip", "slash"),
   combatWeapon(861, "Magic shortbow", "Bow", "ranged", 100),
   combatWeapon(21012, "Dragon hunter crossbow", "Crossbow", "ranged"),
@@ -202,6 +209,7 @@ vi.mock("../src/pvm/calculator-client", async () => {
 
 const {
   PvmGearPlannerPage,
+  ammoSupportsStyle,
   itemFamilyKey,
   itemHasCombatStats,
   itemStatChanges,
@@ -243,6 +251,7 @@ function member(name, ownedItemIds, equippedBodyId) {
   const owned = new Set(ownedItemIds);
   const equipmentSlots = Array.from({ length: 14 }, () => item(0));
   equipmentSlots[4] = item(equippedBodyId);
+  equipmentSlots[13] = item(892);
   return {
     name,
     equipment: equipmentSlots,
@@ -269,8 +278,8 @@ function groupData() {
         member(
           "Alice",
           [
-            10828, 24271, 6570, 6585, 1704, 11978, 11105, 892, 9244, 4151, 861, 21012, 27665, 11832, 10551, 8850, 1540,
-            1193, 1197, 1201, 11834, 7462, 11840, 6737,
+            10828, 24271, 6570, 6585, 1704, 11978, 11105, 892, 9244, 20220, 4151, 861, 21012, 27665, 11832, 10551, 8850,
+            1540, 1193, 1197, 1201, 11834, 7462, 11840, 6737,
           ],
           11832
         ),
@@ -345,6 +354,18 @@ describe("pvm-gear-planner-page", () => {
     ]);
   });
 
+  it("only allows ranged ammunition in Ranged loadouts", () => {
+    const arrow = equipmentEntities.find((item) => item.id === 892);
+    const bolts = equipmentEntities.find((item) => item.id === 9244);
+    const blessing = equipmentEntities.find((item) => item.id === 20220);
+
+    expect(ammoSupportsStyle(arrow, "Melee")).toBe(false);
+    expect(ammoSupportsStyle(bolts, "Magic")).toBe(false);
+    expect(ammoSupportsStyle(arrow, "Ranged")).toBe(true);
+    expect(ammoSupportsStyle(blessing, "Melee")).toBe(true);
+    expect(ammoSupportsStyle(blessing, "Magic")).toBe(true);
+  });
+
   it("only treats weapons with real calculator magic styles as magic weapons", () => {
     const equipment = JSON.parse(readFileSync("vendor/osrs-wiki-dps/cdn/json/equipment.json", "utf8"));
     const ibanStaff = equipment.find((item) => item.id === 1409);
@@ -403,6 +424,25 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelectorAll(".pvm-gear-planner-page__paperdoll-slot")).toHaveLength(11);
     expect(page.querySelector("[data-slot='body']").title).toContain("Bandos chestplate");
     expect(page.textContent).toContain("Top owned candidates ranked by real DPS");
+    page.remove();
+  });
+
+  it("hides arrows and bolts from Melee and Magic ammo options", async () => {
+    const page = await createPage();
+    expect(page.loadouts.Melee.items.ammo.id).toBe(20220);
+    expect(page.loadouts.Ranged.items.ammo.id).toBe(892);
+    expect(page.loadouts.Magic.items.ammo.id).toBe(20220);
+
+    page.querySelector("[data-slot='ammo']").click();
+    expect(page.querySelector("[data-equip-item='20220']")).not.toBeNull();
+    expect(page.querySelector("[data-equip-item='892']")).toBeNull();
+    expect(page.querySelector("[data-equip-item='9244']")).toBeNull();
+
+    page.querySelector("[data-style='Magic']").click();
+    page.querySelector("[data-slot='ammo']").click();
+    expect(page.querySelector("[data-equip-item='20220']")).not.toBeNull();
+    expect(page.querySelector("[data-equip-item='892']")).toBeNull();
+    expect(page.querySelector("[data-equip-item='9244']")).toBeNull();
     page.remove();
   });
 

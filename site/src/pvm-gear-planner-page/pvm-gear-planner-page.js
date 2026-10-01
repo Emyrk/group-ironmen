@@ -317,6 +317,11 @@ export function itemStatChanges(candidate, current) {
 const MAGIC_WEAPON_CATEGORIES = new Set(["Bladed Staff", "Powered Staff", "Powered Wand", "Staff"]);
 const RANGED_WEAPON_CATEGORIES = new Set(["Bow", "Chinchompas", "Crossbow", "Salamander", "Thrown"]);
 
+export function ammoSupportsStyle(item, style) {
+  if (item?.slot !== "ammo") return true;
+  return style === "Ranged" || (item?.bonuses?.ranged_str || 0) === 0;
+}
+
 export function weaponSupportsStyle(item, style) {
   if (style === "Ranged") return RANGED_WEAPON_CATEGORIES.has(item?.category);
   if (style === "Magic") return MAGIC_WEAPON_CATEGORIES.has(item?.category);
@@ -494,6 +499,7 @@ export class PvmGearPlannerPage extends BaseElement {
           this.isOwned(item) &&
           itemHasCombatStats(item) &&
           (slot !== "weapon" || weaponSupportsStyle(item, style)) &&
+          ammoSupportsStyle(item, style) &&
           (slot !== "ammo" ||
             style !== "Ranged" ||
             !loadout.compatibleAmmoIds ||
@@ -560,7 +566,7 @@ export class PvmGearPlannerPage extends BaseElement {
         compareCandidateHeuristic(left, right, slot, this.selectedTarget)
       );
       const equippedRepresentative = equipped
-        ? owned.find((item) => itemFamilyKey(item) === itemFamilyKey(equipped)) || equipped
+        ? owned.find((item) => itemFamilyKey(item) === itemFamilyKey(equipped)) || null
         : null;
       const equippedIsSuitable =
         itemHasCombatStats(equippedRepresentative) &&
@@ -570,7 +576,8 @@ export class PvmGearPlannerPage extends BaseElement {
         preserveSelections &&
         selected?.slot === slot &&
         this.isOwned(selected) &&
-        (slot !== "weapon" || weaponSupportsStyle(selected, style))
+        (slot !== "weapon" || weaponSupportsStyle(selected, style)) &&
+        ammoSupportsStyle(selected, style)
       ) {
         nextItems[slot] = selected;
       } else {
