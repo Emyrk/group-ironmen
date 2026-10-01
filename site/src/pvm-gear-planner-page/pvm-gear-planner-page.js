@@ -1051,8 +1051,8 @@ export class PvmGearPlannerPage extends BaseElement {
   renderRuneRestrictions() {
     const runes = [
       { key: "wrath", id: 21880, name: "Wrath" },
-      { key: "death", id: 560, name: "Death" },
       { key: "blood", id: 565, name: "Blood" },
+      { key: "death", id: 560, name: "Death" },
     ];
     return `<div class="pvm-gear-planner-page__rune-restrictions" aria-label="Magic rune restrictions">
       ${runes

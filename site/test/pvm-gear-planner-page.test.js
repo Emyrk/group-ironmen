@@ -576,6 +576,9 @@ describe("pvm-gear-planner-page", () => {
 
     expect(runeControls).not.toBeNull();
     expect(page.querySelectorAll(".pvm-gear-planner-page__rune-restrictions")).toHaveLength(1);
+    expect(
+      [...runeControls.querySelectorAll("[data-rune-restriction]")].map((control) => control.dataset.runeRestriction)
+    ).toEqual(["wrath", "blood", "death"]);
     expect(runeControls.querySelector("[data-rune-restriction='wrath'] img").getAttribute("src")).toBe(
       "/icons/items/21880.webp"
     );
