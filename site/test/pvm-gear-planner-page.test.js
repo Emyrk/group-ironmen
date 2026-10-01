@@ -203,7 +203,6 @@ PvmGearPlannerPage.prototype.html = function () {
     </header>
     <button data-reset-all>Optimize all</button>
     <section class="pvm-gear-planner-page__style-picker">${this.renderStyleCards()}</section>
-    <div class="pvm-gear-planner-page__rune-restrictions">${this.renderRuneRestrictions()}</div>
     ${this.renderStatus()}
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
     <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</section>
@@ -345,7 +344,7 @@ describe("pvm-gear-planner-page", () => {
     expect(index).toContain('route-component="pvm-gear-planner-page"');
     expect(navigation).toContain('link-href="/group/pvm-gear"');
     expect(plannerTemplate).toContain('class="pvm-gear-planner-page__style-picker"');
-    expect(plannerTemplate).toContain('class="pvm-gear-planner-page__rune-restrictions"');
+    expect(plannerTemplate).not.toContain('class="pvm-gear-planner-page__rune-restrictions"');
     expect(plannerTemplate).toContain("data-reset-all");
     expect(plannerTemplate).not.toContain('data-control="spell"');
     expect(components).toContain("pvm-gear-planner-page");
@@ -567,6 +566,36 @@ describe("pvm-gear-planner-page", () => {
     page.querySelector("[data-slot='ammo']").click();
     expect(page.querySelector("[data-equip-item='892']")).toBeNull();
     expect(page.querySelector("[data-equip-item='9244']")).not.toBeNull();
+    page.remove();
+  });
+
+  it("renders rune restriction icons inside the Magic loadout card", async () => {
+    const page = await createPage();
+    const magicCard = page.querySelector("[data-style='Magic']").closest("article");
+    const runeControls = magicCard.querySelector(".pvm-gear-planner-page__rune-restrictions");
+
+    expect(runeControls).not.toBeNull();
+    expect(page.querySelectorAll(".pvm-gear-planner-page__rune-restrictions")).toHaveLength(1);
+    expect(runeControls.querySelector("[data-rune-restriction='wrath'] img").getAttribute("src")).toBe(
+      "/icons/items/21880.webp"
+    );
+    expect(runeControls.querySelector("[data-rune-restriction='death'] img").getAttribute("src")).toBe(
+      "/icons/items/560.webp"
+    );
+    expect(runeControls.querySelector("[data-rune-restriction='blood'] img").getAttribute("src")).toBe(
+      "/icons/items/565.webp"
+    );
+
+    const wrath = runeControls.querySelector("[data-rune-restriction='wrath']");
+    expect(wrath.classList.contains("restricted")).toBe(false);
+    expect(wrath.getAttribute("aria-pressed")).toBe("false");
+    wrath.click();
+    await vi.waitFor(() => {
+      const updated = page.querySelector("[data-rune-restriction='wrath']");
+      expect(updated.classList.contains("restricted")).toBe(true);
+      expect(updated.getAttribute("aria-pressed")).toBe("true");
+      expect(updated.getAttribute("aria-label")).toContain("Allow spells using Wrath runes");
+    });
     page.remove();
   });
 

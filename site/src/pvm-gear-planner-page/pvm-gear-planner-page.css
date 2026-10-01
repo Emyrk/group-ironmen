@@ -116,15 +116,46 @@ pvm-gear-planner-page {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 8px;
+  padding: 0 12px 10px;
 }
-.pvm-gear-planner-page__rune-restrictions span {
-  color: #aaa;
-  font-size: 0.8rem;
+.pvm-gear-planner-page__rune-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  cursor: pointer;
+  background: #211d18;
+  border: 1px solid #666;
+  border-radius: 4px;
 }
-.pvm-gear-planner-page__rune-restrictions .men-button.active {
-  color: #18130d;
-  background: var(--orange);
+.pvm-gear-planner-page__rune-toggle:hover,
+.pvm-gear-planner-page__rune-toggle:focus {
+  border-color: var(--orange);
+}
+.pvm-gear-planner-page__rune-toggle img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.pvm-gear-planner-page__rune-toggle.restricted::before {
+  position: absolute;
+  inset: 2px;
+  content: "";
+  border: 2px solid #e33f35;
+  border-radius: 50%;
+  box-shadow: 0 0 3px rgb(227 63 53 / 80%);
+}
+.pvm-gear-planner-page__rune-toggle.restricted::after {
+  position: absolute;
+  width: 26px;
+  height: 2px;
+  content: "";
+  background: #e33f35;
+  box-shadow: 0 0 3px rgb(227 63 53 / 80%);
+  transform: rotate(-45deg);
 }
 .pvm-gear-planner-page__status {
   margin-top: 12px;
@@ -416,9 +447,6 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   }
   .pvm-gear-planner-page__style-picker {
     grid-template-columns: 1fr;
-  }
-  .pvm-gear-planner-page__rune-restrictions {
-    flex-wrap: wrap;
   }
   .pvm-gear-planner-page__results {
     grid-template-columns: repeat(2, 1fr);

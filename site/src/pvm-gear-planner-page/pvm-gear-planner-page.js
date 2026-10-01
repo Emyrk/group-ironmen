@@ -1041,6 +1041,7 @@ export class PvmGearPlannerPage extends BaseElement {
             <small>${escapeHtml(weapon?.name || "No owned weapon")}</small>
             ${style === "Magic" ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>` : ""}
           </button>
+          ${style === "Magic" ? this.renderRuneRestrictions() : ""}
           <button class="pvm-gear-planner-page__reset-icon" data-reset-style="${style}"
             title="Optimize unlocked ${style} gear for DPS" aria-label="Optimize ${style} loadout">↻</button>
         </article>`;
@@ -1048,15 +1049,24 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   renderRuneRestrictions() {
-    return ["wrath", "death", "blood"]
-      .map(
-        (rune) => `
-          <button class="men-button ${this.runeRestrictions[rune] ? "active" : ""}"
-            data-rune-restriction="${rune}" aria-pressed="${this.runeRestrictions[rune]}">
-            No ${rune[0].toUpperCase() + rune.slice(1)} runes
-          </button>`
-      )
-      .join("");
+    const runes = [
+      { key: "wrath", id: 21880, name: "Wrath" },
+      { key: "death", id: 560, name: "Death" },
+      { key: "blood", id: 565, name: "Blood" },
+    ];
+    return `<div class="pvm-gear-planner-page__rune-restrictions" aria-label="Magic rune restrictions">
+      ${runes
+        .map(({ key, id, name }) => {
+          const restricted = this.runeRestrictions[key];
+          return `<button class="pvm-gear-planner-page__rune-toggle ${restricted ? "restricted" : ""}"
+            data-rune-restriction="${key}" aria-pressed="${restricted}"
+            aria-label="${restricted ? "Allow" : "Disallow"} spells using ${name} runes"
+            title="${restricted ? "Allow" : "Disallow"} spells using ${name} runes">
+            <img src="/icons/items/${id}.webp" alt="" />
+          </button>`;
+        })
+        .join("")}
+    </div>`;
   }
 
   renderStatus() {
