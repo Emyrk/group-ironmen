@@ -1069,7 +1069,7 @@ export class PvmGearPlannerPage extends BaseElement {
           }" data-lock-slot="${slot}" role="button" tabindex="0"
             aria-pressed="${this.activeLoadout.lockedSlots.has(slot)}"
             title="${this.activeLoadout.lockedSlots.has(slot) ? "Unlock" : "Lock"} ${label.toLowerCase()} slot">${
-        this.activeLoadout.lockedSlots.has(slot) ? "LOCK" : "🔓"
+        this.activeLoadout.lockedSlots.has(slot) ? "🔒" : "🔓"
       }</span>
         </button>`;
     }).join("");

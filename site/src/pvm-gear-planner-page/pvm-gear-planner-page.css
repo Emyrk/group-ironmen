@@ -217,42 +217,23 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
 }
 .pvm-gear-planner-page__slot-lock {
   position: absolute;
-  top: -7px;
-  right: -7px;
+  top: -5px;
+  right: -5px;
   z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  color: #999;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   line-height: 1;
-  background: #211d18;
-  border: 1px solid #666;
-  border-radius: 50%;
-  opacity: 0.65;
+  filter: grayscale(1);
+  opacity: 0.18;
+  transition: filter 120ms ease, opacity 120ms ease;
 }
 .pvm-gear-planner-page__slot-lock:hover,
 .pvm-gear-planner-page__slot-lock:focus {
-  color: var(--orange);
-  border-color: var(--orange);
-  opacity: 1;
+  filter: none;
+  opacity: 0.65;
 }
 .pvm-gear-planner-page__slot-lock.locked {
-  width: 40px;
-  color: #18130d;
-  font-size: 0.58rem;
-  font-weight: bold;
-  letter-spacing: 0.04em;
-  background: var(--orange);
-  border-color: #fff0a3;
-  border-radius: 3px;
-  box-shadow: 0 0 8px rgb(230 189 75 / 80%);
+  filter: none;
   opacity: 1;
-}
-.pvm-gear-planner-page__paperdoll-slot.slot-locked {
-  border-color: var(--orange);
-  box-shadow: inset 0 0 0 2px rgb(230 189 75 / 55%);
 }
 .pvm-gear-planner-page__paperdoll-slot.position-head {
   top: 0;
