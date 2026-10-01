@@ -182,6 +182,39 @@ function spellImageUrl(image) {
   return `https://oldschool.runescape.wiki/images/${encodeURIComponent(image.replaceAll(" ", "_"))}`;
 }
 
+const SPELLBOOK_LABELS = Object.freeze({ standard: "Standard", ancient: "Ancient", arceuus: "Arceuus" });
+const STANDARD_ELEMENT_ORDER = ["air", "water", "earth", "fire", "other"];
+
+export function groupSpellResults(spellResults) {
+  const sorted = [...spellResults].sort((left, right) => right.dps - left.dps);
+  const standard = sorted.filter(({ spellbook }) => spellbook === "standard");
+  const groups = STANDARD_ELEMENT_ORDER.map((element) => ({
+    key: `standard:${element}`,
+    label: `Standard: ${element === "other" ? "Other" : `${element[0].toUpperCase()}${element.slice(1)}`}`,
+    spells: standard.filter((spell) => (spell.element || "other") === element).slice(0, element === "other" ? 5 : 3),
+  })).filter(({ spells }) => spells.length > 0);
+
+  const spellbooks = [
+    ...new Set(sorted.map(({ spellbook }) => spellbook).filter((spellbook) => spellbook !== "standard")),
+  ];
+  spellbooks.sort((left, right) => {
+    const order = ["ancient", "arceuus"];
+    const leftIndex = order.indexOf(left);
+    const rightIndex = order.indexOf(right);
+    if (leftIndex !== rightIndex)
+      return (leftIndex < 0 ? order.length : leftIndex) - (rightIndex < 0 ? order.length : rightIndex);
+    return left.localeCompare(right);
+  });
+  for (const spellbook of spellbooks) {
+    groups.push({
+      key: spellbook,
+      label: SPELLBOOK_LABELS[spellbook] || `${spellbook[0].toUpperCase()}${spellbook.slice(1)}`,
+      spells: sorted.filter((spell) => spell.spellbook === spellbook).slice(0, 5),
+    });
+  }
+  return groups;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -812,7 +845,13 @@ export class PvmGearPlannerPage extends BaseElement {
       try {
         const result = await calculator.calculate(this.calculatorInput(style, overrides, spell.name));
         if (result) {
-          spellResults.push({ spell: spell.name, image: spell.image, dps: result.dps });
+          spellResults.push({
+            spell: spell.name,
+            image: spell.image,
+            spellbook: spell.spellbook,
+            element: spell.element,
+            dps: result.dps,
+          });
           if (!best || result.dps > best.result.dps) best = { result, spell: spell.name };
         }
       } catch (error) {
@@ -1276,21 +1315,30 @@ export class PvmGearPlannerPage extends BaseElement {
 
   renderSpellResults(result) {
     if (this.activeStyle !== "Magic" || !Array.isArray(result?.spellResults)) return "";
-    const spells = result.spellResults.slice(0, 5);
-    if (spells.length === 0) return "";
+    const groups = groupSpellResults(result.spellResults);
+    if (groups.length === 0) return "";
     return `<div class="pvm-gear-planner-page__spell-results">
-      <span>Top eligible spells</span>
-      <div class="pvm-gear-planner-page__spell-result-list">
-        ${spells
-          .map(({ spell, image, dps }) => {
-            const selected = spell === this.activeLoadout.selectedSpell;
-            return `<div class="pvm-gear-planner-page__spell-result ${selected ? "selected" : ""}">
-              <img src="${spellImageUrl(image)}" alt="" />
-              <span>${selected ? "Chosen" : "Available"}</span>
-              <strong>${escapeHtml(spell)}</strong>
-              <b>${formatNumber(dps, 2)} DPS</b>
-            </div>`;
-          })
+      <span>Top eligible spells by spellbook</span>
+      <div class="pvm-gear-planner-page__spell-groups">
+        ${groups
+          .map(
+            ({ key, label, spells }) => `<section class="pvm-gear-planner-page__spell-group" data-spell-group="${key}">
+              <h3>${escapeHtml(label)}</h3>
+              <div class="pvm-gear-planner-page__spell-result-list">
+                ${spells
+                  .map(({ spell, image, dps }) => {
+                    const selected = spell === this.activeLoadout.selectedSpell;
+                    return `<div class="pvm-gear-planner-page__spell-result ${selected ? "selected" : ""}">
+                      <img src="${spellImageUrl(image)}" alt="" />
+                      <span>${selected ? "Chosen" : "Available"}</span>
+                      <strong>${escapeHtml(spell)}</strong>
+                      <b>${formatNumber(dps, 2)} DPS</b>
+                    </div>`;
+                  })
+                  .join("")}
+              </div>
+            </section>`
+          )
           .join("")}
       </div>
     </div>`;

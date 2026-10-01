@@ -233,11 +233,28 @@ pvm-gear-planner-page {
   padding-top: 8px;
   border-top: 1px solid #55482f;
 }
+.pvm-gear-planner-page__spell-groups {
+  display: grid !important;
+  gap: 10px !important;
+  margin-top: 7px;
+}
+.pvm-gear-planner-page__spell-group {
+  padding: 9px;
+  background: rgb(33 29 24 / 55%);
+  border: 1px solid #55482f;
+  border-radius: 4px;
+}
+.pvm-gear-planner-page__spell-group h3 {
+  margin: 0;
+  color: var(--orange);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
 .pvm-gear-planner-page__spell-result-list {
   display: flex !important;
   flex-wrap: wrap;
   gap: 7px !important;
-  margin-top: 5px;
+  margin-top: 7px;
 }
 .pvm-gear-planner-page__spell-result {
   display: grid;

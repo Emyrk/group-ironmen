@@ -104,7 +104,7 @@ function normalizedEntities() {
   return {
     equipment: equipmentEntities,
     spells: [
-      { name: "Fire Surge", image: "Fire Surge.png", spellbook: "standard", max_hit: 24 },
+      { name: "Fire Surge", image: "Fire Surge.png", spellbook: "standard", element: "fire", max_hit: 24 },
       { name: "Ice Barrage", image: "Ice Barrage.png", spellbook: "ancient", max_hit: 30 },
       { name: "Dark Demonbane", image: "Dark Demonbane.png", spellbook: "arceuus", max_hit: 30 },
       { name: "Saradomin Strike", image: "Saradomin Strike.png", spellbook: "standard", max_hit: 20 },
@@ -210,6 +210,7 @@ vi.mock("../src/pvm/calculator-client", async () => {
 const {
   PvmGearPlannerPage,
   ammoSupportsStyle,
+  groupSpellResults,
   itemFamilyKey,
   itemHasCombatStats,
   itemStatChanges,
@@ -352,6 +353,35 @@ describe("pvm-gear-planner-page", () => {
       { label: "magic defence", difference: -2 },
       { label: "Prayer", difference: 3 },
     ]);
+  });
+
+  it("groups the top five spells per spellbook and top three per standard element", () => {
+    const spellResults = [
+      ...Array.from({ length: 4 }, (_, index) => ({
+        spell: `Air ${index}`,
+        spellbook: "standard",
+        element: "air",
+        dps: 20 - index,
+      })),
+      ...Array.from({ length: 4 }, (_, index) => ({
+        spell: `Fire ${index}`,
+        spellbook: "standard",
+        element: "fire",
+        dps: 16 - index,
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        spell: `Ancient ${index}`,
+        spellbook: "ancient",
+        element: null,
+        dps: 12 - index,
+      })),
+    ];
+
+    const groups = groupSpellResults(spellResults);
+    expect(groups.map(({ key }) => key)).toEqual(["standard:air", "standard:fire", "ancient"]);
+    expect(groups.find(({ key }) => key === "standard:air").spells).toHaveLength(3);
+    expect(groups.find(({ key }) => key === "standard:fire").spells).toHaveLength(3);
+    expect(groups.find(({ key }) => key === "ancient").spells).toHaveLength(5);
   });
 
   it("only allows ranged ammunition in Ranged loadouts", () => {
@@ -723,11 +753,14 @@ describe("pvm-gear-planner-page", () => {
     expect(spellResults).toHaveLength(5);
     expect(spellResults.map((result) => result.querySelector("strong").textContent)).toEqual([
       "Fire Surge",
-      "Ice Barrage",
       "Saradomin Strike",
+      "Ice Barrage",
       "Ghostly Grasp",
       "Dark Demonbane",
     ]);
+    expect(
+      [...page.querySelectorAll(".pvm-gear-planner-page__spell-group h3")].map((heading) => heading.textContent)
+    ).toEqual(["Standard: Fire", "Standard: Other", "Ancient", "Arceuus"]);
     expect(spellResults[0].classList.contains("selected")).toBe(true);
     expect(spellResults[0].textContent).toContain("11.00 DPS");
     expect(spellResults[0].querySelector("img").getAttribute("src")).toBe(
