@@ -343,39 +343,40 @@ export class PvmGearPlannerPage extends BaseElement {
       )[0] || null;
   }
 
+  initializeStyleLoadout(style, { preserveSelections = false } = {}) {
+    const loadout = this.loadouts[style];
+    const equippedIds = equipmentIdsFromMember(this.selectedMemberData);
+    const nextItems = {};
+    for (const slot of SLOT_KEYS) {
+      const selected = loadout.items[slot];
+      const equipped = this.entities.equipmentById.get(equippedIds[slot]);
+      const equippedIsSuitable = equipped?.slot === slot && (slot !== "weapon" || weaponSupportsStyle(equipped, style));
+      const owned = this.ownedEquipment(slot, style, loadout).sort(
+        (left, right) => equipmentScore(right) - equipmentScore(left)
+      );
+      if (
+        preserveSelections &&
+        selected?.slot === slot &&
+        this.isOwned(selected) &&
+        (slot !== "weapon" || weaponSupportsStyle(selected, style))
+      ) {
+        nextItems[slot] = selected;
+      } else {
+        nextItems[slot] = equippedIsSuitable ? equipped : owned[0] || null;
+      }
+    }
+    loadout.items = nextItems;
+    loadout.currentResult = null;
+    loadout.candidateResults = new Map();
+    loadout.selectedSpell = "";
+    loadout.compatibleAmmoIds = null;
+    loadout.rangedWeaponRequiresAmmo = false;
+    this.normalizeTwoHandedEquipment(loadout);
+  }
+
   initializeLoadout({ preserveSelections = false } = {}) {
     if (!this.entities || !this.selectedMemberData) return;
-    const equippedIds = equipmentIdsFromMember(this.selectedMemberData);
-    for (const style of COMBAT_STYLES) {
-      const loadout = this.loadouts[style];
-      const nextItems = {};
-      for (const slot of SLOT_KEYS) {
-        const selected = loadout.items[slot];
-        const equipped = this.entities.equipmentById.get(equippedIds[slot]);
-        const equippedIsSuitable =
-          equipped?.slot === slot && (slot !== "weapon" || weaponSupportsStyle(equipped, style));
-        const owned = this.ownedEquipment(slot, style, loadout).sort(
-          (left, right) => equipmentScore(right) - equipmentScore(left)
-        );
-        if (
-          preserveSelections &&
-          selected?.slot === slot &&
-          this.isOwned(selected) &&
-          (slot !== "weapon" || weaponSupportsStyle(selected, style))
-        ) {
-          nextItems[slot] = selected;
-        } else {
-          nextItems[slot] = equippedIsSuitable ? equipped : owned[0] || null;
-        }
-      }
-      loadout.items = nextItems;
-      loadout.currentResult = null;
-      loadout.candidateResults = new Map();
-      loadout.selectedSpell = "";
-      loadout.compatibleAmmoIds = null;
-      loadout.rangedWeaponRequiresAmmo = false;
-      this.normalizeTwoHandedEquipment(loadout);
-    }
+    for (const style of COMBAT_STYLES) this.initializeStyleLoadout(style, { preserveSelections });
     this.memberSignature = `${memberDataSignature(this.selectedMemberData)}|${memberDataSignature(
       this.sharedStorageData
     )}`;
@@ -407,6 +408,11 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const button of this.querySelectorAll("[data-rune-restriction]")) {
       this.eventListener(button, "click", this.handleRuneRestrictionClick.bind(this));
     }
+    for (const button of this.querySelectorAll("[data-reset-style]")) {
+      this.eventListener(button, "click", this.handleResetStyleClick.bind(this));
+    }
+    const resetAll = this.querySelector("[data-reset-all]");
+    if (resetAll) this.eventListener(resetAll, "click", this.handleResetAllClick.bind(this));
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
@@ -447,6 +453,20 @@ export class PvmGearPlannerPage extends BaseElement {
     this.activeStyle = style;
     this.renderAndBind();
     this.refreshActiveCandidates();
+  }
+
+  handleResetStyleClick(event) {
+    const style = event.currentTarget.dataset.resetStyle;
+    if (!COMBAT_STYLES.includes(style)) return;
+    this.initializeStyleLoadout(style);
+    this.renderAndBind();
+    this.refreshCalculations({ styles: [style] });
+  }
+
+  handleResetAllClick() {
+    for (const style of COMBAT_STYLES) this.initializeStyleLoadout(style);
+    this.renderAndBind();
+    this.refreshCalculations();
   }
 
   handleRuneRestrictionClick(event) {
@@ -661,13 +681,17 @@ export class PvmGearPlannerPage extends BaseElement {
       const result = loadout.currentResult;
       const weapon = loadout.items.weapon;
       return `
-        <button class="pvm-gear-planner-page__style-card ${style === this.activeStyle ? "active" : ""}"
-          data-style="${style}" aria-pressed="${style === this.activeStyle}">
-          <span>${style}</span>
-          <strong>${result ? formatNumber(result.dps, 2) : "…"} DPS</strong>
-          <small>${escapeHtml(weapon?.name || "No owned weapon")}</small>
-          ${style === "Magic" ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>` : ""}
-        </button>`;
+        <article class="pvm-gear-planner-page__style-card ${style === this.activeStyle ? "active" : ""}">
+          <button class="pvm-gear-planner-page__style-select" data-style="${style}"
+            aria-pressed="${style === this.activeStyle}">
+            <span>${style}</span>
+            <strong>${result ? formatNumber(result.dps, 2) : "…"} DPS</strong>
+            <small>${escapeHtml(weapon?.name || "No owned weapon")}</small>
+            ${style === "Magic" ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>` : ""}
+          </button>
+          <button class="pvm-gear-planner-page__reset-icon" data-reset-style="${style}"
+            title="Reset ${style} to automatically selected gear" aria-label="Reset ${style} loadout">↻</button>
+        </article>`;
     }).join("");
   }
 

@@ -145,6 +145,7 @@ PvmGearPlannerPage.prototype.html = function () {
       <input data-control="target" value="${this.renderSelectedTargetLabel()}" />
       <datalist>${this.renderTargetOptions()}</datalist>
     </header>
+    <button data-reset-all>Reset all</button>
     <section class="pvm-gear-planner-page__style-picker">${this.renderStyleCards()}</section>
     <div class="pvm-gear-planner-page__rune-restrictions">${this.renderRuneRestrictions()}</div>
     ${this.renderStatus()}
@@ -254,6 +255,7 @@ describe("pvm-gear-planner-page", () => {
     expect(navigation).toContain('link-href="/group/pvm-gear"');
     expect(plannerTemplate).toContain('class="pvm-gear-planner-page__style-picker"');
     expect(plannerTemplate).toContain('class="pvm-gear-planner-page__rune-restrictions"');
+    expect(plannerTemplate).toContain("data-reset-all");
     expect(plannerTemplate).not.toContain('data-control="spell"');
     expect(components).toContain("pvm-gear-planner-page");
     expect(customElements.get("pvm-gear-planner-page")).toBe(PvmGearPlannerPage);
@@ -311,6 +313,40 @@ describe("pvm-gear-planner-page", () => {
     page.querySelector("[data-style='Melee']").click();
     expect(page.querySelector("[data-slot='body']").title).toContain("Proselyte hauberk");
     expect(page.loadouts.Ranged.items.body.id).toBe(10551);
+    page.remove();
+  });
+
+  it("resets one style without changing the active or other loadouts", async () => {
+    const page = await createPage();
+    page.querySelector("[data-equip-item='9674']").click();
+    await vi.waitFor(() => expect(page.loadouts.Melee.items.body.id).toBe(9674));
+
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-equip-item='10551']").click();
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(10551));
+    page.querySelector("[data-style='Melee']").click();
+
+    page.querySelector("[data-reset-style='Ranged']").click();
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.body.id).toBe(11832));
+    expect(page.activeStyle).toBe("Melee");
+    expect(page.loadouts.Melee.items.body.id).toBe(9674);
+    page.remove();
+  });
+
+  it("resets all three loadouts to their automatic selections", async () => {
+    const page = await createPage();
+    for (const style of ["Melee", "Ranged", "Magic"]) {
+      page.querySelector(`[data-style='${style}']`).click();
+      page.querySelector("[data-equip-item='9674']").click();
+      await vi.waitFor(() => expect(page.loadouts[style].items.body.id).toBe(9674));
+    }
+
+    page.querySelector("[data-reset-all]").click();
+    await vi.waitFor(() =>
+      expect(["Melee", "Ranged", "Magic"].map((style) => page.loadouts[style].items.body.id)).toEqual([
+        11832, 11832, 11832,
+      ])
+    );
     page.remove();
   });
 

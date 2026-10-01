@@ -36,19 +36,28 @@ pvm-gear-planner-page {
   background: #302a22;
   border: 1px solid var(--light-border);
 }
+.pvm-gear-planner-page__loadout-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pvm-gear-planner-page__loadout-actions span {
+  color: #aaa;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
 .pvm-gear-planner-page__style-picker {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 6px;
 }
 .pvm-gear-planner-page__style-card {
+  position: relative;
   display: grid;
-  gap: 4px;
-  padding: 12px;
   color: var(--primary-text);
-  text-align: left;
-  cursor: pointer;
   background: #302a22;
   border: 1px solid #666;
 }
@@ -56,6 +65,37 @@ pvm-gear-planner-page {
 .pvm-gear-planner-page__style-card.active {
   border-color: var(--orange);
   box-shadow: inset 3px 0 var(--orange), 0 0 10px rgb(230 189 75 / 25%);
+}
+.pvm-gear-planner-page__style-select {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 46px 12px 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+.pvm-gear-planner-page__reset-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #bbb;
+  font-size: 1.25rem;
+  cursor: pointer;
+  background: #211d18;
+  border: 1px solid #666;
+  border-radius: 50%;
+}
+.pvm-gear-planner-page__reset-icon:hover {
+  color: var(--orange);
+  border-color: var(--orange);
 }
 .pvm-gear-planner-page__style-card span {
   color: #bbb;
