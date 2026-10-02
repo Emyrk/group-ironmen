@@ -24,6 +24,8 @@ const PINNED_ITEMS_STORAGE_KEY = "pvmGearPlannerPinnedItems";
 const FILTER_STORAGE_KEY = "pvmGearPlannerFilters";
 const SELECTED_TARGET_STORAGE_KEY = "pvmGearPlannerSelectedTarget";
 const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
+const RANKING_PREFERENCE_STORAGE_KEY = "pvmGearPlannerRankingPreference";
+const RANKING_PREFERENCES = new Set(["defence", "prayer"]);
 const MAX_CANDIDATES = 12;
 const DEFAULT_TARGET = ["Giant Mole", ""];
 
@@ -460,15 +462,28 @@ function antiFirePriority(item, slot, target) {
   return isAntiFireShield(item) ? 1 : 0;
 }
 
-function preferEvaluatedCandidate(candidate, current, style, slot, target) {
-  if (candidate.result.dps !== current.result.dps) return candidate.result.dps > current.result.dps;
-  const protectionDifference =
-    antiFirePriority(candidate.item, slot, target) - antiFirePriority(current.item, slot, target);
-  if (protectionDifference !== 0) return protectionDifference > 0;
-  const candidateDamageTaken = candidate.result.damageTakenPerSecond ?? Number.POSITIVE_INFINITY;
-  const currentDamageTaken = current.result.damageTakenPerSecond ?? Number.POSITIVE_INFINITY;
-  if (candidateDamageTaken !== currentDamageTaken) return candidateDamageTaken < currentDamageTaken;
-  return preferCandidateOnTie(candidate.item, current.item, candidate.result.style?.type || style, target);
+function compareEvaluatedCandidates(left, right, style, slot, target, rankingPreference = "defence") {
+  const dpsDifference = (right.result?.dps ?? -1) - (left.result?.dps ?? -1);
+  if (dpsDifference !== 0) return dpsDifference;
+  const protectionDifference = antiFirePriority(right.item, slot, target) - antiFirePriority(left.item, slot, target);
+  if (protectionDifference !== 0) return protectionDifference;
+  const prayerDifference = (right.item?.bonuses?.prayer || 0) - (left.item?.bonuses?.prayer || 0);
+  const damageTakenDifference =
+    (left.result?.damageTakenPerSecond ?? Number.POSITIVE_INFINITY) -
+    (right.result?.damageTakenPerSecond ?? Number.POSITIVE_INFINITY);
+  if (rankingPreference === "prayer" && prayerDifference !== 0) return prayerDifference;
+  if (damageTakenDifference !== 0) return damageTakenDifference;
+  if (prayerDifference !== 0) return prayerDifference;
+  const attackStyle = right.result?.style?.type || left.result?.style?.type || style;
+  const defenceDifference = targetStyleDefence(right.item, target) - targetStyleDefence(left.item, target);
+  if (defenceDifference !== 0) return defenceDifference;
+  if (preferCandidateOnTie(right.item, left.item, attackStyle, target)) return 1;
+  if (preferCandidateOnTie(left.item, right.item, attackStyle, target)) return -1;
+  return 0;
+}
+
+function preferEvaluatedCandidate(candidate, current, style, slot, target, rankingPreference) {
+  return compareEvaluatedCandidates(candidate, current, style, slot, target, rankingPreference) < 0;
 }
 
 export function targetStyleDefence(item, target) {
@@ -702,6 +717,11 @@ export class PvmGearPlannerPage extends BaseElement {
     this.entities = null;
     this.selectedMember = localStorage.getItem(SELECTED_MEMBER_STORAGE_KEY) || "";
     this.selectedTargetKey = "";
+    const storedRankingPreference = localStorage.getItem(RANKING_PREFERENCE_STORAGE_KEY);
+    this.rankingPreference = RANKING_PREFERENCES.has(storedRankingPreference) ? storedRankingPreference : "defence";
+    if (storedRankingPreference && !RANKING_PREFERENCES.has(storedRankingPreference)) {
+      localStorage.removeItem(RANKING_PREFERENCE_STORAGE_KEY);
+    }
     this.activeStyle = "Melee";
     this.loadouts = Object.fromEntries(COMBAT_STYLES.map((style) => [style, createLoadout(style)]));
     const storedFilters = loadStoredFilters();
@@ -971,6 +991,9 @@ export class PvmGearPlannerPage extends BaseElement {
     const target = this.querySelector("[data-control='target']");
     if (member) this.eventListener(member, "change", this.handleMemberChange.bind(this));
     if (target) this.eventListener(target, "change", this.handleTargetChange.bind(this));
+    const rankingPreference = this.querySelector("[data-ranking-preference]");
+    if (rankingPreference)
+      this.eventListener(rankingPreference, "change", this.handleRankingPreferenceChange.bind(this));
     for (const button of this.querySelectorAll("[data-style]")) {
       this.eventListener(button, "click", this.handleStyleClick.bind(this));
     }
@@ -1052,6 +1075,13 @@ export class PvmGearPlannerPage extends BaseElement {
     }
     this.renderAndBind();
     this.refreshCalculations();
+  }
+
+  handleRankingPreferenceChange(event) {
+    if (!RANKING_PREFERENCES.has(event.target.value)) return;
+    this.rankingPreference = event.target.value;
+    localStorage.setItem(RANKING_PREFERENCE_STORAGE_KEY, this.rankingPreference);
+    this.renderAndBind();
   }
 
   handleStyleClick(event) {
@@ -1375,7 +1405,8 @@ export class PvmGearPlannerPage extends BaseElement {
                   best,
                   style,
                   slot,
-                  this.selectedTarget
+                  this.selectedTarget,
+                  this.rankingPreference
                 )
               ) {
                 best = { result: candidate.result, item: weapon, extra: variant };
@@ -1395,7 +1426,14 @@ export class PvmGearPlannerPage extends BaseElement {
               if (generation !== this.calculationGeneration) return false;
               if (
                 candidate &&
-                preferEvaluatedCandidate({ result: candidate.result, item }, best, style, slot, this.selectedTarget)
+                preferEvaluatedCandidate(
+                  { result: candidate.result, item },
+                  best,
+                  style,
+                  slot,
+                  this.selectedTarget,
+                  this.rankingPreference
+                )
               )
                 best = { result: candidate.result, item, extra: null };
             } catch {
@@ -1411,7 +1449,8 @@ export class PvmGearPlannerPage extends BaseElement {
             { result: loadout.currentResult, item: loadout.items[slot] },
             style,
             slot,
-            this.selectedTarget
+            this.selectedTarget,
+            this.rankingPreference
           )
         ) {
           this.applyOptimizedItem(style, slot, best.item);
@@ -1582,6 +1621,39 @@ export class PvmGearPlannerPage extends BaseElement {
   renderTargetOptions() {
     if (!this.entities) return "";
     return this.entities.targets.map((target) => `<option value="${escapeHtml(target.label)}"></option>`).join("");
+  }
+
+  targetImageUrl(target = this.selectedTarget) {
+    if (!target?.image) return "";
+    return `https://oldschool.runescape.wiki/images/${encodeURIComponent(target.image.replaceAll(" ", "_"))}`;
+  }
+
+  renderPlannerControls() {
+    const targetImage = this.targetImageUrl();
+    return `<div class="pvm-gear-planner-page__context">
+      <div class="pvm-gear-planner-page__target-image">
+        ${
+          targetImage
+            ? `<img src="${targetImage}" alt="${escapeHtml(this.selectedTarget?.name || "Selected target")}" />`
+            : ""
+        }
+      </div>
+      <div class="pvm-gear-planner-page__controls">
+        <label>Member<select data-control="member">${this.renderMemberOptions()}</select></label>
+        <label>
+          Target
+          <input data-control="target" list="pvm-gear-planner-targets" value="${this.renderSelectedTargetLabel()}" placeholder="Search NPCs" />
+          <datalist id="pvm-gear-planner-targets">${this.renderTargetOptions()}</datalist>
+        </label>
+        <label>
+          After equal DPS
+          <select data-ranking-preference>
+            <option value="defence" ${this.rankingPreference === "defence" ? "selected" : ""}>Prefer defence</option>
+            <option value="prayer" ${this.rankingPreference === "prayer" ? "selected" : ""}>Prefer Prayer</option>
+          </select>
+        </label>
+      </div>
+    </div>`;
   }
 
   renderStyleCards() {
@@ -1779,22 +1851,16 @@ export class PvmGearPlannerPage extends BaseElement {
     const loadout = this.activeLoadout;
     const ranked = this.activeCandidates()
       .map((item) => ({ item, result: loadout.candidateResults.get(item.id) }))
-      .sort((left, right) => {
-        const dpsDifference = (right.result?.dps || -1) - (left.result?.dps || -1);
-        if (dpsDifference !== 0) return dpsDifference;
-        const protectionDifference =
-          antiFirePriority(right.item, this.activeSlot, this.selectedTarget) -
-          antiFirePriority(left.item, this.activeSlot, this.selectedTarget);
-        if (protectionDifference !== 0) return protectionDifference;
-        const damageTakenDifference =
-          (left.result?.damageTakenPerSecond ?? Number.POSITIVE_INFINITY) -
-          (right.result?.damageTakenPerSecond ?? Number.POSITIVE_INFINITY);
-        if (damageTakenDifference !== 0) return damageTakenDifference;
-        const attackStyle = right.result?.style?.type || left.result?.style?.type || this.activeStyle;
-        if (preferCandidateOnTie(right.item, left.item, attackStyle, this.selectedTarget)) return 1;
-        if (preferCandidateOnTie(left.item, right.item, attackStyle, this.selectedTarget)) return -1;
-        return 0;
-      });
+      .sort((left, right) =>
+        compareEvaluatedCandidates(
+          left,
+          right,
+          this.activeStyle,
+          this.activeSlot,
+          this.selectedTarget,
+          this.rankingPreference
+        )
+      );
     if (ranked.length === 0)
       return '<p class="pvm-gear-planner-page__empty">No owned equipment found for this slot.</p>';
     const bestDps = Math.max(0, ...ranked.map(({ result }) => result?.dps || 0));

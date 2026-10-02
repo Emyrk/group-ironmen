@@ -3,14 +3,6 @@
     <h1>PvM Gear Planner</h1>
     <p>Compare equipment your group member owns with the OSRS Wiki damage calculator.</p>
   </div>
-  <div class="pvm-gear-planner-page__controls rsbackground rsborder-tiny">
-    <label>Member<select data-control="member">${this.renderMemberOptions()}</select></label>
-    <label>
-      Target
-      <input data-control="target" list="pvm-gear-planner-targets" value="${this.renderSelectedTargetLabel()}" placeholder="Search NPCs" />
-      <datalist id="pvm-gear-planner-targets">${this.renderTargetOptions()}</datalist>
-    </label>
-  </div>
 </header>
 <div class="pvm-gear-planner-page__loadout-actions">
   <span>Combat loadouts</span>
@@ -22,6 +14,7 @@ ${this.renderStatus()}
 <div class="pvm-gear-planner-page__workspace">
   <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
     <header><h2>${this.activeStyle} loadout</h2><span>Choose a slot to compare</span></header>
+    ${this.renderPlannerControls()}
     <div class="pvm-gear-planner-page__paperdoll" aria-label="${this.activeStyle} equipment">${this.renderPaperdoll()}</div>
     <div class="pvm-gear-planner-page__selected-slot">
       <span>${this.slotName(this.activeSlot)}</span>
@@ -37,7 +30,7 @@ ${this.renderStatus()}
   </section>
   <section class="pvm-gear-planner-page__choices rsbackground rsborder-tiny">
     <header>
-      <div><h2>${this.slotName(this.activeSlot)} options</h2><span>Offense first, then lower damage taken for equal DPS</span></div>
+      <div><h2>${this.slotName(this.activeSlot)} options</h2><span>Real DPS first, then ${this.rankingPreference === "prayer" ? "Prayer" : "lower damage taken"}</span></div>
     </header>
     ${this.renderBankItemSearch()}
     <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
