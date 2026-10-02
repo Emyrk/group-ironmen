@@ -559,6 +559,16 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
+  it("keeps item tooltip text crisp without inherited shadows or transforms", () => {
+    const styles = readFileSync("src/pvm-gear-planner-page/pvm-gear-planner-page.css", "utf8");
+    expect(styles).toContain(".pvm-gear-planner-page__item-stats-tooltip *");
+    expect(styles).toContain("text-shadow: none !important;");
+    expect(styles).not.toContain(
+      ".pvm-gear-planner-page__item-stats-tooltip {\n  position: fixed;\n  top: 50vh;\n  left: 50vw;\n  z-index: 20;\n  min-width: 280px;\n  max-width: min(380px, calc(100vw - 24px));\n  overflow: hidden;\n  color: #201b14;\n  font-family: Georgia"
+    );
+    expect(styles).not.toContain("transform: translateY(4px)");
+  });
+
   it("shows full item stats for paperdoll and equipped alternative items", async () => {
     const page = await createPage();
     await vi.waitFor(() => expect(page.querySelector(".pvm-gear-planner-page__tier")?.textContent).not.toBe("…"));
