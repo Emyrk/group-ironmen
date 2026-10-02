@@ -74,7 +74,7 @@ pvm-gear-planner-page {
 }
 .pvm-gear-planner-page__style-picker {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(300px, 1.2fr) repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 6px;
 }
@@ -832,6 +832,9 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
 @media only screen and (max-width: 1100px) {
   .pvm-gear-planner-page__results {
     grid-template-columns: repeat(4, 1fr);
+  }
+  .pvm-gear-planner-page__style-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .pvm-gear-planner-page__workspace {
     grid-template-columns: 1fr;

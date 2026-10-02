@@ -8,13 +8,15 @@
   <span>Combat loadouts</span>
   <button class="men-button" data-reset-all title="Optimize every unlocked gear slot for DPS">↻ Optimize all</button>
 </div>
-<section class="pvm-gear-planner-page__style-picker" aria-label="Combat loadouts">${this.renderStyleCards()}</section>
+<section class="pvm-gear-planner-page__style-picker" aria-label="Planner context and combat loadouts">
+  ${this.renderPlannerControls()}
+  ${this.renderStyleCards()}
+</section>
 ${this.renderStatus()}
 <section class="pvm-gear-planner-page__results rsbackground rsborder-tiny">${this.renderResults()}</section>
 <div class="pvm-gear-planner-page__workspace">
   <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
     <header><h2>${this.activeStyle} loadout</h2><span>Choose a slot to compare</span></header>
-    ${this.renderPlannerControls()}
     <div class="pvm-gear-planner-page__paperdoll" aria-label="${this.activeStyle} equipment">${this.renderPaperdoll()}</div>
     <div class="pvm-gear-planner-page__selected-slot">
       <span>${this.slotName(this.activeSlot)}</span>

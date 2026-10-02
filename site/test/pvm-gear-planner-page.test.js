@@ -265,10 +265,9 @@ PvmGearPlannerPage.prototype.html = function () {
       <h1>PvM Gear Planner</h1>
     </header>
     <button data-reset-all>Optimize all</button>
-    <section class="pvm-gear-planner-page__style-picker">${this.renderStyleCards()}</section>
+    <section class="pvm-gear-planner-page__style-picker">${this.renderPlannerControls()}${this.renderStyleCards()}</section>
     ${this.renderStatus()}
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
-    ${this.renderPlannerControls()}
     <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</section>
     ${
       this.activeStyle === "Magic"
@@ -382,14 +381,21 @@ describe("pvm-gear-planner-page", () => {
     window.history.replaceState("", "", "/group/pvm-gear");
   });
 
-  it("renders member, target, image, and ranking controls in the left loadout panel", () => {
+  it("renders member, target, image, and ranking controls left of the combat loadout cards", () => {
     const template = readFileSync("src/pvm-gear-planner-page/pvm-gear-planner-page.html", "utf8");
-    const loadoutStart = template.indexOf("pvm-gear-planner-page__loadout rsbackground");
-    const choicesStart = template.indexOf("pvm-gear-planner-page__choices rsbackground");
+    const stylePicker = template.indexOf("pvm-gear-planner-page__style-picker");
     const controls = template.indexOf("${this.renderPlannerControls()}");
-    expect(loadoutStart).toBeGreaterThan(-1);
-    expect(controls).toBeGreaterThan(loadoutStart);
-    expect(controls).toBeLessThan(choicesStart);
+    const styleCards = template.indexOf("${this.renderStyleCards()}");
+    const workspace = template.indexOf("pvm-gear-planner-page__workspace");
+    expect(stylePicker).toBeGreaterThan(-1);
+    expect(controls).toBeGreaterThan(stylePicker);
+    expect(styleCards).toBeGreaterThan(controls);
+    expect(workspace).toBeGreaterThan(styleCards);
+  });
+
+  it("uses one desktop row for planner context and all three combat cards", () => {
+    const styles = readFileSync("src/pvm-gear-planner-page/pvm-gear-planner-page.css", "utf8");
+    expect(styles).toContain("grid-template-columns: minmax(300px, 1.2fr) repeat(3, minmax(0, 1fr));");
   });
 
   it("filters statless items and groups tiered and charged variants", () => {
