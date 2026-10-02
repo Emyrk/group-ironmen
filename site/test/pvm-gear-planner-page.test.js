@@ -348,6 +348,8 @@ async function waitForReadyAlternatives(page) {
 }
 
 const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + index));
+const extraRangedWeaponIds = new Set(Array.from({ length: 13 }, (_, index) => 32000 + index));
+const temporaryEquipmentIds = new Set([...extraBodyIds, ...extraRangedWeaponIds]);
 
 describe("pvm-gear-planner-page", () => {
   beforeEach(() => {
@@ -357,7 +359,7 @@ describe("pvm-gear-planner-page", () => {
     localStorage.clear();
     document.body.innerHTML = "";
     for (let index = equipmentEntities.length - 1; index >= 0; index -= 1) {
-      if (extraBodyIds.has(equipmentEntities[index].id)) equipmentEntities.splice(index, 1);
+      if (temporaryEquipmentIds.has(equipmentEntities[index].id)) equipmentEntities.splice(index, 1);
     }
     window.history.replaceState("", "", "/group/pvm-gear");
   });
@@ -824,6 +826,31 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
+  it("keeps an allowed Crystal bow visible beyond the normal weapon candidate cutoff", async () => {
+    equipmentEntities.push(
+      ...[...extraRangedWeaponIds].map((id, index) =>
+        combatWeapon(id, `High score bow ${index + 1}`, "Bow", "ranged", 300 - index)
+      )
+    );
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-slot='weapon']").click();
+
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='23983']")).not.toBeNull());
+    expect(page.activeCandidates().some((candidate) => candidate.id === 23983)).toBe(true);
+    expect(page.optimizationCandidates("weapon", "Ranged").some((candidate) => candidate.id === 23983)).toBe(true);
+    page.remove();
+  });
+
   it("filters Crystal bows and caps standard ammo while preserving special ammo", async () => {
     const dragonArrow = equipmentEntities.find((item) => item.id === 11212);
     const runeArrow = equipmentEntities.find((item) => item.id === 892);
@@ -864,6 +891,10 @@ describe("pvm-gear-planner-page", () => {
       ["iron", "Iron"],
       ["bronze", "Bronze"],
     ]);
+
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-slot='weapon']").click();
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='23983']")).not.toBeNull());
 
     rangedCard.querySelector("[data-ranged-crystal-filter]").click();
     await vi.waitFor(() => {

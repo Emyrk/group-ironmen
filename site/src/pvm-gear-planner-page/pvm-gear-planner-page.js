@@ -1173,6 +1173,7 @@ export class PvmGearPlannerPage extends BaseElement {
       if (item && !included.some((candidate) => candidate.id === item.id)) included.push(item);
     };
     include(selected);
+    if (this.activeStyle === "Ranged" && this.activeSlot === "weapon") include(candidates.find(isCrystalBow));
     const pinnedIds = this.pinnedItemIds();
     for (const item of candidates) {
       if (pinnedIds.has(item.id)) include(item);
@@ -1213,7 +1214,7 @@ export class PvmGearPlannerPage extends BaseElement {
 
   optimizationCandidates(slot, style) {
     const selectedId = this.loadouts[style].items[slot]?.id;
-    return this.ownedEquipment(slot, style, this.loadouts[style])
+    const candidates = this.ownedEquipment(slot, style, this.loadouts[style])
       .filter((item) => item.id !== selectedId)
       .sort((left, right) => {
         const scoreDifference = compareCandidateHeuristic(left, right, slot, this.selectedTarget);
@@ -1221,8 +1222,11 @@ export class PvmGearPlannerPage extends BaseElement {
         if (preferCandidateOnTie(right, left, style, this.selectedTarget)) return 1;
         if (preferCandidateOnTie(left, right, style, this.selectedTarget)) return -1;
         return 0;
-      })
-      .slice(0, MAX_CANDIDATES);
+      });
+    const included = candidates.slice(0, MAX_CANDIDATES);
+    const crystalBow = style === "Ranged" && slot === "weapon" ? candidates.find(isCrystalBow) : null;
+    if (crystalBow && !included.some((item) => item.id === crystalBow.id)) included.push(crystalBow);
+    return included;
   }
 
   candidateRespectsLocks(style, slot, item) {
