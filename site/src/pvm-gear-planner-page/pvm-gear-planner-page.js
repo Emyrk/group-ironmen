@@ -20,6 +20,7 @@ const PAPERDOLL_SLOTS = [
 const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
 const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
 const COMBAT_STYLES = ["Melee", "Ranged", "Magic"];
+const FILTER_STORAGE_KEY = "pvmGearPlannerFilters";
 const SELECTED_TARGET_STORAGE_KEY = "pvmGearPlannerSelectedTarget";
 const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
 const MAX_CANDIDATES = 12;
@@ -474,6 +475,40 @@ const AMMO_TIER_LABELS = Object.freeze({
   bronze: "Bronze",
 });
 
+const DEFAULT_RANGED_FILTERS = Object.freeze({ omitCrystalBow: false, ammoTier: "all" });
+const DEFAULT_RUNE_RESTRICTIONS = Object.freeze({ wrath: false, death: false, blood: false });
+
+function loadStoredFilters() {
+  const defaults = {
+    ranged: { ...DEFAULT_RANGED_FILTERS },
+    magic: { ...DEFAULT_RUNE_RESTRICTIONS },
+  };
+  const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+  if (!stored) return defaults;
+  try {
+    const parsed = JSON.parse(stored);
+    const ammoTier = parsed?.ranged?.ammoTier;
+    return {
+      ranged: {
+        omitCrystalBow:
+          typeof parsed?.ranged?.omitCrystalBow === "boolean"
+            ? parsed.ranged.omitCrystalBow
+            : DEFAULT_RANGED_FILTERS.omitCrystalBow,
+        ammoTier: Object.hasOwn(AMMO_TIER_LABELS, ammoTier) ? ammoTier : DEFAULT_RANGED_FILTERS.ammoTier,
+      },
+      magic: Object.fromEntries(
+        Object.entries(DEFAULT_RUNE_RESTRICTIONS).map(([rune, restricted]) => [
+          rune,
+          typeof parsed?.magic?.[rune] === "boolean" ? parsed.magic[rune] : restricted,
+        ])
+      ),
+    };
+  } catch {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
+    return defaults;
+  }
+}
+
 export function rangedAmmoTier(item) {
   if (item?.slot !== "ammo") return null;
   const match = item.name.match(/^(Dragon|Rune|Runite|Adamant|Mithril|Steel|Iron|Bronze)\b/i);
@@ -572,9 +607,10 @@ export class PvmGearPlannerPage extends BaseElement {
     this.selectedTargetKey = "";
     this.activeStyle = "Melee";
     this.loadouts = Object.fromEntries(COMBAT_STYLES.map((style) => [style, createLoadout(style)]));
-    this.rangedFilters = { omitCrystalBow: false, ammoTier: "all" };
+    const storedFilters = loadStoredFilters();
+    this.rangedFilters = storedFilters.ranged;
     this.spellResultsHidden = false;
-    this.runeRestrictions = { wrath: false, death: false, blood: false };
+    this.runeRestrictions = storedFilters.magic;
     this.ammoRequestId = 0;
     this.activeSlot = "body";
     this.loadingEntities = true;
@@ -923,6 +959,13 @@ export class PvmGearPlannerPage extends BaseElement {
     this.optimizeLoadouts(COMBAT_STYLES);
   }
 
+  persistFilters() {
+    localStorage.setItem(
+      FILTER_STORAGE_KEY,
+      JSON.stringify({ ranged: this.rangedFilters, magic: this.runeRestrictions })
+    );
+  }
+
   refreshRangedFilters() {
     const ranged = this.loadouts.Ranged;
     const currentWeapon = ranged.items.weapon;
@@ -940,12 +983,14 @@ export class PvmGearPlannerPage extends BaseElement {
 
   handleCrystalBowFilterClick() {
     this.rangedFilters.omitCrystalBow = !this.rangedFilters.omitCrystalBow;
+    this.persistFilters();
     this.refreshRangedFilters();
   }
 
   handleAmmoTierChange(event) {
     if (!Object.hasOwn(AMMO_TIER_LABELS, event.target.value)) return;
     this.rangedFilters.ammoTier = event.target.value;
+    this.persistFilters();
     this.refreshRangedFilters();
   }
 
@@ -953,6 +998,7 @@ export class PvmGearPlannerPage extends BaseElement {
     const rune = event.currentTarget.dataset.runeRestriction;
     if (!Object.hasOwn(this.runeRestrictions, rune)) return;
     this.runeRestrictions[rune] = !this.runeRestrictions[rune];
+    this.persistFilters();
     const magic = this.loadouts.Magic;
     magic.currentResult = null;
     magic.candidateResults = new Map();

@@ -896,6 +896,51 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
+  it("restores the most recently selected Ranged and Magic filters", async () => {
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((item) => item.id),
+        11832
+      )
+    );
+    const firstPage = await createPage(data);
+    firstPage.querySelector("[data-ranged-crystal-filter]").click();
+    const tier = firstPage.querySelector("[data-ranged-ammo-tier]");
+    tier.value = "adamant";
+    tier.dispatchEvent(new Event("change"));
+    firstPage.querySelector("[data-rune-restriction='wrath']").click();
+    firstPage.querySelector("[data-rune-restriction='blood']").click();
+    await vi.waitFor(() => expect(firstPage.calculating).toBe(false));
+
+    expect(JSON.parse(localStorage.getItem("pvmGearPlannerFilters"))).toEqual({
+      ranged: { omitCrystalBow: true, ammoTier: "adamant" },
+      magic: { wrath: true, death: false, blood: true },
+    });
+    firstPage.remove();
+
+    const restoredPage = await createPage(data);
+    expect(restoredPage.rangedFilters).toEqual({ omitCrystalBow: true, ammoTier: "adamant" });
+    expect(restoredPage.runeRestrictions).toEqual({ wrath: true, death: false, blood: true });
+    expect(restoredPage.querySelector("[data-ranged-ammo-tier]").value).toBe("adamant");
+    expect(restoredPage.querySelector("[data-ranged-crystal-filter]").getAttribute("aria-pressed")).toBe("true");
+    expect(restoredPage.querySelector("[data-rune-restriction='wrath']").getAttribute("aria-pressed")).toBe("true");
+    expect(restoredPage.querySelector("[data-rune-restriction='death']").getAttribute("aria-pressed")).toBe("false");
+    expect(restoredPage.querySelector("[data-rune-restriction='blood']").getAttribute("aria-pressed")).toBe("true");
+    restoredPage.remove();
+  });
+
+  it("falls back to default filters when stored filter data is invalid", async () => {
+    localStorage.setItem("pvmGearPlannerFilters", "not-json");
+    const page = await createPage();
+    expect(page.rangedFilters).toEqual({ omitCrystalBow: false, ammoTier: "all" });
+    expect(page.runeRestrictions).toEqual({ wrath: false, death: false, blood: false });
+    expect(localStorage.getItem("pvmGearPlannerFilters")).toBeNull();
+    page.remove();
+  });
+
   it("renders rune restriction icons inside the Magic loadout card", async () => {
     const page = await createPage();
     const magicCard = page.querySelector("[data-style='Magic']").closest("article");
