@@ -191,6 +191,36 @@ const ITEM_PROGRESSION_GROUPS = Object.freeze([
     1331, // Adamant scimitar
     1333, // Rune scimitar
   ],
+  [
+    806, // Bronze dart
+    812, // Bronze dart(p)
+    5628, // Bronze dart(p+)
+    5635, // Bronze dart(p++)
+    807, // Iron dart
+    813, // Iron dart(p)
+    5629, // Iron dart(p+)
+    5636, // Iron dart(p++)
+    808, // Steel dart
+    814, // Steel dart(p)
+    5630, // Steel dart(p+)
+    5637, // Steel dart(p++)
+    3093, // Black dart
+    3094, // Black dart(p)
+    5631, // Black dart(p+)
+    5638, // Black dart(p++)
+    809, // Mithril dart
+    815, // Mithril dart(p)
+    5632, // Mithril dart(p+)
+    5639, // Mithril dart(p++)
+    810, // Adamant dart
+    816, // Adamant dart(p)
+    5633, // Adamant dart(p+)
+    5640, // Adamant dart(p++)
+    811, // Rune dart
+    817, // Rune dart(p)
+    5634, // Rune dart(p+)
+    5641, // Rune dart(p++)
+  ],
 ]);
 const ITEM_PROGRESSION_RANKS = new Map();
 for (const [groupIndex, itemIds] of ITEM_PROGRESSION_GROUPS.entries()) {

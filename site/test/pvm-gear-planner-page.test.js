@@ -351,12 +351,17 @@ const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + in
 const extraRangedWeaponIds = new Set(Array.from({ length: 13 }, (_, index) => 32000 + index));
 const standardBowIds = new Set([839, 841, 843, 845, 847, 849, 851, 853, 855, 857, 859]);
 const standardScimitarIds = new Set([1321, 1323, 1325, 1327, 1329, 1331, 1333]);
+const standardDartIds = new Set([
+  806, 812, 5628, 5635, 807, 813, 5629, 5636, 808, 814, 5630, 5637, 3093, 3094, 5631, 5638, 809, 815, 5632, 5639, 810,
+  816, 5633, 5640, 811, 817, 5634, 5641,
+]);
 const temporaryEquipmentIds = new Set([
   1123,
   ...extraBodyIds,
   ...extraRangedWeaponIds,
   ...standardBowIds,
   ...standardScimitarIds,
+  ...standardDartIds,
 ]);
 
 describe("pvm-gear-planner-page", () => {
@@ -785,6 +790,48 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelector("[data-equip-item='11978']")).not.toBeNull();
     expect(page.querySelector("[data-equip-item='1704']")).toBeNull();
     expect(page.querySelector("[data-equip-item='11105']")).toBeNull();
+    page.remove();
+  });
+
+  it("shows only the strongest owned bronze-through-rune dart variant", async () => {
+    const dartTiers = [
+      ["Bronze", [806, 812, 5628, 5635], 1],
+      ["Iron", [807, 813, 5629, 5636], 2],
+      ["Steel", [808, 814, 5630, 5637], 3],
+      ["Black", [3093, 3094, 5631, 5638], 6],
+      ["Mithril", [809, 815, 5632, 5639], 9],
+      ["Adamant", [810, 816, 5633, 5640], 17],
+      ["Rune", [811, 817, 5634, 5641], 26],
+    ];
+    const versions = ["Unpoisoned", "Poison", "Poison+", "Poison++"];
+    equipmentEntities.push(
+      ...dartTiers.flatMap(([material, itemIds, strength]) =>
+        itemIds.map((id, index) => {
+          const item = combatWeapon(id, `${material} dart`, "Thrown", "ranged", 0);
+          item.version = versions[index];
+          item.speed = 3;
+          item.bonuses.ranged_str = strength;
+          return item;
+        })
+      )
+    );
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-slot='weapon']").click();
+
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='5641']")).not.toBeNull());
+    for (const itemId of [...standardDartIds].filter((id) => id !== 5641)) {
+      expect(page.querySelector(`[data-equip-item='${itemId}']`)).toBeNull();
+    }
     page.remove();
   });
 
