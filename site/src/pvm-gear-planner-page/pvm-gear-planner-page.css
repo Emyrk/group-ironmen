@@ -240,6 +240,26 @@ pvm-gear-planner-page {
   align-items: center;
   gap: 5px !important;
 }
+.pvm-gear-planner-page__spell-results-actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 5px !important;
+  align-items: center;
+}
+.pvm-gear-planner-page__spell-toggle {
+  padding: 2px 7px;
+  color: #bbb;
+  font-size: 0.68rem;
+  cursor: pointer;
+  background: #211d18;
+  border: 1px solid #666;
+  border-radius: 10px;
+}
+.pvm-gear-planner-page__spell-toggle:hover,
+.pvm-gear-planner-page__spell-toggle:focus {
+  color: var(--orange);
+  border-color: var(--orange);
+}
 .pvm-gear-planner-page__target-weakness {
   padding: 2px 6px;
   font-size: 0.68rem !important;
@@ -328,11 +348,11 @@ pvm-gear-planner-page {
 }
 .pvm-gear-planner-page__spell-result b.higher {
   color: hsl(112deg var(--dps-saturation) var(--dps-lightness));
-  text-shadow: 0 0 5px currentcolor;
+  text-shadow: 0 0 2px rgb(140 230 130 / 35%);
 }
 .pvm-gear-planner-page__spell-result b.lower {
   color: hsl(4deg var(--dps-saturation) var(--dps-lightness));
-  text-shadow: 0 0 5px currentcolor;
+  text-shadow: 0 0 2px rgb(235 110 100 / 35%);
 }
 .pvm-gear-planner-page__spell-result b.equal {
   color: var(--orange);

@@ -517,6 +517,7 @@ export class PvmGearPlannerPage extends BaseElement {
     this.selectedTargetKey = "";
     this.activeStyle = "Melee";
     this.loadouts = Object.fromEntries(COMBAT_STYLES.map((style) => [style, createLoadout(style)]));
+    this.spellResultsHidden = false;
     this.runeRestrictions = { wrath: false, death: false, blood: false };
     this.ammoRequestId = 0;
     this.activeSlot = "body";
@@ -752,6 +753,8 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const button of this.querySelectorAll("[data-style]")) {
       this.eventListener(button, "click", this.handleStyleClick.bind(this));
     }
+    const spellToggle = this.querySelector("[data-toggle-spells]");
+    if (spellToggle) this.eventListener(spellToggle, "click", this.handleSpellResultsToggle.bind(this));
     for (const button of this.querySelectorAll("[data-rune-restriction]")) {
       this.eventListener(button, "click", this.handleRuneRestrictionClick.bind(this));
     }
@@ -775,6 +778,11 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const button of this.querySelectorAll("[data-equip-item]")) {
       this.eventListener(button, "click", this.handleEquipClick.bind(this));
     }
+  }
+
+  handleSpellResultsToggle() {
+    this.spellResultsHidden = !this.spellResultsHidden;
+    this.renderAndBind();
   }
 
   handleComparisonTooltipMove(event) {
@@ -1416,13 +1424,20 @@ export class PvmGearPlannerPage extends BaseElement {
     return `<div class="pvm-gear-planner-page__spell-results">
       <div class="pvm-gear-planner-page__spell-results-header">
         <span>Spell DPS</span>
-        <span class="pvm-gear-planner-page__target-weakness ${
-          weakness ? "active" : "none"
-        }" data-target-weakness title="${escapeHtml(weaknessDescription)}">${
+        <div class="pvm-gear-planner-page__spell-results-actions">
+          <span class="pvm-gear-planner-page__target-weakness ${
+            weakness ? "active" : "none"
+          }" data-target-weakness title="${escapeHtml(weaknessDescription)}">${
       weakness ? `Weakness: ${escapeHtml(weakness.label)} +${weakness.severity}%` : "No elemental weakness"
     }</span>
+          <button type="button" class="pvm-gear-planner-page__spell-toggle" data-toggle-spells aria-expanded="${!this
+            .spellResultsHidden}">${this.spellResultsHidden ? "Show spells" : "Hide spells"}</button>
+        </div>
       </div>
-      <div class="pvm-gear-planner-page__spell-groups">
+      ${
+        this.spellResultsHidden
+          ? ""
+          : `<div class="pvm-gear-planner-page__spell-groups">
         ${groups
           .map(({ key, label, spells }) => {
             const groupMatchesWeakness = weakness && key === `standard:${weakness.element}`;
@@ -1469,7 +1484,8 @@ export class PvmGearPlannerPage extends BaseElement {
             </section>`;
           })
           .join("")}
-      </div>
+      </div>`
+      }
     </div>`;
   }
 

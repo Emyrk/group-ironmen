@@ -830,6 +830,32 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
+  it("hides and restores the Magic spell rows without recalculating", async () => {
+    const page = await createPage();
+    page.querySelector("[data-style='Magic']").click();
+    await vi.waitFor(() =>
+      expect(page.querySelectorAll(".pvm-gear-planner-page__spell-result").length).toBeGreaterThan(0)
+    );
+    const requestCount = requests.length;
+
+    let toggle = page.querySelector("[data-toggle-spells]");
+    expect(toggle.textContent).toContain("Hide spells");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    toggle.click();
+
+    expect(page.querySelector(".pvm-gear-planner-page__spell-groups")).toBeNull();
+    toggle = page.querySelector("[data-toggle-spells]");
+    expect(toggle.textContent).toContain("Show spells");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(requests).toHaveLength(requestCount);
+
+    toggle.click();
+    expect(page.querySelectorAll(".pvm-gear-planner-page__spell-result").length).toBeGreaterThan(0);
+    expect(page.querySelector("[data-toggle-spells]").getAttribute("aria-expanded")).toBe("true");
+    expect(requests).toHaveLength(requestCount);
+    page.remove();
+  });
+
   it("shows the target weakness and highlights matching compact spell rows", async () => {
     const page = await createPage();
     const target = page.querySelector("[data-control='target']");
