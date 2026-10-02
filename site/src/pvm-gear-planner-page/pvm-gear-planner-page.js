@@ -437,6 +437,36 @@ export function itemStatChanges(candidate, current) {
   })).filter(({ difference }) => difference !== 0);
 }
 
+const AMMO_TIER_ORDER = ["bronze", "iron", "steel", "mithril", "adamant", "rune", "dragon"];
+const AMMO_TIER_LABELS = Object.freeze({
+  all: "ALL",
+  dragon: "Dragon",
+  rune: "Rune",
+  adamant: "Addy",
+  mithril: "Mithril",
+  steel: "Steel",
+  iron: "Iron",
+  bronze: "Bronze",
+});
+
+export function rangedAmmoTier(item) {
+  if (item?.slot !== "ammo") return null;
+  const match = item.name.match(/^(Dragon|Rune|Runite|Adamant|Mithril|Steel|Iron|Bronze)\b/i);
+  if (!match) return null;
+  const tier = match[1].toLowerCase();
+  return tier === "runite" ? "rune" : tier;
+}
+
+export function ammoAllowedByTier(item, maximumTier) {
+  const tier = rangedAmmoTier(item);
+  if (!tier || maximumTier === "all") return true;
+  return AMMO_TIER_ORDER.indexOf(tier) <= AMMO_TIER_ORDER.indexOf(maximumTier);
+}
+
+export function isCrystalBow(item) {
+  return item?.slot === "weapon" && item.name.toLowerCase().startsWith("crystal bow");
+}
+
 const MAGIC_WEAPON_CATEGORIES = new Set(["Bladed Staff", "Powered Staff", "Powered Wand", "Staff"]);
 const RANGED_WEAPON_CATEGORIES = new Set(["Bow", "Chinchompas", "Crossbow", "Salamander", "Thrown"]);
 
@@ -517,6 +547,7 @@ export class PvmGearPlannerPage extends BaseElement {
     this.selectedTargetKey = "";
     this.activeStyle = "Melee";
     this.loadouts = Object.fromEntries(COMBAT_STYLES.map((style) => [style, createLoadout(style)]));
+    this.rangedFilters = { omitCrystalBow: false, ammoTier: "all" };
     this.spellResultsHidden = false;
     this.runeRestrictions = { wrath: false, death: false, blood: false };
     this.ammoRequestId = 0;
@@ -623,6 +654,8 @@ export class PvmGearPlannerPage extends BaseElement {
           this.isOwned(item) &&
           itemHasCombatStats(item) &&
           (slot !== "weapon" || weaponSupportsStyle(item, style)) &&
+          (style !== "Ranged" || slot !== "weapon" || !this.rangedFilters.omitCrystalBow || !isCrystalBow(item)) &&
+          (style !== "Ranged" || slot !== "ammo" || ammoAllowedByTier(item, this.rangedFilters.ammoTier)) &&
           ammoSupportsStyle(item, style) &&
           (slot !== "ammo" ||
             style !== "Ranged" ||
@@ -645,8 +678,14 @@ export class PvmGearPlannerPage extends BaseElement {
   calculationConfigurationError(style = this.activeStyle) {
     const loadout = this.loadouts[style];
     if (!loadout?.items.weapon) return `No owned ${style.toLowerCase()} weapon is available.`;
-    if (style === "Ranged" && loadout.rangedWeaponRequiresAmmo && !loadout.items.ammo)
-      return "No owned compatible ammunition is available.";
+    if (
+      style === "Ranged" &&
+      loadout.rangedWeaponRequiresAmmo &&
+      (!loadout.items.ammo ||
+        !loadout.compatibleAmmoIds?.has(loadout.items.ammo.id) ||
+        !ammoAllowedByTier(loadout.items.ammo, this.rangedFilters.ammoTier))
+    )
+      return "No owned compatible ammunition is available within the selected tier.";
     if (style === "Magic" && this.eligibleMagicSpells.length === 0)
       return `No offensive spells are castable at Magic level ${
         this.selectedMemberData?.skills?.Magic?.level || 1
@@ -667,7 +706,7 @@ export class PvmGearPlannerPage extends BaseElement {
     return { ammoIds: new Set(response.result.ammoIds), requiresAmmo: response.result.requiresAmmo };
   }
 
-  async syncRangedAmmo() {
+  async syncRangedAmmo(preferredAmmo = null) {
     const loadout = this.loadouts.Ranged;
     const { ammoIds, requiresAmmo } = await this.compatibleAmmoForWeapon(loadout.items.weapon);
     loadout.compatibleAmmoIds = ammoIds;
@@ -676,12 +715,22 @@ export class PvmGearPlannerPage extends BaseElement {
       if (!loadout.lockedSlots.has("ammo")) loadout.items.ammo = null;
       return;
     }
-    if (ammoIds.has(loadout.items.ammo?.id)) return;
+    if (
+      preferredAmmo &&
+      ammoIds.has(preferredAmmo.id) &&
+      this.isOwned(preferredAmmo) &&
+      ammoAllowedByTier(preferredAmmo, this.rangedFilters.ammoTier)
+    ) {
+      loadout.items.ammo = preferredAmmo;
+      return;
+    }
+    if (ammoIds.has(loadout.items.ammo?.id) && ammoAllowedByTier(loadout.items.ammo, this.rangedFilters.ammoTier))
+      return;
     if (loadout.lockedSlots.has("ammo")) return;
     loadout.items.ammo =
-      this.ownedEquipment("ammo", "Ranged", loadout).sort(
-        (left, right) => equipmentScore(right) - equipmentScore(left)
-      )[0] || null;
+      this.ownedEquipment("ammo", "Ranged", loadout)
+        .filter((item) => ammoIds.has(item.id))
+        .sort((left, right) => equipmentScore(right) - equipmentScore(left))[0] || null;
   }
 
   initializeStyleLoadout(style, { preserveSelections = false } = {}) {
@@ -753,6 +802,10 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const button of this.querySelectorAll("[data-style]")) {
       this.eventListener(button, "click", this.handleStyleClick.bind(this));
     }
+    const crystalBowFilter = this.querySelector("[data-ranged-crystal-filter]");
+    if (crystalBowFilter) this.eventListener(crystalBowFilter, "click", this.handleCrystalBowFilterClick.bind(this));
+    const ammoTier = this.querySelector("[data-ranged-ammo-tier]");
+    if (ammoTier) this.eventListener(ammoTier, "change", this.handleAmmoTierChange.bind(this));
     const spellToggle = this.querySelector("[data-toggle-spells]");
     if (spellToggle) this.eventListener(spellToggle, "click", this.handleSpellResultsToggle.bind(this));
     for (const button of this.querySelectorAll("[data-rune-restriction]")) {
@@ -841,6 +894,32 @@ export class PvmGearPlannerPage extends BaseElement {
     this.optimizeLoadouts(COMBAT_STYLES);
   }
 
+  refreshRangedFilters() {
+    const ranged = this.loadouts.Ranged;
+    const currentWeapon = ranged.items.weapon;
+    if (this.rangedFilters.omitCrystalBow && isCrystalBow(currentWeapon)) {
+      ranged.items.weapon =
+        this.ownedEquipment("weapon", "Ranged", ranged).sort((left, right) =>
+          compareCandidateHeuristic(left, right, "weapon", this.selectedTarget)
+        )[0] || null;
+    }
+    ranged.currentResult = null;
+    ranged.candidateResults = new Map();
+    this.renderAndBind();
+    this.refreshCalculations({ styles: ["Ranged"] });
+  }
+
+  handleCrystalBowFilterClick() {
+    this.rangedFilters.omitCrystalBow = !this.rangedFilters.omitCrystalBow;
+    this.refreshRangedFilters();
+  }
+
+  handleAmmoTierChange(event) {
+    if (!Object.hasOwn(AMMO_TIER_LABELS, event.target.value)) return;
+    this.rangedFilters.ammoTier = event.target.value;
+    this.refreshRangedFilters();
+  }
+
   handleRuneRestrictionClick(event) {
     const rune = event.currentTarget.dataset.runeRestriction;
     if (!Object.hasOwn(this.runeRestrictions, rune)) return;
@@ -882,7 +961,9 @@ export class PvmGearPlannerPage extends BaseElement {
     loadout.items[this.activeSlot] = item;
     this.normalizeTwoHandedEquipment(loadout, this.activeSlot);
     try {
-      if (this.activeStyle === "Ranged" && this.activeSlot === "weapon") await this.syncRangedAmmo();
+      if (this.activeStyle === "Ranged" && this.activeSlot === "weapon") {
+        await this.syncRangedAmmo(loadout.candidateResults.get(item.id)?.ammo || null);
+      }
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
     }
@@ -998,12 +1079,14 @@ export class PvmGearPlannerPage extends BaseElement {
     const { ammoIds, requiresAmmo } = await this.compatibleAmmoForWeapon(weapon);
     if (loadout.lockedSlots.has("ammo")) {
       const ammo = loadout.items.ammo;
-      if (requiresAmmo && !ammoIds.has(ammo?.id)) return [];
+      if (requiresAmmo && (!ammoIds.has(ammo?.id) || !ammoAllowedByTier(ammo, this.rangedFilters.ammoTier))) return [];
       return [{ weapon, ammo, ammoIds, requiresAmmo }];
     }
     if (!requiresAmmo) return [{ weapon, ammo: null, ammoIds, requiresAmmo }];
     const ammo = uniqueById(this.entities.equipmentBySlot.get("ammo") || [])
-      .filter((item) => this.isOwned(item) && ammoIds.has(item.id))
+      .filter(
+        (item) => this.isOwned(item) && ammoIds.has(item.id) && ammoAllowedByTier(item, this.rangedFilters.ammoTier)
+      )
       .sort((left, right) => equipmentScore(right) - equipmentScore(left))
       .slice(0, MAX_CANDIDATES);
     return ammo.map((item) => ({ weapon, ammo: item, ammoIds, requiresAmmo }));
@@ -1131,7 +1214,22 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const item of this.activeCandidates()) {
       if (generation !== this.calculationGeneration) return false;
       if (item.id === loadout.items[this.activeSlot]?.id && loadout.currentResult) {
-        results.set(item.id, loadout.currentResult);
+        results.set(item.id, {
+          ...loadout.currentResult,
+          ...(style === "Ranged" && this.activeSlot === "weapon" ? { ammo: loadout.items.ammo } : {}),
+        });
+        continue;
+      }
+      if (style === "Ranged" && this.activeSlot === "weapon") {
+        const variant = (await this.rangedWeaponVariants(item))[0];
+        if (!variant) continue;
+        const calculated = await this.calculateStyleResult(
+          style,
+          { weapon: variant.weapon, ammo: variant.ammo },
+          this.candidateCalculator
+        );
+        if (generation !== this.calculationGeneration) return false;
+        if (calculated) results.set(item.id, { ...calculated.result, ammo: variant.ammo });
         continue;
       }
       const calculated = await this.calculateStyleResult(style, { [this.activeSlot]: item }, this.candidateCalculator);
@@ -1251,14 +1349,45 @@ export class PvmGearPlannerPage extends BaseElement {
             ${
               style === "Magic"
                 ? `<small>Spell: ${escapeHtml(loadout.selectedSpell || "Calculating…")}</small>`
+                : style === "Ranged"
+                ? `<small>Ammo: ${escapeHtml(
+                    loadout.rangedWeaponRequiresAmmo ? loadout.items.ammo?.name || "None available" : "Not required"
+                  )}</small><small>Style: ${escapeHtml(
+                    result ? attackStyleLabel(result.style) : "Calculating…"
+                  )}</small>`
                 : `<small>Style: ${escapeHtml(result ? attackStyleLabel(result.style) : "Calculating…")}</small>`
             }
           </button>
-          ${style === "Magic" ? this.renderRuneRestrictions() : ""}
+          ${style === "Magic" ? this.renderRuneRestrictions() : style === "Ranged" ? this.renderRangedFilters() : ""}
           <button class="pvm-gear-planner-page__reset-icon" data-reset-style="${style}"
             title="Optimize unlocked ${style} gear for DPS" aria-label="Optimize ${style} loadout">↻</button>
         </article>`;
     }).join("");
+  }
+
+  renderRangedFilters() {
+    const omitted = this.rangedFilters.omitCrystalBow;
+    const tiers = ["all", "dragon", "rune", "adamant", "mithril", "steel", "iron", "bronze"];
+    return `<div class="pvm-gear-planner-page__ranged-filters" aria-label="Ranged ammunition restrictions">
+      <button class="pvm-gear-planner-page__rune-toggle ${omitted ? "restricted" : ""}"
+        data-ranged-crystal-filter aria-pressed="${omitted}"
+        aria-label="${omitted ? "Allow" : "Omit"} Crystal bow"
+        title="${omitted ? "Allow" : "Omit"} Crystal bow">
+        <img src="/icons/items/23983.webp" alt="" />
+      </button>
+      <label>Ammo tier
+        <select data-ranged-ammo-tier aria-label="Maximum standard ammunition tier">
+          ${tiers
+            .map(
+              (tier) =>
+                `<option value="${tier}" ${tier === this.rangedFilters.ammoTier ? "selected" : ""}>${
+                  AMMO_TIER_LABELS[tier]
+                }</option>`
+            )
+            .join("")}
+        </select>
+      </label>
+    </div>`;
   }
 
   renderRuneRestrictions() {
@@ -1379,7 +1508,11 @@ export class PvmGearPlannerPage extends BaseElement {
           result && loadout.currentResult?.dps
             ? ((result.dps - loadout.currentResult.dps) / loadout.currentResult.dps) * 100
             : null;
-        const summary = this.loadoutSummary({ ...loadout.items, [this.activeSlot]: item });
+        const summary = this.loadoutSummary({
+          ...loadout.items,
+          [this.activeSlot]: item,
+          ...(this.activeStyle === "Ranged" && this.activeSlot === "weapon" ? { ammo: result?.ammo || null } : {}),
+        });
         return `
           <article class="pvm-gear-planner-page__alternative ${selected ? "selected" : ""}">
             <div class="pvm-gear-planner-page__tier tier-${
@@ -1389,7 +1522,15 @@ export class PvmGearPlannerPage extends BaseElement {
             <div class="pvm-gear-planner-page__alternative-name">
               <strong>${escapeHtml(item.name)}</strong>
               <span>${escapeHtml(
-                item.version ? `${item.version} · ${this.availabilityLabel(item)}` : this.availabilityLabel(item)
+                [
+                  item.version,
+                  this.activeStyle === "Ranged" && this.activeSlot === "weapon" && result?.ammo
+                    ? `with ${result.ammo.name}`
+                    : "",
+                  this.availabilityLabel(item),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               )}</span>
             </div>
             <dl>

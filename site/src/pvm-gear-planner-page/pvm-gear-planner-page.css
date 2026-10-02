@@ -112,11 +112,28 @@ pvm-gear-planner-page {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pvm-gear-planner-page__rune-restrictions {
+.pvm-gear-planner-page__rune-restrictions,
+.pvm-gear-planner-page__ranged-filters {
   display: flex;
   gap: 8px;
   align-items: center;
   padding: 0 12px 10px;
+}
+.pvm-gear-planner-page__ranged-filters label {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  color: #bbb;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+.pvm-gear-planner-page__ranged-filters select {
+  padding: 5px 6px;
+  color: var(--primary-text);
+  font-size: 0.72rem;
+  background: #211d18;
+  border: 1px solid #666;
+  border-radius: 4px;
 }
 .pvm-gear-planner-page__rune-toggle {
   position: relative;

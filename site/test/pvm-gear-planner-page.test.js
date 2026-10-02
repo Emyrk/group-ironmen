@@ -52,12 +52,19 @@ const equipmentEntities = [
   chargedJewellery(1704, "Amulet of glory", "Uncharged", 1),
   chargedJewellery(11978, "Amulet of glory", "6", 1),
   equipment(11105, "Skills necklace", "neck"),
-  rangedAmmo(9244, "Dragon bolts (e)", 117),
+  rangedAmmo(9244, "Dragonstone bolts (e)", 117),
+  rangedAmmo(9144, "Runite bolts", 115),
+  rangedAmmo(11212, "Dragon arrow", 60),
   rangedAmmo(892, "Rune arrow", 49),
+  rangedAmmo(890, "Adamant arrow", 31),
+  rangedAmmo(882, "Bronze arrow", 7),
+  rangedAmmo(8882, "Bone bolts", 49),
   equipment(20220, "Holy blessing", "ammo", 1),
   combatWeapon(4151, "Abyssal whip", "Whip", "slash"),
   combatWeapon(861, "Magic shortbow", "Bow", "ranged", 100),
   combatWeapon(21012, "Dragon hunter crossbow", "Crossbow", "ranged"),
+  combatWeapon(8880, "Dorgeshuun crossbow", "Crossbow", "ranged", 42),
+  combatWeapon(23983, "Crystal bow", "Bow", "ranged", 120),
   combatWeapon(27665, "Accursed sceptre", "Powered Staff", "magic"),
   equipment(11832, "Bandos chestplate", "body", 4),
   equipment(10551, "Fighter torso", "body", 3),
@@ -141,7 +148,13 @@ vi.mock("../src/pvm/calculator-client", async () => {
       requests.push(request);
       if (request.action === "compatible-ammo") {
         const ammoIds =
-          request.player.equipment.weapon === 861 ? [892] : request.player.equipment.weapon === 21012 ? [9244] : [];
+          request.player.equipment.weapon === 861
+            ? [11212, 892, 890, 882]
+            : request.player.equipment.weapon === 21012
+            ? [9244, 9144]
+            : request.player.equipment.weapon === 8880
+            ? [8882]
+            : [];
         return {
           version: 1,
           requestId: request.requestId,
@@ -218,12 +231,15 @@ vi.mock("../src/pvm/calculator-client", async () => {
 
 const {
   PvmGearPlannerPage,
+  ammoAllowedByTier,
   ammoSupportsStyle,
   groupSpellResults,
+  isCrystalBow,
   itemFamilyKey,
   itemHasCombatStats,
   itemStatChanges,
   preferCandidateOnTie,
+  rangedAmmoTier,
   spellDpsComparison,
   spellMagicLevelRequirement,
   spellRuneTags,
@@ -699,6 +715,109 @@ describe("pvm-gear-planner-page", () => {
     expect(request.monster.version).toBe("Post-quest");
     expect(request.player.skills.atk).toBe(99);
     expect(request.player.equipment.body).toBe(11832);
+    page.remove();
+  });
+
+  it("filters Crystal bows and caps standard ammo while preserving special ammo", async () => {
+    const dragonArrow = equipmentEntities.find((item) => item.id === 11212);
+    const runeArrow = equipmentEntities.find((item) => item.id === 892);
+    const adamantArrow = equipmentEntities.find((item) => item.id === 890);
+    const boneBolts = equipmentEntities.find((item) => item.id === 8882);
+    const crystalBow = equipmentEntities.find((item) => item.id === 23983);
+    expect(rangedAmmoTier(dragonArrow)).toBe("dragon");
+    expect(rangedAmmoTier(runeArrow)).toBe("rune");
+    expect(ammoAllowedByTier(dragonArrow, "adamant")).toBe(false);
+    expect(ammoAllowedByTier(adamantArrow, "adamant")).toBe(true);
+    expect(rangedAmmoTier(boneBolts)).toBeNull();
+    expect(ammoAllowedByTier(boneBolts, "bronze")).toBe(true);
+    expect(isCrystalBow(crystalBow)).toBe(true);
+
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((item) => item.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    const rangedCard = page.querySelector("[data-style='Ranged']").closest("article");
+    expect(
+      [...rangedCard.querySelectorAll("[data-ranged-ammo-tier] option")].map((option) => [
+        option.value,
+        option.textContent,
+      ])
+    ).toEqual([
+      ["all", "ALL"],
+      ["dragon", "Dragon"],
+      ["rune", "Rune"],
+      ["adamant", "Addy"],
+      ["mithril", "Mithril"],
+      ["steel", "Steel"],
+      ["iron", "Iron"],
+      ["bronze", "Bronze"],
+    ]);
+
+    rangedCard.querySelector("[data-ranged-crystal-filter]").click();
+    await vi.waitFor(() => {
+      expect(page.rangedFilters.omitCrystalBow).toBe(true);
+      expect(isCrystalBow(page.loadouts.Ranged.items.weapon)).toBe(false);
+    });
+
+    let tier = page.querySelector("[data-ranged-ammo-tier]");
+    tier.value = "adamant";
+    tier.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.ammo?.id).toBe(890));
+
+    expect(page.querySelector("[data-style='Ranged']").closest("article").textContent).toContain("Ammo: Adamant arrow");
+
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-slot='weapon']").click();
+    await vi.waitFor(() => {
+      expect(page.querySelector("[data-equip-item='23983']")).toBeNull();
+      expect(page.querySelector("[data-equip-item='861']").closest("article").textContent).toContain(
+        "with Adamant arrow"
+      );
+      expect(page.querySelector("[data-equip-item='8880']").closest("article").textContent).toContain(
+        "with Bone bolts"
+      );
+    });
+    expect(
+      requests.some(
+        (request) =>
+          request.action === "calculate" &&
+          request.options?.mode === "Ranged" &&
+          request.player.equipment.weapon === 861 &&
+          request.player.equipment.ammo === 890
+      )
+    ).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.action === "calculate" &&
+          request.options?.mode === "Ranged" &&
+          request.player.equipment.weapon === 8880 &&
+          request.player.equipment.ammo === 8882
+      )
+    ).toBe(true);
+    page.remove();
+  });
+
+  it("falls back to the highest owned ammo below the selected tier", async () => {
+    const data = groupData();
+    const ownedIds = equipmentEntities
+      .map((item) => item.id)
+      .filter((id) => ![11212, 892, 890, 23983, 21012, 8880, 8882].includes(id));
+    ownedIds.push(861, 882);
+    data.members.set("Alice", member("Alice", ownedIds, 11832));
+    const page = await createPage(data);
+
+    const tier = page.querySelector("[data-ranged-ammo-tier]");
+    tier.value = "adamant";
+    tier.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(page.loadouts.Ranged.items.ammo?.id).toBe(882));
+    expect(page.querySelector("[data-style='Ranged']").closest("article").textContent).toContain("Ammo: Bronze arrow");
     page.remove();
   });
 
