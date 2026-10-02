@@ -396,8 +396,21 @@ function worseTier(...tiers) {
   return TIER_ORDER[Math.max(...tiers.map((tier) => TIER_ORDER.indexOf(tier)))];
 }
 
-function compareCandidateHeuristic(left, right, slot, target) {
-  const scoreDifference = equipmentScore(right) - equipmentScore(left);
+function candidateOffensiveScore(item, style) {
+  const bonuses = item.bonuses || {};
+  if (style === "Ranged") return (item.offensive?.ranged || 0) + (bonuses.ranged_str || 0) * 3;
+  if (style === "Magic") return (item.offensive?.magic || 0) + (bonuses.magic_str || 0) * 3;
+  if (style === "Melee") {
+    return (
+      Math.max(item.offensive?.stab || 0, item.offensive?.slash || 0, item.offensive?.crush || 0) +
+      (bonuses.str || 0) * 3
+    );
+  }
+  return equipmentScore(item);
+}
+
+function compareCandidateHeuristic(left, right, style, slot, target) {
+  const scoreDifference = candidateOffensiveScore(right, style) - candidateOffensiveScore(left, style);
   if (scoreDifference !== 0) return scoreDifference;
   const protectionDifference = antiFirePriority(right, slot, target) - antiFirePriority(left, slot, target);
   if (protectionDifference !== 0) return protectionDifference;
@@ -900,7 +913,7 @@ export class PvmGearPlannerPage extends BaseElement {
       const selected = loadout.items[slot];
       const equipped = this.entities.equipmentById.get(equippedIds[slot]);
       const owned = this.ownedEquipment(slot, style, loadout).sort((left, right) =>
-        compareCandidateHeuristic(left, right, slot, this.selectedTarget)
+        compareCandidateHeuristic(left, right, style, slot, this.selectedTarget)
       );
       const equippedRepresentative = equipped
         ? owned.find((item) => itemFamilyKey(item) === itemFamilyKey(equipped)) || null
@@ -1072,7 +1085,7 @@ export class PvmGearPlannerPage extends BaseElement {
     if (this.rangedFilters.omitCrystalBow && isCrystalBow(currentWeapon)) {
       ranged.items.weapon =
         this.ownedEquipment("weapon", "Ranged", ranged).sort((left, right) =>
-          compareCandidateHeuristic(left, right, "weapon", this.selectedTarget)
+          compareCandidateHeuristic(left, right, "Ranged", "weapon", this.selectedTarget)
         )[0] || null;
     }
     ranged.currentResult = null;
@@ -1233,7 +1246,7 @@ export class PvmGearPlannerPage extends BaseElement {
     const loadout = this.activeLoadout;
     const selected = loadout.items[this.activeSlot];
     const candidates = this.ownedEquipment(this.activeSlot, this.activeStyle, loadout).sort((left, right) =>
-      compareCandidateHeuristic(left, right, this.activeSlot, this.selectedTarget)
+      compareCandidateHeuristic(left, right, this.activeStyle, this.activeSlot, this.selectedTarget)
     );
     const included = candidates.slice(0, MAX_CANDIDATES);
     const include = (item) => {
@@ -1283,7 +1296,7 @@ export class PvmGearPlannerPage extends BaseElement {
     const candidates = this.ownedEquipment(slot, style, this.loadouts[style])
       .filter((item) => item.id !== selectedId)
       .sort((left, right) => {
-        const scoreDifference = compareCandidateHeuristic(left, right, slot, this.selectedTarget);
+        const scoreDifference = compareCandidateHeuristic(left, right, style, slot, this.selectedTarget);
         if (scoreDifference !== 0) return scoreDifference;
         if (preferCandidateOnTie(right, left, style, this.selectedTarget)) return 1;
         if (preferCandidateOnTie(left, right, style, this.selectedTarget)) return -1;

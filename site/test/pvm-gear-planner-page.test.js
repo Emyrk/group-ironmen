@@ -347,6 +347,7 @@ async function waitForReadyAlternatives(page) {
   });
 }
 
+const extraCapeIds = new Set(Array.from({ length: 12 }, (_, index) => 33000 + index));
 const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + index));
 const extraRangedWeaponIds = new Set(Array.from({ length: 13 }, (_, index) => 32000 + index));
 const standardBowIds = new Set([839, 841, 843, 845, 847, 849, 851, 853, 855, 857, 859]);
@@ -356,7 +357,10 @@ const standardDartIds = new Set([
   816, 5633, 5640, 811, 817, 5634, 5641,
 ]);
 const temporaryEquipmentIds = new Set([
+  10499,
+  13121,
   1123,
+  ...extraCapeIds,
   ...extraBodyIds,
   ...extraRangedWeaponIds,
   ...standardBowIds,
@@ -652,6 +656,42 @@ describe("pvm-gear-planner-page", () => {
       .querySelector(".pvm-gear-planner-page__item-stats-tooltip.full");
     expect(equippedTooltip.textContent).toContain("Bandos chestplate");
     expect(equippedTooltip.textContent).not.toContain("Compared with");
+    page.remove();
+  });
+
+  it("ranks melee cloaks by melee bonuses instead of irrelevant ranged attack", async () => {
+    const ardougneCloak = equipment(13121, "Ardougne cloak 1", "cape");
+    ardougneCloak.offensive.stab = 2;
+    ardougneCloak.offensive.magic = 2;
+    ardougneCloak.bonuses.prayer = 2;
+    const accumulator = equipment(10499, "Ava's accumulator", "cape");
+    accumulator.offensive.ranged = 4;
+    const rangedCapes = [...extraCapeIds].map((id, index) => {
+      const cape = equipment(id, `Ranged cape ${index + 1}`, "cape");
+      cape.offensive.ranged = 100 - index;
+      return cape;
+    });
+    equipmentEntities.push(ardougneCloak, accumulator, ...rangedCapes);
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    page.querySelector("[data-slot='cape']").click();
+
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='13121']")).not.toBeNull());
+    const renderedIds = [...page.querySelectorAll("[data-equip-item]")].map((button) =>
+      Number(button.dataset.equipItem)
+    );
+    expect(renderedIds.indexOf(13121)).toBeLessThan(renderedIds.indexOf(10499));
+    expect(page.activeCandidates().findIndex((candidate) => candidate.id === 13121)).toBeLessThan(
+      page.activeCandidates().findIndex((candidate) => candidate.id === 10499)
+    );
     page.remove();
   });
 
