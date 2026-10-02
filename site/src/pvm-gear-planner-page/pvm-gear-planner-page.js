@@ -1630,13 +1630,22 @@ export class PvmGearPlannerPage extends BaseElement {
 
   renderPlannerControls() {
     const targetImage = this.targetImageUrl();
+    const targetHealth = this.selectedTarget?.skills?.hp;
     return `<div class="pvm-gear-planner-page__context">
-      <div class="pvm-gear-planner-page__target-image">
-        ${
-          targetImage
-            ? `<img src="${targetImage}" alt="${escapeHtml(this.selectedTarget?.name || "Selected target")}" />`
-            : ""
-        }
+      <div class="pvm-gear-planner-page__target-summary">
+        <div class="pvm-gear-planner-page__target-image">
+          ${
+            targetImage
+              ? `<img src="${targetImage}" alt="${escapeHtml(this.selectedTarget?.name || "Selected target")}" />`
+              : ""
+          }
+        </div>
+        <div class="pvm-gear-planner-page__target-health" aria-label="${
+          Number.isFinite(targetHealth) ? `${targetHealth} hitpoints` : "Unknown hitpoints"
+        }">
+          <div class="pvm-gear-planner-page__target-health-fill"></div>
+          <strong>${Number.isFinite(targetHealth) ? `${targetHealth} HP` : "? HP"}</strong>
+        </div>
       </div>
       <div class="pvm-gear-planner-page__controls">
         <label>Member<select data-control="member">${this.renderMemberOptions()}</select></label>
@@ -1667,6 +1676,9 @@ export class PvmGearPlannerPage extends BaseElement {
             aria-pressed="${style === this.activeStyle}">
             <span>${style}</span>
             <strong>${result ? formatNumber(result.dps, 2) : "…"} DPS</strong>
+            <small class="pvm-gear-planner-page__style-ttk">TTK: ${
+              result ? `${formatNumber(result.expectedTtk)}s` : "…"
+            }</small>
             <small>${escapeHtml(weapon?.name || "No owned weapon")}</small>
             ${
               style === "Magic"

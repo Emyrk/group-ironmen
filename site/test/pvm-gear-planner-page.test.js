@@ -398,6 +398,31 @@ describe("pvm-gear-planner-page", () => {
     expect(styles).toContain("grid-template-columns: minmax(300px, 1.2fr) repeat(3, minmax(0, 1fr));");
   });
 
+  it("shows the target's total health beneath its image", async () => {
+    const page = await createPage();
+    const summary = page.querySelector(".pvm-gear-planner-page__target-summary");
+    const image = summary.querySelector(".pvm-gear-planner-page__target-image");
+    const health = summary.querySelector(".pvm-gear-planner-page__target-health");
+    expect(image.nextElementSibling).toBe(health);
+    expect(health.textContent).toContain("200 HP");
+    expect(health.getAttribute("aria-label")).toBe("200 hitpoints");
+    expect(health.querySelector(".pvm-gear-planner-page__target-health-fill")).not.toBeNull();
+    page.remove();
+  });
+
+  it("shows expected TTK directly below DPS on each combat loadout card", async () => {
+    const page = await createPage();
+    const cards = [...page.querySelectorAll(".pvm-gear-planner-page__style-card")];
+    expect(cards).toHaveLength(3);
+    for (const card of cards) {
+      const dps = card.querySelector(".pvm-gear-planner-page__style-select > strong");
+      const ttk = card.querySelector(".pvm-gear-planner-page__style-ttk");
+      expect(dps.nextElementSibling).toBe(ttk);
+      expect(ttk.textContent).toBe("TTK: 25.0s");
+    }
+    page.remove();
+  });
+
   it("filters statless items and groups tiered and charged variants", () => {
     expect(itemHasCombatStats(equipmentEntities.find((item) => item.id === 11105))).toBe(false);
     expect(itemHasCombatStats(equipmentEntities.find((item) => item.id === 1540))).toBe(true);

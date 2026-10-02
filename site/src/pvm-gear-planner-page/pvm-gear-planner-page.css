@@ -27,6 +27,11 @@ pvm-gear-planner-page {
   background: #211d18;
   border: 1px solid #55482f;
 }
+.pvm-gear-planner-page__target-summary {
+  display: grid;
+  gap: 5px;
+  align-self: center;
+}
 .pvm-gear-planner-page__target-image {
   display: grid;
   place-items: center;
@@ -41,6 +46,29 @@ pvm-gear-planner-page {
   max-height: 80px;
   object-fit: contain;
   image-rendering: pixelated;
+}
+.pvm-gear-planner-page__target-health {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 18px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 1;
+  text-shadow: 1px 1px 1px #000;
+  background: #401d19;
+  border: 1px solid #17120e;
+  border-radius: 2px;
+}
+.pvm-gear-planner-page__target-health-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#54b84e, #277c28);
+}
+.pvm-gear-planner-page__target-health strong {
+  position: relative;
+  z-index: 1;
 }
 .pvm-gear-planner-page__controls {
   display: grid;
@@ -129,6 +157,10 @@ pvm-gear-planner-page {
 .pvm-gear-planner-page__style-card strong {
   color: var(--orange);
   font-size: 1.45rem;
+}
+.pvm-gear-planner-page__style-card .pvm-gear-planner-page__style-ttk {
+  color: #d8c89d;
+  font-size: 0.78rem;
 }
 .pvm-gear-planner-page__style-card small {
   overflow: hidden;
