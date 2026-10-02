@@ -225,6 +225,7 @@ const {
   itemStatChanges,
   preferCandidateOnTie,
   spellDpsComparison,
+  spellMagicLevelRequirement,
   spellRuneTags,
   targetNeedsAntiFire,
   targetStyleDefence,
@@ -301,10 +302,10 @@ function groupData() {
   };
 }
 
-async function createPage() {
+async function createPage(data = groupData()) {
   const page = document.createElement("pvm-gear-planner-page");
   document.body.appendChild(page);
-  pubsub.publish("get-group-data", groupData());
+  pubsub.publish("get-group-data", data);
   await vi.waitFor(() =>
     expect(page.querySelector(".pvm-gear-planner-page__results strong")?.textContent).not.toBe("…")
   );
@@ -421,6 +422,7 @@ describe("pvm-gear-planner-page", () => {
     const spells = JSON.parse(readFileSync("vendor/osrs-wiki-dps/cdn/json/spells.json", "utf8"));
     for (const spell of spells.filter((candidate) => candidate.max_hit > 0)) {
       expect(() => spellRuneTags(spell.name)).not.toThrow();
+      expect(spellMagicLevelRequirement(spell.name)).toBeGreaterThan(0);
     }
     expect([...spellRuneTags("Fire Surge")]).toEqual(["wrath"]);
     expect([...spellRuneTags("Fire Blast")]).toEqual(["death"]);
@@ -747,6 +749,29 @@ describe("pvm-gear-planner-page", () => {
       expect(updated.getAttribute("aria-pressed")).toBe("true");
       expect(updated.getAttribute("aria-label")).toContain("Allow spells using Wrath runes");
     });
+    page.remove();
+  });
+
+  it("only calculates and shows spells the selected member can cast", async () => {
+    expect(spellMagicLevelRequirement("Saradomin Strike")).toBe(60);
+    expect(spellMagicLevelRequirement("Dark Demonbane")).toBe(82);
+    expect(spellMagicLevelRequirement("Ice Barrage")).toBe(94);
+    expect(spellMagicLevelRequirement("Fire Surge")).toBe(95);
+
+    const data = groupData();
+    data.members.get("Alice").skills.Magic.level = 60;
+    const page = await createPage(data);
+    await vi.waitFor(() => expect(page.loadouts.Magic.selectedSpell).toBe("Saradomin Strike"));
+
+    const requestedSpells = new Set(
+      requests.filter((request) => request.options?.mode === "Magic").map((request) => request.options.spell)
+    );
+    expect(requestedSpells).toEqual(new Set(["Saradomin Strike", "Ghostly Grasp"]));
+
+    page.querySelector("[data-style='Magic']").click();
+    expect(
+      [...page.querySelectorAll(".pvm-gear-planner-page__spell-result strong")].map((node) => node.textContent)
+    ).toEqual(["Saradomin Strike", "Ghostly Grasp"]);
     page.remove();
   });
 

@@ -24,6 +24,67 @@ const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
 const MAX_CANDIDATES = 12;
 const DEFAULT_TARGET = ["Giant Mole", ""];
 
+// spells.json does not include casting requirements. Keep these levels aligned with the vendored offensive spell snapshot.
+const SPELL_MAGIC_LEVELS = new Map(
+  Object.entries({
+    "Wind Strike": 1,
+    "Water Strike": 5,
+    "Earth Strike": 9,
+    "Fire Strike": 13,
+    "Wind Bolt": 17,
+    "Water Bolt": 23,
+    "Earth Bolt": 29,
+    "Fire Bolt": 35,
+    "Ghostly Grasp": 35,
+    "Crumble Undead": 39,
+    "Wind Blast": 41,
+    "Inferior Demonbane": 44,
+    "Water Blast": 47,
+    "Iban Blast": 50,
+    "Smoke Rush": 50,
+    Snare: 50,
+    "Shadow Rush": 52,
+    "Earth Blast": 53,
+    "Blood Rush": 56,
+    "Skeletal Grasp": 56,
+    "Ice Rush": 58,
+    "Fire Blast": 59,
+    "Claws of Guthix": 60,
+    "Flames of Zamorak": 60,
+    "Saradomin Strike": 60,
+    "Smoke Burst": 62,
+    "Superior Demonbane": 62,
+    "Wind Wave": 62,
+    "Shadow Burst": 64,
+    "Water Wave": 65,
+    "Blood Burst": 68,
+    "Earth Wave": 70,
+    "Ice Burst": 70,
+    "Smoke Blitz": 74,
+    "Fire Wave": 75,
+    "Shadow Blitz": 76,
+    Entangle: 79,
+    "Undead Grasp": 79,
+    "Blood Blitz": 80,
+    "Wind Surge": 81,
+    "Dark Demonbane": 82,
+    "Ice Blitz": 82,
+    "Water Surge": 85,
+    "Smoke Barrage": 86,
+    "Shadow Barrage": 88,
+    "Earth Surge": 90,
+    "Blood Barrage": 92,
+    "Ice Barrage": 94,
+    "Fire Surge": 95,
+  })
+);
+
+export function spellMagicLevelRequirement(spellName) {
+  const level = SPELL_MAGIC_LEVELS.get(spellName);
+  if (!level) throw new Error(`Missing Magic level requirement for ${spellName}`);
+  return level;
+}
+
 // spells.json intentionally has no rune costs. Keep these snapshot-specific restrictions local and explicit.
 // This only models the three expensive rune types exposed by the budget controls; all other rune costs are ignored.
 const WRATH_RUNE_SPELLS = new Set(["Earth Surge", "Fire Surge", "Water Surge", "Wind Surge"]);
@@ -571,9 +632,12 @@ export class PvmGearPlannerPage extends BaseElement {
   }
 
   get eligibleMagicSpells() {
+    const magicLevel = this.selectedMemberData?.skills?.Magic?.level || 1;
     return (this.entities?.spells || []).filter((spell) => {
       const tags = spellRuneTags(spell.name);
-      return ![...tags].some((tag) => this.runeRestrictions[tag]);
+      return (
+        spellMagicLevelRequirement(spell.name) <= magicLevel && ![...tags].some((tag) => this.runeRestrictions[tag])
+      );
     });
   }
 
@@ -583,7 +647,9 @@ export class PvmGearPlannerPage extends BaseElement {
     if (style === "Ranged" && loadout.rangedWeaponRequiresAmmo && !loadout.items.ammo)
       return "No owned compatible ammunition is available.";
     if (style === "Magic" && this.eligibleMagicSpells.length === 0)
-      return "No offensive spells remain with the selected rune restrictions.";
+      return `No offensive spells are castable at Magic level ${
+        this.selectedMemberData?.skills?.Magic?.level || 1
+      } with the selected rune restrictions.`;
     return "";
   }
 
