@@ -165,6 +165,23 @@ const ITEM_PROGRESSION_GROUPS = Object.freeze([
     1201, // Rune kiteshield
     21895, // Dragon kiteshield
   ],
+  [
+    841, // Shortbow
+    843, // Oak shortbow
+    849, // Willow shortbow
+    853, // Maple shortbow
+    857, // Yew shortbow
+    861, // Magic shortbow
+    12788, // Magic shortbow (i)
+  ],
+  [
+    839, // Longbow
+    845, // Oak longbow
+    847, // Willow longbow
+    851, // Maple longbow
+    855, // Yew longbow
+    859, // Magic longbow
+  ],
 ]);
 const ITEM_PROGRESSION_RANKS = new Map();
 for (const [groupIndex, itemIds] of ITEM_PROGRESSION_GROUPS.entries()) {

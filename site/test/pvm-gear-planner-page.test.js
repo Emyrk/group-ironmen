@@ -157,7 +157,7 @@ vi.mock("../src/pvm/calculator-client", async () => {
           });
         }
         const ammoIds =
-          request.player.equipment.weapon === 861
+          standardBowIds.has(request.player.equipment.weapon) || request.player.equipment.weapon === 861
             ? [11212, 892, 890, 882]
             : request.player.equipment.weapon === 21012
             ? [9244, 9144]
@@ -349,7 +349,8 @@ async function waitForReadyAlternatives(page) {
 
 const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + index));
 const extraRangedWeaponIds = new Set(Array.from({ length: 13 }, (_, index) => 32000 + index));
-const temporaryEquipmentIds = new Set([1123, ...extraBodyIds, ...extraRangedWeaponIds]);
+const standardBowIds = new Set([839, 841, 843, 845, 847, 849, 851, 853, 855, 857, 859]);
+const temporaryEquipmentIds = new Set([1123, ...extraBodyIds, ...extraRangedWeaponIds, ...standardBowIds]);
 
 describe("pvm-gear-planner-page", () => {
   beforeEach(() => {
@@ -777,6 +778,42 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelector("[data-equip-item='11978']")).not.toBeNull();
     expect(page.querySelector("[data-equip-item='1704']")).toBeNull();
     expect(page.querySelector("[data-equip-item='11105']")).toBeNull();
+    page.remove();
+  });
+
+  it("shows only the strongest owned standard shortbow and longbow tiers", async () => {
+    const standardBows = [
+      [841, "Shortbow", 8, 4],
+      [843, "Oak shortbow", 14, 4],
+      [849, "Willow shortbow", 20, 4],
+      [853, "Maple shortbow", 29, 4],
+      [857, "Yew shortbow", 47, 4],
+      [839, "Longbow", 8, 6],
+      [845, "Oak longbow", 14, 6],
+      [847, "Willow longbow", 20, 6],
+      [851, "Maple longbow", 29, 6],
+      [855, "Yew longbow", 47, 6],
+      [859, "Magic longbow", 69, 6],
+    ].map(([id, name, score, speed]) => ({ ...combatWeapon(id, name, "Bow", "ranged", score), speed }));
+    equipmentEntities.push(...standardBows);
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-slot='weapon']").click();
+
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='859']")).not.toBeNull());
+    expect(page.querySelector("[data-equip-item='861']")).not.toBeNull();
+    for (const itemId of [839, 841, 843, 845, 847, 849, 851, 853, 855, 857]) {
+      expect(page.querySelector(`[data-equip-item='${itemId}']`)).toBeNull();
+    }
     page.remove();
   });
 
