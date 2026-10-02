@@ -561,42 +561,109 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   background: #302a22;
   border: 1px solid #666;
 }
-.pvm-gear-planner-page__comparison-tooltip {
+.pvm-gear-planner-page__item-stats-tooltip {
   position: fixed;
   top: 50vh;
   left: 50vw;
   z-index: 20;
-  display: grid;
-  gap: 5px;
   min-width: 280px;
-  max-width: 380px;
-  padding: 12px 14px;
-  color: #ddd;
-  font-size: 0.9rem;
+  max-width: min(380px, calc(100vw - 24px));
+  overflow: hidden;
+  color: #201b14;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.88rem;
   pointer-events: none;
   visibility: hidden;
-  background: #181512;
-  border: 1px solid var(--orange);
-  border-radius: 4px;
+  background: #ded4b8;
+  border: 1px solid #8e8060;
   box-shadow: 0 4px 14px rgb(0 0 0 / 70%);
   opacity: 0;
   transform: translateY(4px);
   transition: opacity 100ms ease, transform 100ms ease, visibility 100ms ease;
 }
-.pvm-gear-planner-page__comparison-tooltip strong {
-  padding-bottom: 5px;
-  color: var(--orange);
+.pvm-gear-planner-page__item-stats-title {
+  display: grid;
+  gap: 1px;
+  padding: 7px 9px;
+  color: #18130d;
+  text-align: center;
+  background: #c1ad88;
+}
+.pvm-gear-planner-page__item-stats-title span {
+  color: inherit;
   font-size: 0.9rem;
-  border-bottom: 1px solid #55482f;
+  font-weight: bold;
+  text-transform: none;
 }
-.pvm-gear-planner-page__comparison-tooltip .positive {
-  color: #7dd58c;
+.pvm-gear-planner-page__item-stats-title small {
+  color: #514732;
+  font-size: 0.7rem;
 }
-.pvm-gear-planner-page__comparison-tooltip .negative {
-  color: #e1847a;
+.pvm-gear-planner-page__item-stats-section h3 {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 5px 7px;
+  color: #18130d;
+  font-size: 0.84rem;
+  background: #bba681;
 }
-.pvm-gear-planner-page__alternative:hover .pvm-gear-planner-page__comparison-tooltip,
-.pvm-gear-planner-page__alternative:focus-within .pvm-gear-planner-page__comparison-tooltip {
+.pvm-gear-planner-page__item-stats-section h3 span {
+  color: inherit;
+  font-size: 1rem;
+  text-transform: none;
+}
+.pvm-gear-planner-page__item-stats-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(42px, 1fr));
+}
+.pvm-gear-planner-page__item-stats-grid.other {
+  grid-template-columns: repeat(5, minmax(48px, 1fr));
+}
+.pvm-gear-planner-page__item-stat {
+  display: grid !important;
+  place-items: center;
+  gap: 2px !important;
+  min-width: 0;
+  padding: 6px 3px;
+  border-right: 1px solid #b09c78;
+}
+.pvm-gear-planner-page__item-stat:last-child {
+  border-right: 0;
+}
+.pvm-gear-planner-page__item-stat img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.pvm-gear-planner-page__item-stat span {
+  color: #201b14;
+  font-size: 0.82rem;
+  text-transform: none;
+  white-space: nowrap;
+}
+.pvm-gear-planner-page__item-stat.positive span {
+  color: #267a2e;
+}
+.pvm-gear-planner-page__item-stat.negative span {
+  color: #a82e26;
+}
+.pvm-gear-planner-page__item-stat.neutral span {
+  color: #766c59;
+}
+.pvm-gear-planner-page__item-stat.slot {
+  background: #c8b795;
+}
+.pvm-gear-planner-page__slot-icon {
+  font-size: 1.45rem !important;
+  line-height: 25px;
+}
+.pvm-gear-planner-page__item-tooltip-host:hover .pvm-gear-planner-page__item-stats-tooltip,
+.pvm-gear-planner-page__item-tooltip-host:focus .pvm-gear-planner-page__item-stats-tooltip,
+.pvm-gear-planner-page__item-tooltip-host:focus-within .pvm-gear-planner-page__item-stats-tooltip {
   visibility: visible;
   opacity: 1;
   transform: translateY(0);

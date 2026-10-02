@@ -413,22 +413,46 @@ export function preferCandidateOnTie(candidate, current, style, target) {
   return targetStyleDefence(candidate, target) > targetStyleDefence(current, target);
 }
 
-const ITEM_STAT_COMPARISONS = [
-  ["offensive", "stab", "stab attack"],
-  ["offensive", "slash", "slash attack"],
-  ["offensive", "crush", "crush attack"],
-  ["offensive", "magic", "magic attack"],
-  ["offensive", "ranged", "ranged attack"],
-  ["defensive", "stab", "stab defence"],
-  ["defensive", "slash", "slash defence"],
-  ["defensive", "crush", "crush defence"],
-  ["defensive", "magic", "magic defence"],
-  ["defensive", "ranged", "ranged defence"],
-  ["bonuses", "str", "strength"],
-  ["bonuses", "ranged_str", "ranged strength"],
-  ["bonuses", "magic_str", "magic strength"],
-  ["bonuses", "prayer", "Prayer"],
+const ITEM_STAT_SECTIONS = [
+  {
+    key: "attack",
+    label: "Attack bonuses",
+    headingIcon: "⚔",
+    stats: [
+      ["offensive", "stab", "Stab attack", 1277],
+      ["offensive", "slash", "Slash attack", 1321],
+      ["offensive", "crush", "Crush attack", 1375],
+      ["offensive", "magic", "Magic attack", 579],
+      ["offensive", "ranged", "Ranged attack", 841],
+    ],
+  },
+  {
+    key: "defence",
+    label: "Defence bonuses",
+    headingIcon: "✚",
+    stats: [
+      ["defensive", "stab", "Stab defence", 1277],
+      ["defensive", "slash", "Slash defence", 1321],
+      ["defensive", "crush", "Crush defence", 1375],
+      ["defensive", "magic", "Magic defence", 579],
+      ["defensive", "ranged", "Ranged defence", 841],
+    ],
+  },
+  {
+    key: "other",
+    label: "Other bonuses",
+    headingIcon: "✦",
+    stats: [
+      ["bonuses", "str", "Strength", 8844],
+      ["bonuses", "ranged_str", "Ranged strength", 892],
+      ["bonuses", "magic_str", "Magic strength", 579, true],
+      ["bonuses", "prayer", "Prayer", 20220],
+    ],
+  },
 ];
+const ITEM_STAT_COMPARISONS = ITEM_STAT_SECTIONS.flatMap(({ stats }) =>
+  stats.map(([group, key, label]) => [group, key, label === "Prayer" ? label : label.toLowerCase()])
+);
 
 export function itemStatChanges(candidate, current) {
   if (!candidate || !current) return [];
@@ -827,9 +851,9 @@ export class PvmGearPlannerPage extends BaseElement {
     for (const button of this.querySelectorAll("[data-slot]")) {
       this.eventListener(button, "click", this.handleSlotClick.bind(this));
     }
-    for (const row of this.querySelectorAll(".pvm-gear-planner-page__alternative")) {
-      if (row.querySelector(".pvm-gear-planner-page__comparison-tooltip")) {
-        this.eventListener(row, "mousemove", this.handleComparisonTooltipMove.bind(this));
+    for (const host of this.querySelectorAll(".pvm-gear-planner-page__item-tooltip-host")) {
+      if (host.querySelector(".pvm-gear-planner-page__item-stats-tooltip")) {
+        this.eventListener(host, "mousemove", this.handleItemStatsTooltipMove.bind(this));
       }
     }
     for (const button of this.querySelectorAll("[data-equip-item]")) {
@@ -842,8 +866,8 @@ export class PvmGearPlannerPage extends BaseElement {
     this.renderAndBind();
   }
 
-  handleComparisonTooltipMove(event) {
-    const tooltip = event.currentTarget.querySelector(".pvm-gear-planner-page__comparison-tooltip");
+  handleItemStatsTooltipMove(event) {
+    const tooltip = event.currentTarget.querySelector(".pvm-gear-planner-page__item-stats-tooltip");
     if (!tooltip) return;
     const gap = 16;
     const width = tooltip.offsetWidth;
@@ -1435,7 +1459,7 @@ export class PvmGearPlannerPage extends BaseElement {
       const item = this.activeLoadout.items[slot];
       return `
         <button
-          class="pvm-gear-planner-page__paperdoll-slot position-${position} ${
+          class="pvm-gear-planner-page__paperdoll-slot pvm-gear-planner-page__item-tooltip-host position-${position} ${
         slot === this.activeSlot ? "active" : ""
       } ${item ? "" : "empty"} ${this.activeLoadout.lockedSlots.has(slot) ? "slot-locked" : ""}"
           data-slot="${slot}"
@@ -1450,25 +1474,59 @@ export class PvmGearPlannerPage extends BaseElement {
             title="${this.activeLoadout.lockedSlots.has(slot) ? "Unlock" : "Lock"} ${label.toLowerCase()} slot">${
         this.activeLoadout.lockedSlots.has(slot) ? "🔒" : "🔓"
       }</span>
+          ${item ? this.renderItemStatsTooltip(item) : ""}
         </button>`;
     }).join("");
   }
 
-  renderItemComparisonTooltip(item, equipped) {
-    const changes = itemStatChanges(item, equipped);
-    if (changes.length === 0) return "";
-    return `<div class="pvm-gear-planner-page__comparison-tooltip" role="tooltip">
-      <strong>Compared with ${escapeHtml(equipped.name)}</strong>
-      ${changes
-        .map(
-          ({ label, difference }) =>
-            `<span class="${difference > 0 ? "positive" : "negative"}">${difference > 0 ? "+" : ""}${formatNumber(
-              difference,
-              Number.isInteger(difference) ? 0 : 1
-            )} ${escapeHtml(label)}</span>`
-        )
-        .join("")}
+  renderItemStatValue(value, percentage = false, comparison = false) {
+    const numericValue = Number(value) || 0;
+    const sign = numericValue > 0 ? "+" : "";
+    const formatted = formatNumber(numericValue, Number.isInteger(numericValue) ? 0 : 1);
+    return `${comparison || numericValue >= 0 ? sign : ""}${formatted}${percentage ? "%" : ""}`;
+  }
+
+  renderItemStatsTooltip(item, equipped = null) {
+    if (!item) return "";
+    const comparison = Boolean(equipped);
+    const sections = ITEM_STAT_SECTIONS.map(
+      ({ key: sectionKey, label, headingIcon, stats }) => `<section class="pvm-gear-planner-page__item-stats-section">
+        <h3><span aria-hidden="true">${headingIcon}</span>${label}</h3>
+        <div class="pvm-gear-planner-page__item-stats-grid ${sectionKey === "other" ? "other" : ""}">
+          ${stats
+            .map(([group, key, statLabel, iconId, percentage = false]) => {
+              const value = comparison
+                ? (item?.[group]?.[key] || 0) - (equipped?.[group]?.[key] || 0)
+                : item?.[group]?.[key] || 0;
+              const valueClass = comparison ? (value > 0 ? "positive" : value < 0 ? "negative" : "neutral") : "";
+              return `<div class="pvm-gear-planner-page__item-stat ${valueClass}" title="${escapeHtml(statLabel)}">
+                <img src="/icons/items/${iconId}.webp" alt="" />
+                <span>${this.renderItemStatValue(value, percentage, comparison)}</span>
+              </div>`;
+            })
+            .join("")}
+          ${
+            sectionKey === "other"
+              ? `<div class="pvm-gear-planner-page__item-stat slot" title="Equipment slot">
+                  <span class="pvm-gear-planner-page__slot-icon" aria-hidden="true">▣</span>
+                  <span>${escapeHtml(this.slotName(item.slot) || item.slot)}</span>
+                </div>`
+              : ""
+          }
+        </div>
+      </section>`
+    ).join("");
+    return `<div class="pvm-gear-planner-page__item-stats-tooltip ${comparison ? "comparison" : "full"}" role="tooltip">
+      <div class="pvm-gear-planner-page__item-stats-title">
+        <span>${escapeHtml(item.name)}</span>
+        ${comparison ? `<small>Compared with ${escapeHtml(equipped.name)}</small>` : ""}
+      </div>
+      ${sections}
     </div>`;
+  }
+
+  renderItemComparisonTooltip(item, equipped) {
+    return this.renderItemStatsTooltip(item, equipped);
   }
 
   renderAlternatives() {
@@ -1519,7 +1577,9 @@ export class PvmGearPlannerPage extends BaseElement {
           ...(this.activeStyle === "Ranged" && this.activeSlot === "weapon" ? { ammo: result?.ammo || null } : {}),
         });
         return `
-          <article class="pvm-gear-planner-page__alternative ${selected ? "selected" : ""}">
+          <article class="pvm-gear-planner-page__alternative pvm-gear-planner-page__item-tooltip-host ${
+            selected ? "selected" : ""
+          }">
             <div class="pvm-gear-planner-page__tier tier-${
               result ? displayedTier.toLowerCase() : "pending"
             }">${displayedTier}</div>
@@ -1551,7 +1611,7 @@ export class PvmGearPlannerPage extends BaseElement {
             <button class="men-button" data-equip-item="${item.id}" ${selected ? "disabled" : ""}>${
           selected ? "Equipped" : "Choose"
         }</button>
-            ${selected ? "" : this.renderItemComparisonTooltip(item, equippedItem)}
+            ${selected ? this.renderItemStatsTooltip(item) : this.renderItemComparisonTooltip(item, equippedItem)}
           </article>`;
       })
       .join("");

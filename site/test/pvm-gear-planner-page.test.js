@@ -541,11 +541,14 @@ describe("pvm-gear-planner-page", () => {
     const fighterTorsoTooltip = page
       .querySelector("[data-equip-item='10551']")
       .closest("article")
-      .querySelector(".pvm-gear-planner-page__comparison-tooltip");
+      .querySelector(".pvm-gear-planner-page__item-stats-tooltip");
     expect(fighterTorsoTooltip.textContent).toContain("Compared with Bandos chestplate");
-    expect(fighterTorsoTooltip.textContent).toContain("-1 stab attack");
-    expect(fighterTorsoTooltip.textContent).toContain("-1 Prayer");
-    expect(fighterTorsoTooltip.textContent).not.toContain("magic defence");
+    expect(fighterTorsoTooltip.textContent).toContain("Attack bonuses");
+    expect(fighterTorsoTooltip.textContent).toContain("Defence bonuses");
+    expect(fighterTorsoTooltip.textContent).toContain("Other bonuses");
+    expect(fighterTorsoTooltip.textContent).toContain("-1");
+    expect(fighterTorsoTooltip.querySelector("[title='Stab attack']").classList.contains("negative")).toBe(true);
+    expect(fighterTorsoTooltip.querySelector("[title='Magic defence']").classList.contains("neutral")).toBe(true);
     fighterTorsoTooltip.closest("article").dispatchEvent(new MouseEvent("mousemove", { clientX: 120, clientY: 80 }));
     expect(fighterTorsoTooltip.style.left).toBe("136px");
     expect(fighterTorsoTooltip.style.top).toBe("96px");
@@ -553,6 +556,34 @@ describe("pvm-gear-planner-page", () => {
     page.querySelector("[data-equip-item='9674']").click();
     await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")?.textContent).toBe("Equipped"));
     expect(page.querySelector("[data-slot='body']").title).toContain("Proselyte hauberk");
+    page.remove();
+  });
+
+  it("shows full item stats for paperdoll and equipped alternative items", async () => {
+    const page = await createPage();
+    await vi.waitFor(() => expect(page.querySelector(".pvm-gear-planner-page__tier")?.textContent).not.toBe("…"));
+
+    const bodySlot = page.querySelector("[data-slot='body']");
+    const paperdollTooltip = bodySlot.querySelector(".pvm-gear-planner-page__item-stats-tooltip.full");
+    expect(paperdollTooltip.textContent).toContain("Bandos chestplate");
+    expect(paperdollTooltip.textContent).toContain("Attack bonuses");
+    expect(paperdollTooltip.textContent).toContain("Defence bonuses");
+    expect(paperdollTooltip.textContent).toContain("Other bonuses");
+    expect(paperdollTooltip.textContent).toContain("Body");
+    expect(paperdollTooltip.querySelector("[title='Stab defence'] img").getAttribute("src")).toBe(
+      "/icons/items/1277.webp"
+    );
+
+    bodySlot.dispatchEvent(new MouseEvent("mousemove", { clientX: 120, clientY: 80 }));
+    expect(paperdollTooltip.style.left).toBe("136px");
+    expect(paperdollTooltip.style.top).toBe("96px");
+
+    const equippedTooltip = page
+      .querySelector("[data-equip-item='11832']")
+      .closest("article")
+      .querySelector(".pvm-gear-planner-page__item-stats-tooltip.full");
+    expect(equippedTooltip.textContent).toContain("Bandos chestplate");
+    expect(equippedTooltip.textContent).not.toContain("Compared with");
     page.remove();
   });
 
