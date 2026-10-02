@@ -1044,6 +1044,30 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
+  it("restores the most recently selected target", async () => {
+    const firstPage = await createPage();
+    const target = firstPage.querySelector("[data-control='target']");
+    target.value = "Vorkath (Post-quest) [8059]";
+    target.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(firstPage.selectedTarget?.id).toBe(8059));
+    expect(localStorage.getItem("pvmGearPlannerSelectedTarget")).toBe("8059:Post-quest");
+    firstPage.remove();
+
+    const restoredPage = await createPage();
+    expect(restoredPage.selectedTarget?.id).toBe(8059);
+    expect(restoredPage.querySelector("[data-control='target']").value).toBe("Vorkath (Post-quest) [8059]");
+    restoredPage.remove();
+  });
+
+  it("falls back to the default target when the stored target is unavailable", async () => {
+    localStorage.setItem("pvmGearPlannerSelectedTarget", "999999:Removed");
+    const page = await createPage();
+    expect(page.selectedTarget?.id).toBe(5779);
+    expect(page.querySelector("[data-control='target']").value).toBe("Giant Mole [5779]");
+    expect(localStorage.getItem("pvmGearPlannerSelectedTarget")).toBeNull();
+    page.remove();
+  });
+
   it("restores the most recently selected member", async () => {
     const firstPage = await createPage();
     const player = firstPage.querySelector("[data-control='member']");

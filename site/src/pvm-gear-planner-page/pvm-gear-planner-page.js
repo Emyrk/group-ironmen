@@ -20,6 +20,7 @@ const PAPERDOLL_SLOTS = [
 const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
 const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
 const COMBAT_STYLES = ["Melee", "Ranged", "Magic"];
+const SELECTED_TARGET_STORAGE_KEY = "pvmGearPlannerSelectedTarget";
 const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
 const MAX_CANDIDATES = 12;
 const DEFAULT_TARGET = ["Giant Mole", ""];
@@ -576,11 +577,14 @@ export class PvmGearPlannerPage extends BaseElement {
     try {
       this.entities = await loadPvmEntities();
       this.loadingEntities = false;
+      const storedTargetKey = localStorage.getItem(SELECTED_TARGET_STORAGE_KEY);
+      const storedTarget = storedTargetKey ? this.entities.targetsByKey.get(storedTargetKey) : null;
       const [defaultName, defaultVersion] = DEFAULT_TARGET;
       const defaultTarget = this.entities.targets.find(
         (monster) => monster.name === defaultName && monster.version === defaultVersion
       );
-      this.selectedTargetKey = defaultTarget?.key || this.entities.targets[0]?.key || "";
+      this.selectedTargetKey = storedTarget?.key || defaultTarget?.key || this.entities.targets[0]?.key || "";
+      if (storedTargetKey && !storedTarget) localStorage.removeItem(SELECTED_TARGET_STORAGE_KEY);
       this.initializeLoadout();
       this.renderAndBind();
       this.refreshCalculations();
@@ -867,6 +871,7 @@ export class PvmGearPlannerPage extends BaseElement {
       return;
     }
     this.selectedTargetKey = target.key;
+    localStorage.setItem(SELECTED_TARGET_STORAGE_KEY, target.key);
     for (const loadout of Object.values(this.loadouts)) {
       loadout.currentResult = null;
       loadout.candidateResults = new Map();
