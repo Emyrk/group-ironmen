@@ -648,6 +648,16 @@ button.pvm-gear-planner-page__paperdoll-slot.active {
   text-transform: none;
   white-space: nowrap;
 }
+.pvm-gear-planner-page__item-stats-tooltip.comparison .pvm-gear-planner-page__item-stat.positive {
+  background: rgb(69 142 71 / 12%);
+}
+.pvm-gear-planner-page__item-stats-tooltip.comparison .pvm-gear-planner-page__item-stat.negative {
+  background: rgb(174 65 55 / 12%);
+}
+.pvm-gear-planner-page__item-stats-tooltip.comparison .pvm-gear-planner-page__item-stat.neutral,
+.pvm-gear-planner-page__item-stats-tooltip.full .pvm-gear-planner-page__item-stat.neutral {
+  background: rgb(85 79 68 / 8%);
+}
 .pvm-gear-planner-page__item-stat.positive span {
   color: #267a2e;
 }

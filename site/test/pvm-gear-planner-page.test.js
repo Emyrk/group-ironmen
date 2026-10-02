@@ -549,6 +549,7 @@ describe("pvm-gear-planner-page", () => {
     expect(fighterTorsoTooltip.textContent).toContain("-1");
     expect(fighterTorsoTooltip.querySelector("[title='Stab attack']").classList.contains("negative")).toBe(true);
     expect(fighterTorsoTooltip.querySelector("[title='Magic defence']").classList.contains("neutral")).toBe(true);
+    expect(fighterTorsoTooltip.querySelector("[title='Magic defence'] span").textContent).toBe("=");
     fighterTorsoTooltip.closest("article").dispatchEvent(new MouseEvent("mousemove", { clientX: 120, clientY: 80 }));
     expect(fighterTorsoTooltip.style.left).toBe("136px");
     expect(fighterTorsoTooltip.style.top).toBe("96px");
@@ -557,6 +558,22 @@ describe("pvm-gear-planner-page", () => {
     await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")?.textContent).toBe("Equipped"));
     expect(page.querySelector("[data-slot='body']").title).toContain("Proselyte hauberk");
     page.remove();
+  });
+
+  it("uses subtle comparison cell backgrounds for positive, negative, and unchanged stats", () => {
+    const styles = readFileSync("src/pvm-gear-planner-page/pvm-gear-planner-page.css", "utf8");
+    expect(styles).toContain(
+      ".pvm-gear-planner-page__item-stats-tooltip.comparison .pvm-gear-planner-page__item-stat.positive"
+    );
+    expect(styles).toContain("background: rgb(69 142 71 / 12%);");
+    expect(styles).toContain(
+      ".pvm-gear-planner-page__item-stats-tooltip.comparison .pvm-gear-planner-page__item-stat.negative"
+    );
+    expect(styles).toContain("background: rgb(174 65 55 / 12%);");
+    expect(styles).toContain(
+      ".pvm-gear-planner-page__item-stats-tooltip.comparison .pvm-gear-planner-page__item-stat.neutral"
+    );
+    expect(styles).toContain("background: rgb(85 79 68 / 8%);");
   });
 
   it("keeps item tooltip text crisp without inherited shadows or transforms", () => {

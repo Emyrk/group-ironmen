@@ -1481,6 +1481,7 @@ export class PvmGearPlannerPage extends BaseElement {
 
   renderItemStatValue(value, percentage = false, comparison = false) {
     const numericValue = Number(value) || 0;
+    if (comparison && numericValue === 0) return "=";
     const sign = numericValue > 0 ? "+" : "";
     const formatted = formatNumber(numericValue, Number.isInteger(numericValue) ? 0 : 1);
     return `${comparison || numericValue >= 0 ? sign : ""}${formatted}${percentage ? "%" : ""}`;
@@ -1498,7 +1499,8 @@ export class PvmGearPlannerPage extends BaseElement {
               const value = comparison
                 ? (item?.[group]?.[key] || 0) - (equipped?.[group]?.[key] || 0)
                 : item?.[group]?.[key] || 0;
-              const valueClass = comparison ? (value > 0 ? "positive" : value < 0 ? "negative" : "neutral") : "";
+              const valueClass =
+                value > 0 ? (comparison ? "positive" : "") : value < 0 ? (comparison ? "negative" : "") : "neutral";
               return `<div class="pvm-gear-planner-page__item-stat ${valueClass}" title="${escapeHtml(statLabel)}">
                 <img src="/icons/items/${iconId}.webp" alt="" />
                 <span>${this.renderItemStatValue(value, percentage, comparison)}</span>
