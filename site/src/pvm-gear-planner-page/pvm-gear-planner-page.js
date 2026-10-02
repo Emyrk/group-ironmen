@@ -20,6 +20,7 @@ const PAPERDOLL_SLOTS = [
 const SLOT_NAMES = Object.fromEntries(PAPERDOLL_SLOTS.map(({ slot, label }) => [slot, label]));
 const SLOT_KEYS = PAPERDOLL_SLOTS.map(({ slot }) => slot);
 const COMBAT_STYLES = ["Melee", "Ranged", "Magic"];
+const PINNED_ITEMS_STORAGE_KEY = "pvmGearPlannerPinnedItems";
 const FILTER_STORAGE_KEY = "pvmGearPlannerFilters";
 const SELECTED_TARGET_STORAGE_KEY = "pvmGearPlannerSelectedTarget";
 const SELECTED_MEMBER_STORAGE_KEY = "pvmGearPlannerSelectedMember";
@@ -478,6 +479,29 @@ const AMMO_TIER_LABELS = Object.freeze({
 const DEFAULT_RANGED_FILTERS = Object.freeze({ omitCrystalBow: false, ammoTier: "all" });
 const DEFAULT_RUNE_RESTRICTIONS = Object.freeze({ wrath: false, death: false, blood: false });
 
+function loadPinnedItems() {
+  const stored = localStorage.getItem(PINNED_ITEMS_STORAGE_KEY);
+  if (!stored) return {};
+  try {
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new TypeError("Invalid pinned items");
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .filter(([key, itemIds]) => {
+          const [style, slot, extra] = key.split(":");
+          return !extra && COMBAT_STYLES.includes(style) && SLOT_KEYS.includes(slot) && Array.isArray(itemIds);
+        })
+        .map(([key, itemIds]) => [
+          key,
+          [...new Set(itemIds.filter((itemId) => Number.isSafeInteger(itemId) && itemId > 0))],
+        ])
+    );
+  } catch {
+    localStorage.removeItem(PINNED_ITEMS_STORAGE_KEY);
+    return {};
+  }
+}
+
 function loadStoredFilters() {
   const defaults = {
     ranged: { ...DEFAULT_RANGED_FILTERS },
@@ -608,6 +632,7 @@ export class PvmGearPlannerPage extends BaseElement {
     this.activeStyle = "Melee";
     this.loadouts = Object.fromEntries(COMBAT_STYLES.map((style) => [style, createLoadout(style)]));
     const storedFilters = loadStoredFilters();
+    this.pinnedItems = loadPinnedItems();
     this.rangedFilters = storedFilters.ranged;
     this.spellResultsHidden = false;
     this.runeRestrictions = storedFilters.magic;
@@ -770,14 +795,16 @@ export class PvmGearPlannerPage extends BaseElement {
     return { ammoIds: new Set(response.result.ammoIds), requiresAmmo: response.result.requiresAmmo };
   }
 
-  async syncRangedAmmo(preferredAmmo = null) {
+  async syncRangedAmmo(preferredAmmo = null, generation = this.calculationGeneration) {
     const loadout = this.loadouts.Ranged;
-    const { ammoIds, requiresAmmo } = await this.compatibleAmmoForWeapon(loadout.items.weapon);
+    const weapon = loadout.items.weapon;
+    const { ammoIds, requiresAmmo } = await this.compatibleAmmoForWeapon(weapon);
+    if (generation !== this.calculationGeneration || weapon !== loadout.items.weapon) return false;
     loadout.compatibleAmmoIds = ammoIds;
     loadout.rangedWeaponRequiresAmmo = requiresAmmo;
     if (!requiresAmmo) {
       if (!loadout.lockedSlots.has("ammo")) loadout.items.ammo = null;
-      return;
+      return true;
     }
     if (
       preferredAmmo &&
@@ -786,15 +813,16 @@ export class PvmGearPlannerPage extends BaseElement {
       ammoAllowedByTier(preferredAmmo, this.rangedFilters.ammoTier)
     ) {
       loadout.items.ammo = preferredAmmo;
-      return;
+      return true;
     }
     if (ammoIds.has(loadout.items.ammo?.id) && ammoAllowedByTier(loadout.items.ammo, this.rangedFilters.ammoTier))
-      return;
-    if (loadout.lockedSlots.has("ammo")) return;
+      return true;
+    if (loadout.lockedSlots.has("ammo")) return true;
     loadout.items.ammo =
       this.ownedEquipment("ammo", "Ranged", loadout)
         .filter((item) => ammoIds.has(item.id))
         .sort((left, right) => equipmentScore(right) - equipmentScore(left))[0] || null;
+    return true;
   }
 
   initializeStyleLoadout(style, { preserveSelections = false } = {}) {
@@ -891,6 +919,11 @@ export class PvmGearPlannerPage extends BaseElement {
       if (host.querySelector(".pvm-gear-planner-page__item-stats-tooltip")) {
         this.eventListener(host, "mousemove", this.handleItemStatsTooltipMove.bind(this));
       }
+    }
+    const bankItemForm = this.querySelector("[data-bank-item-form]");
+    if (bankItemForm) this.eventListener(bankItemForm, "submit", this.handlePinBankItemSubmit.bind(this));
+    for (const button of this.querySelectorAll("[data-pin-item]")) {
+      this.eventListener(button, "click", this.handlePinItemClick.bind(this));
     }
     for (const button of this.querySelectorAll("[data-equip-item]")) {
       this.eventListener(button, "click", this.handleEquipClick.bind(this));
@@ -1029,24 +1062,55 @@ export class PvmGearPlannerPage extends BaseElement {
     this.refreshActiveCandidates();
   }
 
+  updatePinnedItem(itemId, pinned) {
+    const key = this.pinKey();
+    const itemIds = this.pinnedItemIds();
+    if (pinned) itemIds.add(itemId);
+    else itemIds.delete(itemId);
+    if (itemIds.size > 0) this.pinnedItems[key] = [...itemIds];
+    else delete this.pinnedItems[key];
+    this.persistPinnedItems();
+    this.refreshActiveCandidates();
+  }
+
+  handlePinBankItemSubmit(event) {
+    event.preventDefault();
+    const input = event.currentTarget.querySelector("[data-bank-item-search]");
+    const item = this.searchableBankItems().find((candidate) => this.bankItemLabel(candidate) === input?.value);
+    if (!item) return;
+    this.updatePinnedItem(item.id, true);
+  }
+
+  handlePinItemClick(event) {
+    const itemId = Number(event.currentTarget.dataset.pinItem);
+    const item = this.searchableBankItems().find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    this.updatePinnedItem(itemId, !this.pinnedItemIds().has(itemId));
+  }
+
   async handleEquipClick(event) {
+    const style = this.activeStyle;
+    const slot = this.activeSlot;
     const item = this.entities?.equipmentById.get(Number(event.currentTarget.dataset.equipItem));
-    if (!item || item.slot !== this.activeSlot || !this.isOwned(item)) return;
-    const loadout = this.activeLoadout;
-    loadout.items[this.activeSlot] = item;
-    this.normalizeTwoHandedEquipment(loadout, this.activeSlot);
+    if (!item || item.slot !== slot || !this.isOwned(item)) return;
+    const generation = ++this.calculationGeneration;
+    const loadout = this.loadouts[style];
+    loadout.items[slot] = item;
+    this.normalizeTwoHandedEquipment(loadout, slot);
     try {
-      if (this.activeStyle === "Ranged" && this.activeSlot === "weapon") {
-        await this.syncRangedAmmo(loadout.candidateResults.get(item.id)?.ammo || null);
+      if (style === "Ranged" && slot === "weapon") {
+        if (!(await this.syncRangedAmmo(loadout.candidateResults.get(item.id)?.ammo || null, generation))) return;
       }
     } catch (error) {
+      if (generation !== this.calculationGeneration) return;
       this.error = error instanceof Error ? error.message : String(error);
     }
+    if (generation !== this.calculationGeneration) return;
     loadout.currentResult = null;
     loadout.candidateResults = new Map();
-    if (this.activeStyle === "Magic") loadout.selectedSpell = "";
+    if (style === "Magic") loadout.selectedSpell = "";
     this.renderAndBind();
-    this.refreshCalculations({ styles: [this.activeStyle] });
+    this.refreshCalculations({ styles: [style] });
   }
 
   itemImage(item) {
@@ -1075,15 +1139,45 @@ export class PvmGearPlannerPage extends BaseElement {
     };
   }
 
+  pinKey(style = this.activeStyle, slot = this.activeSlot) {
+    return `${style}:${slot}`;
+  }
+
+  pinnedItemIds(style = this.activeStyle, slot = this.activeSlot) {
+    return new Set(this.pinnedItems[this.pinKey(style, slot)] || []);
+  }
+
+  persistPinnedItems() {
+    localStorage.setItem(PINNED_ITEMS_STORAGE_KEY, JSON.stringify(this.pinnedItems));
+  }
+
+  bankItemLabel(item) {
+    return `${item.name}${item.version ? ` (${item.version})` : ""} [${item.id}]`;
+  }
+
+  searchableBankItems() {
+    return this.ownedEquipment(this.activeSlot, this.activeStyle, this.activeLoadout).sort(
+      (left, right) =>
+        left.name.localeCompare(right.name) || left.version.localeCompare(right.version) || left.id - right.id
+    );
+  }
+
   activeCandidates() {
     const loadout = this.activeLoadout;
     const selected = loadout.items[this.activeSlot];
     const candidates = this.ownedEquipment(this.activeSlot, this.activeStyle, loadout).sort((left, right) =>
       compareCandidateHeuristic(left, right, this.activeSlot, this.selectedTarget)
     );
-    const bounded = candidates.slice(0, MAX_CANDIDATES);
-    if (selected && !bounded.some((item) => item.id === selected.id)) bounded.push(selected);
-    return bounded;
+    const included = candidates.slice(0, MAX_CANDIDATES);
+    const include = (item) => {
+      if (item && !included.some((candidate) => candidate.id === item.id)) included.push(item);
+    };
+    include(selected);
+    const pinnedIds = this.pinnedItemIds();
+    for (const item of candidates) {
+      if (pinnedIds.has(item.id)) include(item);
+    }
+    return included;
   }
 
   async calculateStyleResult(style, overrides, calculator, fixedSpell = "") {
@@ -1169,7 +1263,7 @@ export class PvmGearPlannerPage extends BaseElement {
 
   async optimizeStyleLoadout(style, generation) {
     const loadout = this.loadouts[style];
-    if (style === "Ranged") await this.syncRangedAmmo();
+    if (style === "Ranged" && !(await this.syncRangedAmmo(null, generation))) return false;
     let calculated = await this.calculateStyleResult(style, {}, this.optimizerCalculator);
     if (generation !== this.calculationGeneration || !calculated) return false;
     loadout.currentResult = calculated.result;
@@ -1272,6 +1366,7 @@ export class PvmGearPlannerPage extends BaseElement {
         if (!(await this.optimizeStyleLoadout(style, generation))) return;
         this.renderAndBind();
       }
+      if (styles.includes(this.activeStyle) && !(await this.calculateActiveCandidates(generation))) return;
       this.calculating = false;
       this.renderAndBind();
     } catch (error) {
@@ -1345,7 +1440,7 @@ export class PvmGearPlannerPage extends BaseElement {
     this.renderAndBind();
 
     try {
-      if (styles.includes("Ranged")) await this.syncRangedAmmo();
+      if (styles.includes("Ranged") && !(await this.syncRangedAmmo(null, generation))) return;
       for (const style of styles) {
         if (generation !== this.calculationGeneration) return;
         const loadout = this.loadouts[style];
@@ -1577,6 +1672,29 @@ export class PvmGearPlannerPage extends BaseElement {
     return this.renderItemStatsTooltip(item, equipped);
   }
 
+  renderBankItemSearch() {
+    const items = this.searchableBankItems();
+    const listId = `pvm-gear-bank-items-${this.activeStyle.toLowerCase()}-${this.activeSlot}`;
+    return `<form class="pvm-gear-planner-page__bank-search" data-bank-item-form>
+      <label for="${listId}-input">Add owned item</label>
+      <div>
+        <input id="${listId}-input" data-bank-item-search list="${listId}"
+          placeholder="Search member or shared storage" autocomplete="off" />
+        <datalist id="${listId}">
+          ${items
+            .map(
+              (item) =>
+                `<option data-bank-item-option value="${escapeHtml(this.bankItemLabel(item))}">${escapeHtml(
+                  this.availabilityLabel(item)
+                )}</option>`
+            )
+            .join("")}
+        </datalist>
+        <button type="submit" class="men-button" data-pin-bank-item>Pin item</button>
+      </div>
+    </form>`;
+  }
+
   renderAlternatives() {
     const loadout = this.activeLoadout;
     const ranked = this.activeCandidates()
@@ -1609,9 +1727,11 @@ export class PvmGearPlannerPage extends BaseElement {
       );
     }
     const equippedItem = loadout.items[this.activeSlot];
+    const pinnedIds = this.pinnedItemIds();
     return ranked
       .map(({ item, result }) => {
         const selected = equippedItem?.id === item.id;
+        const pinned = pinnedIds.has(item.id);
         const displayedTier = result
           ? candidateTier(item, result, bestDps, bestDamageTakenByDps, this.activeSlot, this.selectedTarget)
           : "…";
@@ -1656,9 +1776,14 @@ export class PvmGearPlannerPage extends BaseElement {
               <div><dt>Defence</dt><dd>${summary.defence}</dd></div>
               <div><dt>Weight</dt><dd>${formatNumber(summary.weight)} kg</dd></div>
             </dl>
-            <button class="men-button" data-equip-item="${item.id}" ${selected ? "disabled" : ""}>${
+            <div class="pvm-gear-planner-page__alternative-actions">
+              <button class="men-button" data-equip-item="${item.id}" ${selected ? "disabled" : ""}>${
           selected ? "Equipped" : "Choose"
         }</button>
+              <button type="button" class="pvm-gear-planner-page__pin-button ${pinned ? "pinned" : ""}"
+                data-pin-item="${item.id}" aria-pressed="${pinned}"
+                title="${pinned ? "Unpin" : "Pin"} ${escapeHtml(item.name)}">${pinned ? "★ Unpin" : "☆ Pin"}</button>
+            </div>
             ${selected ? this.renderItemStatsTooltip(item) : this.renderItemComparisonTooltip(item, equippedItem)}
           </article>`;
       })

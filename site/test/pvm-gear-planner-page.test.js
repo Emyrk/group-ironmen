@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pubsub } from "../src/data/pubsub";
 
+let delayedAmmoWeaponId = null;
+let releaseDelayedAmmo = null;
+
 const requests = [];
 
 function equipment(id, name, slot, score = 0, category = "") {
@@ -147,6 +150,12 @@ vi.mock("../src/pvm/calculator-client", async () => {
     createWorkerCalculatorTransport: vi.fn(() => async (request) => {
       requests.push(request);
       if (request.action === "compatible-ammo") {
+        if (request.player.equipment.weapon === delayedAmmoWeaponId) {
+          delayedAmmoWeaponId = null;
+          await new Promise((resolve) => {
+            releaseDelayedAmmo = resolve;
+          });
+        }
         const ammoIds =
           request.player.equipment.weapon === 861
             ? [11212, 892, 890, 882]
@@ -267,6 +276,7 @@ PvmGearPlannerPage.prototype.html = function () {
     }
     <section>
       <h2>Top owned candidates ranked by real DPS</h2>
+      ${this.renderBankItemSearch()}
       <div class="pvm-gear-planner-page__alternatives">${this.renderAlternatives()}</div>
     </section>`;
 };
@@ -328,11 +338,27 @@ async function createPage(data = groupData()) {
   return page;
 }
 
+async function waitForReadyAlternatives(page) {
+  await vi.waitFor(() => {
+    const rows = [...page.querySelectorAll(".pvm-gear-planner-page__alternative")];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.querySelector(".pvm-gear-planner-page__tier")?.textContent !== "…")).toBe(true);
+    expect(rows.every((row) => !row.querySelector("dl")?.textContent.includes("…"))).toBe(true);
+  });
+}
+
+const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + index));
+
 describe("pvm-gear-planner-page", () => {
   beforeEach(() => {
     requests.length = 0;
+    delayedAmmoWeaponId = null;
+    releaseDelayedAmmo = null;
     localStorage.clear();
     document.body.innerHTML = "";
+    for (let index = equipmentEntities.length - 1; index >= 0; index -= 1) {
+      if (extraBodyIds.has(equipmentEntities[index].id)) equipmentEntities.splice(index, 1);
+    }
     window.history.replaceState("", "", "/group/pvm-gear");
   });
 
@@ -698,6 +724,28 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   }, 15000);
 
+  it("recalculates every visible alternative after optimizing the active style", async () => {
+    const page = await createPage();
+    page.querySelector("[data-reset-style='Melee']").click();
+
+    await vi.waitFor(() => expect(page.calculating).toBe(false), { timeout: 10000 });
+    await waitForReadyAlternatives(page);
+    expect(page.activeLoadout.candidateResults.size).toBe(page.activeCandidates().length);
+    page.remove();
+  }, 15000);
+
+  it("recalculates every visible alternative after optimizing all styles", async () => {
+    const page = await createPage();
+    page.querySelector("[data-style='Magic']").click();
+    await waitForReadyAlternatives(page);
+    page.querySelector("[data-reset-all]").click();
+
+    await vi.waitFor(() => expect(page.calculating).toBe(false), { timeout: 10000 });
+    await waitForReadyAlternatives(page);
+    expect(page.activeLoadout.candidateResults.size).toBe(page.activeCandidates().length);
+    page.remove();
+  }, 15000);
+
   it("keeps locked slots unchanged while optimizing the rest of a style", async () => {
     const page = await createPage();
     page.querySelector("[data-style='Ranged']").click();
@@ -894,6 +942,115 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelector("[data-equip-item='892']")).toBeNull();
     expect(page.querySelector("[data-equip-item='9244']")).not.toBeNull();
     page.remove();
+  });
+
+  it("searches owned bank items and ranks a pinned out-of-bound candidate by evaluated DPS", async () => {
+    const extraBodies = [...extraBodyIds].map((id, index) =>
+      equipment(id, `High offence body ${index + 1}`, "body", 20 - index)
+    );
+    equipmentEntities.push(...extraBodies);
+    const data = groupData();
+    data.members.set("Alice", member("Alice", [...equipmentEntities.map((candidate) => candidate.id), 9674], 11832));
+    const page = await createPage(data);
+    page.querySelector("[data-style='Magic']").click();
+    await waitForReadyAlternatives(page);
+
+    expect(page.querySelector("[data-equip-item='9674']")).toBeNull();
+    const search = page.querySelector("[data-bank-item-search]");
+    const proselyteLabel = "Proselyte hauberk [9674]";
+    expect([...page.querySelectorAll("[data-bank-item-option]")].map((option) => option.value)).toContain(
+      proselyteLabel
+    );
+    search.value = proselyteLabel;
+    page.querySelector("[data-bank-item-form]").dispatchEvent(new Event("submit", { cancelable: true }));
+
+    await vi.waitFor(() =>
+      expect(
+        page.querySelector("[data-equip-item='9674']")?.closest("article").querySelector(".pvm-gear-planner-page__tier")
+          .textContent
+      ).not.toBe("…")
+    );
+    expect(page.querySelector(".pvm-gear-planner-page__alternative strong").textContent).toBe("Proselyte hauberk");
+    expect(page.querySelectorAll("[data-equip-item='9674']")).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem("pvmGearPlannerPinnedItems"))).toEqual({ "Magic:body": [9674] });
+
+    const bandosPin = page.querySelector("[data-pin-item='11832']");
+    bandosPin.click();
+    await vi.waitFor(() =>
+      expect(page.querySelector("[data-pin-item='11832']")?.getAttribute("aria-pressed")).toBe("true")
+    );
+    expect(page.querySelectorAll("[data-equip-item='11832']")).toHaveLength(1);
+
+    page.querySelector("[data-pin-item='9674']").click();
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")).toBeNull());
+    page.remove();
+  });
+
+  it("persists pins by style and slot while excluding items that are no longer owned", async () => {
+    localStorage.setItem("pvmGearPlannerPinnedItems", JSON.stringify({ "Magic:body": [9674], "Melee:head": [10828] }));
+    const firstPage = await createPage();
+    firstPage.querySelector("[data-style='Magic']").click();
+    await vi.waitFor(() =>
+      expect(firstPage.querySelector("[data-pin-item='9674']")?.getAttribute("aria-pressed")).toBe("true")
+    );
+    expect(firstPage.querySelector("[data-pin-item='10828']")).toBeNull();
+    firstPage.remove();
+
+    const data = groupData();
+    data.members.set("@SHARED", member("@SHARED", [], 0));
+    const secondPage = await createPage(data);
+    secondPage.querySelector("[data-style='Magic']").click();
+    expect(secondPage.querySelector("[data-equip-item='9674']")).toBeNull();
+    secondPage.remove();
+  });
+
+  it("clears invalid pinned-item storage", async () => {
+    localStorage.setItem("pvmGearPlannerPinnedItems", "not-json");
+    const page = await createPage();
+    expect(page.pinnedItems).toEqual({});
+    expect(localStorage.getItem("pvmGearPlannerPinnedItems")).toBeNull();
+    page.remove();
+  });
+
+  it("does not let a stale ranged ammo response overwrite a newer weapon selection", async () => {
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    page.querySelector("[data-style='Ranged']").click();
+    page.querySelector("[data-slot='weapon']").click();
+    await waitForReadyAlternatives(page);
+
+    let release;
+    try {
+      delayedAmmoWeaponId = 21012;
+      page.querySelector("[data-equip-item='21012']").click();
+      await vi.waitFor(() => expect(releaseDelayedAmmo).toBeTypeOf("function"));
+      release = releaseDelayedAmmo;
+      page.querySelector("[data-equip-item='8880']").click();
+      await vi.waitFor(() => {
+        expect(page.loadouts.Ranged.items.weapon.id).toBe(8880);
+        expect(page.loadouts.Ranged.items.ammo.id).toBe(8882);
+        expect(page.calculating).toBe(false);
+      });
+
+      release();
+      release = null;
+      await vi.waitFor(() => {
+        expect(page.loadouts.Ranged.items.weapon.id).toBe(8880);
+        expect(page.loadouts.Ranged.items.ammo.id).toBe(8882);
+      });
+      await waitForReadyAlternatives(page);
+    } finally {
+      release?.();
+      page.remove();
+    }
   });
 
   it("restores the most recently selected Ranged and Magic filters", async () => {
@@ -1202,7 +1359,7 @@ describe("pvm-gear-planner-page", () => {
 
   it("exposes every authoritative target through search suggestions", async () => {
     const page = await createPage();
-    expect(page.querySelectorAll("datalist option")).toHaveLength(monsterEntities.length);
+    expect(page.querySelectorAll("header datalist option")).toHaveLength(monsterEntities.length);
     expect(page.querySelector("[data-control='target']").value).toBe("Giant Mole [5779]");
     page.remove();
   });
