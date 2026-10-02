@@ -349,7 +349,7 @@ async function waitForReadyAlternatives(page) {
 
 const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + index));
 const extraRangedWeaponIds = new Set(Array.from({ length: 13 }, (_, index) => 32000 + index));
-const temporaryEquipmentIds = new Set([...extraBodyIds, ...extraRangedWeaponIds]);
+const temporaryEquipmentIds = new Set([1123, ...extraBodyIds, ...extraRangedWeaponIds]);
 
 describe("pvm-gear-planner-page", () => {
   beforeEach(() => {
@@ -826,7 +826,39 @@ describe("pvm-gear-planner-page", () => {
     page.remove();
   });
 
-  it("keeps an allowed Crystal bow visible beyond the normal weapon candidate cutoff", async () => {
+  it("keeps Proselyte ahead of equivalent non-prayer body armour in the default candidates", async () => {
+    const proselyte = equipmentEntities.find((item) => item.id === 9674);
+    const equivalentBody = (id, name) => ({
+      ...equipment(id, name, "body"),
+      bonuses: { ...proselyte.bonuses, prayer: 0 },
+      offensive: { ...proselyte.offensive },
+      defensive: { ...proselyte.defensive },
+    });
+    const alternatives = [
+      equivalentBody(1123, "Adamant platebody"),
+      ...[...extraBodyIds].map((id, index) => equivalentBody(id, `Equivalent body ${index + 1}`)),
+    ];
+    const proselyteIndex = equipmentEntities.findIndex((item) => item.id === 9674);
+    equipmentEntities.splice(proselyteIndex, 0, ...alternatives);
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='9674']")).not.toBeNull());
+    const candidateIds = page.activeCandidates().map((candidate) => candidate.id);
+    expect(candidateIds).toContain(9674);
+    expect(candidateIds.indexOf(9674)).toBeLessThan(candidateIds.indexOf(1123));
+    page.remove();
+  });
+
+  it("does not force an allowed Crystal bow beyond the normal weapon candidate cutoff", async () => {
     equipmentEntities.push(
       ...[...extraRangedWeaponIds].map((id, index) =>
         combatWeapon(id, `High score bow ${index + 1}`, "Bow", "ranged", 300 - index)
@@ -845,9 +877,10 @@ describe("pvm-gear-planner-page", () => {
     page.querySelector("[data-style='Ranged']").click();
     page.querySelector("[data-slot='weapon']").click();
 
-    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='23983']")).not.toBeNull());
-    expect(page.activeCandidates().some((candidate) => candidate.id === 23983)).toBe(true);
-    expect(page.optimizationCandidates("weapon", "Ranged").some((candidate) => candidate.id === 23983)).toBe(true);
+    await vi.waitFor(() => expect(page.querySelector(".pvm-gear-planner-page__tier")?.textContent).not.toBe("…"));
+    expect(page.querySelector("[data-equip-item='23983']")).toBeNull();
+    expect(page.activeCandidates().some((candidate) => candidate.id === 23983)).toBe(false);
+    expect(page.optimizationCandidates("weapon", "Ranged").some((candidate) => candidate.id === 23983)).toBe(false);
     page.remove();
   });
 
@@ -868,11 +901,7 @@ describe("pvm-gear-planner-page", () => {
     const data = groupData();
     data.members.set(
       "Alice",
-      member(
-        "Alice",
-        equipmentEntities.map((item) => item.id),
-        11832
-      )
+      member("Alice", [...equipmentEntities.map((item) => item.id).filter((itemId) => itemId !== 23983), 23985], 11832)
     );
     const page = await createPage(data);
     const rangedCard = page.querySelector("[data-style='Ranged']").closest("article");
@@ -895,6 +924,10 @@ describe("pvm-gear-planner-page", () => {
     page.querySelector("[data-style='Ranged']").click();
     page.querySelector("[data-slot='weapon']").click();
     await vi.waitFor(() => expect(page.querySelector("[data-equip-item='23983']")).not.toBeNull());
+
+    expect(page.loadouts.Ranged.items.weapon.id).toBe(23983);
+    expect(page.loadouts.Ranged.rangedWeaponRequiresAmmo).toBe(false);
+    expect(page.querySelector("[data-style='Ranged']").closest("article").textContent).toContain("Ammo: Not required");
 
     rangedCard.querySelector("[data-ranged-crystal-filter]").click();
     await vi.waitFor(() => {
