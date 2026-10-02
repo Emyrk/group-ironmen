@@ -350,7 +350,14 @@ async function waitForReadyAlternatives(page) {
 const extraBodyIds = new Set(Array.from({ length: 13 }, (_, index) => 31000 + index));
 const extraRangedWeaponIds = new Set(Array.from({ length: 13 }, (_, index) => 32000 + index));
 const standardBowIds = new Set([839, 841, 843, 845, 847, 849, 851, 853, 855, 857, 859]);
-const temporaryEquipmentIds = new Set([1123, ...extraBodyIds, ...extraRangedWeaponIds, ...standardBowIds]);
+const standardScimitarIds = new Set([1321, 1323, 1325, 1327, 1329, 1331, 1333]);
+const temporaryEquipmentIds = new Set([
+  1123,
+  ...extraBodyIds,
+  ...extraRangedWeaponIds,
+  ...standardBowIds,
+  ...standardScimitarIds,
+]);
 
 describe("pvm-gear-planner-page", () => {
   beforeEach(() => {
@@ -778,6 +785,40 @@ describe("pvm-gear-planner-page", () => {
     expect(page.querySelector("[data-equip-item='11978']")).not.toBeNull();
     expect(page.querySelector("[data-equip-item='1704']")).toBeNull();
     expect(page.querySelector("[data-equip-item='11105']")).toBeNull();
+    page.remove();
+  });
+
+  it("shows only the strongest owned bronze-through-rune scimitar", async () => {
+    const standardScimitars = [
+      [1321, "Bronze scimitar", 7, 6],
+      [1323, "Iron scimitar", 10, 9],
+      [1325, "Steel scimitar", 15, 14],
+      [1327, "Black scimitar", 19, 14],
+      [1329, "Mithril scimitar", 21, 20],
+      [1331, "Adamant scimitar", 29, 28],
+      [1333, "Rune scimitar", 45, 44],
+    ].map(([id, name, slash, strength]) => {
+      const item = combatWeapon(id, name, "Slash Sword", "slash", slash);
+      item.bonuses.str = strength;
+      return item;
+    });
+    equipmentEntities.push(...standardScimitars);
+    const data = groupData();
+    data.members.set(
+      "Alice",
+      member(
+        "Alice",
+        equipmentEntities.map((candidate) => candidate.id),
+        11832
+      )
+    );
+    const page = await createPage(data);
+    page.querySelector("[data-slot='weapon']").click();
+
+    await vi.waitFor(() => expect(page.querySelector("[data-equip-item='1333']")).not.toBeNull());
+    for (const itemId of [1321, 1323, 1325, 1327, 1329, 1331]) {
+      expect(page.querySelector(`[data-equip-item='${itemId}']`)).toBeNull();
+    }
     page.remove();
   });
 

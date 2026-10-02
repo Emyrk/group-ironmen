@@ -182,6 +182,15 @@ const ITEM_PROGRESSION_GROUPS = Object.freeze([
     855, // Yew longbow
     859, // Magic longbow
   ],
+  [
+    1321, // Bronze scimitar
+    1323, // Iron scimitar
+    1325, // Steel scimitar
+    1327, // Black scimitar
+    1329, // Mithril scimitar
+    1331, // Adamant scimitar
+    1333, // Rune scimitar
+  ],
 ]);
 const ITEM_PROGRESSION_RANKS = new Map();
 for (const [groupIndex, itemIds] of ITEM_PROGRESSION_GROUPS.entries()) {
