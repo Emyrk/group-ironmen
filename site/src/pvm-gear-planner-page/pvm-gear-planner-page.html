@@ -17,6 +17,9 @@ ${this.renderStatus()}
 <div class="pvm-gear-planner-page__workspace">
   <section class="pvm-gear-planner-page__loadout rsbackground rsborder-tiny">
     <header><h2>${this.activeStyle} loadout</h2><span>Choose a slot to compare</span></header>
+    <div class="pvm-gear-planner-page__paperdoll-actions">
+      <button type="button" class="men-button" data-load-game-gear>Load from game</button>
+    </div>
     <div class="pvm-gear-planner-page__paperdoll" aria-label="${this.activeStyle} equipment">${this.renderPaperdoll()}</div>
     <div class="pvm-gear-planner-page__selected-slot">
       <span>${this.slotName(this.activeSlot)}</span>

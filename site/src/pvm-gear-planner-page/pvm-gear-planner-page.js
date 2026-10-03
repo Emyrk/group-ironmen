@@ -1011,6 +1011,8 @@ export class PvmGearPlannerPage extends BaseElement {
     }
     const resetAll = this.querySelector("[data-reset-all]");
     if (resetAll) this.eventListener(resetAll, "click", this.handleResetAllClick.bind(this));
+    const loadGameGear = this.querySelector("[data-load-game-gear]");
+    if (loadGameGear) this.eventListener(loadGameGear, "click", this.handleLoadGameGearClick.bind(this));
     for (const control of this.querySelectorAll("[data-lock-slot]")) {
       this.eventListener(control, "click", this.handleLockSlotClick.bind(this));
       this.eventListener(control, "keydown", this.handleLockSlotKeydown.bind(this));
@@ -1148,6 +1150,34 @@ export class PvmGearPlannerPage extends BaseElement {
     magic.selectedSpell = "";
     this.renderAndBind();
     this.refreshCalculations({ styles: ["Magic"] });
+  }
+
+  equippedItemForSlot(slot, itemId) {
+    if (!itemId) return null;
+    const direct = this.entities?.equipmentById.get(itemId);
+    if (direct?.slot === slot) return direct;
+    const variationIds = new Set(itemVariations(itemId));
+    return (this.entities?.equipmentBySlot.get(slot) || [])
+      .filter((item) => variationIds.has(item.id) && this.isOwned(item))
+      .reduce((best, item) => (!best || preferFamilyRepresentative(item, best) ? item : best), null);
+  }
+
+  handleLoadGameGearClick() {
+    if (!this.entities || !this.selectedMemberData) return;
+    ++this.calculationGeneration;
+    const loadout = this.activeLoadout;
+    const equippedIds = equipmentIdsFromMember(this.selectedMemberData);
+    loadout.items = Object.fromEntries(
+      SLOT_KEYS.map((slot) => [slot, this.equippedItemForSlot(slot, equippedIds[slot])])
+    );
+    loadout.currentResult = null;
+    loadout.candidateResults = new Map();
+    loadout.selectedSpell = "";
+    loadout.compatibleAmmoIds = null;
+    loadout.rangedWeaponRequiresAmmo = false;
+    this.normalizeTwoHandedEquipment(loadout);
+    this.renderAndBind();
+    this.refreshCalculations({ styles: [this.activeStyle] });
   }
 
   handleLockSlotClick(event) {

@@ -268,7 +268,10 @@ PvmGearPlannerPage.prototype.html = function () {
     <section class="pvm-gear-planner-page__style-picker">${this.renderPlannerControls()}${this.renderStyleCards()}</section>
     ${this.renderStatus()}
     <section class="pvm-gear-planner-page__results">${this.renderResults()}</section>
-    <section class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</section>
+    <section class="pvm-gear-planner-page__loadout">
+      <button data-load-game-gear>Load from game</button>
+      <div class="pvm-gear-planner-page__paperdoll">${this.renderPaperdoll()}</div>
+    </section>
     ${
       this.activeStyle === "Magic"
         ? `<div class="pvm-gear-planner-page__selected-spell">${this.activeLoadout.selectedSpell}</div>`
@@ -671,6 +674,24 @@ describe("pvm-gear-planner-page", () => {
       ".pvm-gear-planner-page__item-stats-tooltip {\n  position: fixed;\n  top: 50vh;\n  left: 50vw;\n  z-index: 20;\n  min-width: 280px;\n  max-width: min(380px, calc(100vw - 24px));\n  overflow: hidden;\n  color: #201b14;\n  font-family: Georgia"
     );
     expect(styles).not.toContain("transform: translateY(4px)");
+  });
+
+  it("loads the selected member's currently equipped gear into the active paperdoll", async () => {
+    const page = await createPage();
+    page.querySelector("[data-equip-item='9674']").click();
+    await vi.waitFor(() => expect(page.loadouts.Melee.items.body.id).toBe(9674));
+
+    const loadButton = page.querySelector("[data-load-game-gear]");
+    expect(loadButton.closest(".pvm-gear-planner-page__loadout")).not.toBeNull();
+    loadButton.click();
+
+    await vi.waitFor(() => {
+      expect(page.loadouts.Melee.items.body.id).toBe(11832);
+      expect(page.querySelector("[data-slot='body']").title).toContain("Bandos chestplate");
+      expect(page.calculating).toBe(false);
+    });
+    expect(page.loadouts.Ranged.items.body.id).toBe(11832);
+    page.remove();
   });
 
   it("shows full item stats for paperdoll and equipped alternative items", async () => {

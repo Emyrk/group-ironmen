@@ -471,6 +471,15 @@ pvm-gear-planner-page {
   gap: 12px;
   margin-bottom: 10px;
 }
+.pvm-gear-planner-page__paperdoll-actions {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 -8px;
+}
+.pvm-gear-planner-page__paperdoll-actions .men-button {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+}
 .pvm-gear-planner-page__paperdoll {
   position: relative;
   width: 245px;
